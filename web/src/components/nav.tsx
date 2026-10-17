@@ -55,6 +55,7 @@ const TABS = [
   { segment: "/documents", label: "Documents", team: true },
   { segment: "/tax", label: "Tax and statutory", team: true },
   { segment: "/units", label: "Units and landowners", team: true },
+  { segment: "/setup", label: "Set-up", team: true },
 ];
 
 function tabsFor(team: boolean) {

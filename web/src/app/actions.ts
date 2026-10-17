@@ -306,6 +306,51 @@ export async function deleteReceipt(receiptId: string, _previous: ActionState): 
   return {};
 }
 
+const PROJECT_FIELDS = [
+  "name",
+  "krera_registration",
+  "registered_on",
+  "possession_due_on",
+  "locality",
+  "city",
+  "spv_name",
+  "land_structure",
+  "gst_regime",
+  "escrow_bank",
+  "statutory_auditor_firm",
+  "development_rights_value",
+  "cess_paid",
+  "oc_status",
+  "oc_received_on",
+  "oc_reference",
+  "association_formed_on",
+  "common_areas_conveyed_on",
+];
+
+export async function updateProject(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  // Every field is sent, so clearing one in the form clears it in Lekhara.
+  const body = Object.fromEntries(PROJECT_FIELDS.map((name) => [name, text(form, name)]));
+  const result = await send("PUT", `/projects/${projectId}`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function recordProgress(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/progress`, filled(form, ["as_of", "completion_pct", "certified_by"]));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Progress recorded." };
+}
+
 export async function signUp(_previous: ActionState, form: FormData): Promise<ActionState> {
   const result = await send<{ token: string }>("POST", "/auth/signup", {
     name: text(form, "name"),

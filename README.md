@@ -64,7 +64,7 @@ If you already use other tools, keep them. Lekhara reads from them instead. If y
 
 ## How it works
 
-1. **Start in minutes.** Sign up and use Lekhara free for a month. Add your company from its GSTIN and each project from its K-RERA certificate, then drop in what you already have: Tally exports, bank statements, your CRM or Excel unit list, approvals. Nothing to install, and no call with us needed.
+1. **Start in minutes.** Sign up and use Lekhara free for a month. Add your company from its GSTIN and each project from its K-RERA certificate, then drop in what you already have: Tally exports, bank statements, your CRM or Excel unit list, approvals. Each project shows what is already in, what is out of date, and what each missing piece switches on, with a link straight to where it comes in. Nothing to install, and no call with us needed.
 2. **Lekhara reads.** Agreements, approvals, bills, certificates and payments are read for you, including documents in Kannada. You can still type in or correct anything yourself.
 3. **Lekhara prepares.** Filings, certificates, letters and packs are ready before they are due, with every figure traced to the document it came from.
 4. **People sign.** Your architect, engineer and CA review and sign from their own Lekhara access. Nothing is filed, signed or paid without the responsible person.
@@ -99,4 +99,4 @@ One subscription for your whole firm, covering every project and everyone on you
 
 ## Availability
 
-Lekhara is in development. The escrow and certification flow, K-RERA deadlines, the real-estate tax checks, collections, registration and handover, disputes and orders, the document vault and the daily view work today. You can sign up and start your free month today, and bring your units and buyers in from your own sales sheet. Imports for payments, costs and bills are being built now. Lekhara will open to our first builders in Bengaluru as each part is ready, with other cities in Karnataka to follow.
+Lekhara is in development. The escrow and certification flow, K-RERA deadlines, the real-estate tax checks, collections, registration and handover, disputes and orders, the document vault and the daily view work today. You can sign up and start your free month today, bring in your units and buyers from your own sales sheet and your payments, costs and bills from Tally, and keep each project's details, occupancy certificate and certified progress up to date yourself. A one-step export of your whole workspace is being built now. Lekhara will open to our first builders in Bengaluru as each part is ready, with other cities in Karnataka to follow.

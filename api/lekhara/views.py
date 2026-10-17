@@ -1550,6 +1550,51 @@ def receipt_rows(receipts: list) -> list[dict]:
     ]
 
 
+# Set-up
+
+
+def readiness(items: list, project: Project, *, can_edit: bool) -> dict:
+    from lekhara.readiness import summary
+
+    return {
+        "project_id": project.id,
+        "can_edit": can_edit,
+        "summary": summary(items),
+        "items": [
+            {
+                "key": i.key,
+                "title": i.title,
+                "status": i.status,
+                "detail": i.detail,
+                "unlocks": i.unlocks,
+                "action": i.action,
+                "href": i.href,
+            }
+            for i in items
+        ],
+        "details": {
+            "name": project.name,
+            "krera_registration": project.krera_registration,
+            "registered_on": d(project.registered_on),
+            "possession_due_on": d(project.possession_due_on),
+            "locality": project.locality,
+            "city": project.city,
+            "spv_name": project.spv_name,
+            "land_structure": project.land_structure,
+            "gst_regime": project.gst_regime,
+            "escrow_bank": project.escrow_bank,
+            "statutory_auditor_firm": project.statutory_auditor_firm,
+            "development_rights_value": m(project.development_rights_value),
+            "cess_paid": m(project.cess_paid),
+            "oc_status": project.oc_status,
+            "oc_received_on": d(project.oc_received_on),
+            "oc_reference": project.oc_reference,
+            "association_formed_on": d(project.association_formed_on),
+            "common_areas_conveyed_on": d(project.common_areas_conveyed_on),
+        },
+    }
+
+
 _MONEY_RULES = {
     "escrow.min_suggested_withdrawal",
     "krera.qpr_late_fee_per_quarter",

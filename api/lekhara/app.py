@@ -56,6 +56,33 @@ class TallyOptions(BaseModel):
     links: dict[str, str | dict[str, str | None]] = {}
 
 
+class ProjectBody(BaseModel):
+    name: str | None = None
+    krera_registration: str | None = None
+    registered_on: str | None = None
+    possession_due_on: str | None = None
+    locality: str | None = None
+    city: str | None = None
+    spv_name: str | None = None
+    land_structure: str | None = None
+    gst_regime: str | None = None
+    escrow_bank: str | None = None
+    statutory_auditor_firm: str | None = None
+    development_rights_value: str | None = None
+    cess_paid: str | None = None
+    oc_status: str | None = None
+    oc_received_on: str | None = None
+    oc_reference: str | None = None
+    association_formed_on: str | None = None
+    common_areas_conveyed_on: str | None = None
+
+
+class ProgressBody(BaseModel):
+    as_of: str | None = None
+    completion_pct: str | None = None
+    certified_by: str | None = None
+
+
 class PlanBody(BaseModel):
     stages: list[dict] = []
 
@@ -734,6 +761,56 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         batch, p = batch_for(session, me, batch_id, edit=True)
         imports.undo(session, batch, user_id=me.user_id)
         return batch_view(session, me, batch, p)
+
+    # Project set-up
+
+    def readiness_view(session: Session, me: auth.Principal, p: Project, on: date) -> dict:
+        from lekhara.readiness import readiness
+
+        return views.readiness(
+            readiness(session, p, on), p, can_edit=me.can_prepare(p) and not me.views_as_sample(p)
+        )
+
+    @app.get("/projects/{project_id}/setup")
+    def project_setup(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return readiness_view(session, me, p, on)
+
+    @app.put("/projects/{project_id}")
+    def update_project(
+        project_id: str, body: ProjectBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        registers.update_project(
+            session, p, body.model_dump(exclude_unset=True), user_id=me.user_id
+        )
+        session.commit()
+        return readiness_view(session, me, p, on)
+
+    @app.post("/projects/{project_id}/progress", status_code=201)
+    def record_progress(
+        project_id: str, body: ProgressBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_view(me, p)
+        if not (
+            me.can_prepare(p)
+            or me.certifies(p, CertifierRole.ARCHITECT)
+            or me.certifies(p, CertifierRole.ENGINEER)
+        ):
+            raise ServiceError(
+                "Only the team, or the project's architect or engineer, can record progress.",
+                403,
+            )
+        auth.require_writable(me, p)
+        certified_by = body.certified_by or me.firm or me.name
+        registers.record_progress(
+            session, p, body.model_dump(), as_of=on, certified_by=certified_by, user_id=me.user_id
+        )
+        session.commit()
+        return readiness_view(session, me, p, on) if me.is_team(p) else {"ok": True}
 
     # Payment plans and buyer payments
 

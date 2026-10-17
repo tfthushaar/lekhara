@@ -21,6 +21,7 @@ from lekhara.models import (
     Landowner,
     LedgerEntry,
     PaymentMilestone,
+    ProgressCertificate,
     Project,
     Receipt,
     Unit,
@@ -776,3 +777,171 @@ def apply_template(session: Session, project: Project, key: str, *, user_id: str
         [{"name": n, "trigger": t, "progress_pct": p, "share_pct": s} for n, t, p, s in stages],
         user_id=user_id,
     )
+
+
+# Project details and certified progress
+
+
+PROJECT_TEXT = {
+    "name": 200,
+    "locality": 200,
+    "city": 100,
+    "krera_registration": 100,
+    "spv_name": 200,
+    "escrow_bank": 200,
+    "statutory_auditor_firm": 200,
+    "oc_reference": 200,
+}
+PROJECT_DATES = (
+    "registered_on",
+    "possession_due_on",
+    "oc_received_on",
+    "association_formed_on",
+    "common_areas_conveyed_on",
+)
+OC_STATUSES = ("none", "applied", "partial", "received")
+PROJECT_OPTIONAL_TEXT = ("escrow_bank", "statutory_auditor_firm", "oc_reference")
+
+
+def _project_values(project: Project, fields: dict) -> dict:
+    values: dict = {}
+    for key, size in PROJECT_TEXT.items():
+        if key in fields and fields[key] is not None:
+            text = str(fields[key]).strip()
+            if key in ("name", "krera_registration") and not text:
+                raise ServiceError("The project's name and K-RERA number cannot be blank.")
+            text = (text.upper() if key == "krera_registration" else text)[:size]
+            values[key] = text or (None if key in PROJECT_OPTIONAL_TEXT else "")
+    for key in PROJECT_DATES:
+        if key not in fields or fields[key] is None:
+            continue
+        if not str(fields[key]).strip():
+            # A blank date clears it, except the registration date every project has.
+            if key != "registered_on":
+                values[key] = None
+            continue
+        try:
+            values[key] = parse_value(UNITS.field("booked_on"), fields[key])
+        except ParseError as exc:
+            raise ServiceError(f"{key.replace('_', ' ').capitalize()}: {exc}.") from None
+    if fields.get("land_structure"):
+        if fields["land_structure"] not in ("own", "jda_area_share", "jda_revenue_share"):
+            raise ServiceError("Choose the land structure from the list.")
+        values["land_structure"] = fields["land_structure"]
+    if fields.get("gst_regime"):
+        if fields["gst_regime"] not in (
+            "affordable_1pc",
+            "residential_5pc",
+            "commercial_12pc",
+            "rrep_mixed",
+        ):
+            raise ServiceError("Choose the GST scheme from the list.")
+        values["gst_regime"] = fields["gst_regime"]
+    if fields.get("oc_status"):
+        if fields["oc_status"] not in OC_STATUSES:
+            raise ServiceError("Choose the occupancy certificate's state from the list.")
+        values["oc_status"] = fields["oc_status"]
+    for key in ("development_rights_value", "cess_paid"):
+        if key not in fields or fields[key] is None:
+            continue
+        if not str(fields[key]).strip():
+            values[key] = None if key == "development_rights_value" else ZERO
+            continue
+        try:
+            values[key] = parse_value(UNITS.field("list_price"), fields[key])
+        except ParseError as exc:
+            raise ServiceError(f"{key.replace('_', ' ').capitalize()} {exc}.") from None
+    merged = {
+        k: values.get(k, getattr(project, k))
+        for k in ("registered_on", "possession_due_on", "oc_status", "oc_received_on")
+    }
+    if (
+        merged["possession_due_on"]
+        and merged["registered_on"]
+        and merged["possession_due_on"] < merged["registered_on"]
+    ):
+        raise ServiceError("The possession date cannot be before the K-RERA registration.")
+    if merged["oc_status"] in ("partial", "received") and not merged["oc_received_on"]:
+        raise ServiceError("Enter the date the occupancy certificate was received.")
+    return values
+
+
+def update_project(
+    session: Session, project: Project, fields: dict, *, user_id: str | None
+) -> dict:
+    values = _project_values(project, fields)
+    if "krera_registration" in values:
+        clash = session.scalars(
+            select(Project).where(
+                Project.organization_id == project.organization_id,
+                Project.krera_registration == values["krera_registration"],
+                Project.id != project.id,
+            )
+        ).first()
+        if clash is not None:
+            raise ServiceError(f'This K-RERA number is already used by "{clash.name}".')
+    changes = {}
+    for key, value in values.items():
+        if getattr(project, key) != value:
+            changes[key] = [to_json(getattr(project, key)), to_json(value)]
+            setattr(project, key, value)
+    if changes:
+        log_change(
+            session,
+            project,
+            "project",
+            project.id,
+            "updated",
+            changes,
+            user_id=user_id,
+            source="typed",
+        )
+    return changes
+
+
+def record_progress(
+    session: Session,
+    project: Project,
+    fields: dict,
+    *,
+    as_of: date,
+    certified_by: str,
+    user_id: str | None,
+) -> ProgressCertificate:
+    try:
+        on = parse_value(UNITS.field("booked_on"), fields.get("as_of"))
+        pct = Decimal(str(fields.get("completion_pct") or "").replace("%", "").strip())
+    except (ParseError, InvalidOperation):
+        raise ServiceError("Enter the certificate's date and the per cent complete.") from None
+    if on is None:
+        raise ServiceError("Enter the certificate's date.")
+    if on > as_of:
+        raise ServiceError("The certificate's date cannot be in the future.")
+    if not 0 < pct <= 100:
+        raise ServiceError("Progress should be between 0 and 100 per cent.")
+    earlier = session.scalars(
+        select(ProgressCertificate)
+        .where(ProgressCertificate.project_id == project.id, ProgressCertificate.as_of <= on)
+        .order_by(ProgressCertificate.as_of.desc())
+    ).first()
+    if earlier is not None and earlier.completion_pct > pct:
+        raise ServiceError(
+            f"An earlier certificate already shows {earlier.completion_pct.normalize():f}%; "
+            "certified progress cannot go down."
+        )
+    row = ProgressCertificate(
+        project_id=project.id, completion_pct=pct, as_of=on, certified_by=certified_by[:200]
+    )
+    session.add(row)
+    session.flush()
+    log_change(
+        session,
+        project,
+        "progress",
+        row.id,
+        "created",
+        {"completion_pct": [None, to_json(pct)], "as_of": [None, to_json(on)]},
+        user_id=user_id,
+        source="typed",
+    )
+    return row

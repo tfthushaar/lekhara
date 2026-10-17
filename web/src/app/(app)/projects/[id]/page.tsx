@@ -16,6 +16,8 @@ export default function ProjectOverviewPage({ params }: PageProps<"/projects/[id
 async function Overview({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [project, money] = await Promise.all([api.project(id), api.money(id)]);
+  const setup = project.access.team ? await api.setup(id) : null;
+  const next = setup?.items.find((i) => i.key === setup.summary.next);
   const m = project.money;
   const over = Number(m.anticipated_final_cost) - Number(m.budget);
   const sum = (key: "budget" | "committed" | "incurred" | "paid" | "anticipated_final_cost") =>
@@ -23,6 +25,15 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <>
+      {setup && setup.summary.done < setup.summary.total ? (
+        <p className="notice" style={{ marginBottom: 24 }}>
+          {`Set-up: ${setup.summary.done} of ${setup.summary.total} done.`}
+          {next ? ` Next: ${next.title.toLowerCase()}, for ${next.unlocks.charAt(0).toLowerCase()}${next.unlocks.slice(1)} ` : " "}
+          <a href={`/projects/${id}/setup`} className="link-action">
+            See what is left
+          </a>
+        </p>
+      ) : null}
       <div className="stats">
         <div className="stat">
           <p className="stat-label">Certified progress</p>

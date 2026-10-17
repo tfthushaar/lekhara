@@ -912,6 +912,41 @@ export type PaymentPlan = {
   triggers: Choice[];
 };
 
+export type Setup = {
+  project_id: string;
+  can_edit: boolean;
+  summary: { done: number; total: number; next: string | null };
+  items: {
+    key: string;
+    title: string;
+    status: "done" | "partial" | "stale" | "missing";
+    detail: string;
+    unlocks: string;
+    action: string;
+    href: string;
+  }[];
+  details: {
+    name: string;
+    krera_registration: string;
+    registered_on: string;
+    possession_due_on: string | null;
+    locality: string;
+    city: string;
+    spv_name: string;
+    land_structure: string;
+    gst_regime: string;
+    escrow_bank: string | null;
+    statutory_auditor_firm: string | null;
+    development_rights_value: string | null;
+    cess_paid: string | null;
+    oc_status: string;
+    oc_received_on: string | null;
+    oc_reference: string | null;
+    association_formed_on: string | null;
+    common_areas_conveyed_on: string | null;
+  };
+};
+
 export type Rules = {
   state: string;
   version: string;
@@ -1056,6 +1091,7 @@ export const api = {
   tally: (id: string) => get<TallyReview>(`/tally/${id}`),
   costLines: (projectId: string) => get<CostLines>(`/projects/${projectId}/cost-lines`),
   paymentPlan: (projectId: string) => get<PaymentPlan>(`/projects/${projectId}/payment-plan`),
+  setup: (projectId: string) => get<Setup>(`/projects/${projectId}/setup`),
   tallyImports: (projectId: string) => get<TallyList>(`/projects/${projectId}/tally`),
   demand: (id: string) => get<DemandLetter>(`/demands/${id}`),
   tax: (id: string) => get<Tax>(`/projects/${id}/tax`),

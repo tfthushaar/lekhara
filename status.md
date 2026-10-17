@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Add payment plans and buyer payments".
+Last updated: 2026-10-18, with the commit "Add project details and the set-up checklist".
 
 ## What we are building
 
@@ -13,7 +13,7 @@ Lekhara connects read-only, reads documents with AI from several providers (with
 
 Lekhara is sold as a self-serve monthly SaaS: one subscription per builder firm, covering all its projects and people, after a one-month free trial, paid through Razorpay. A builder signs up and uses it on their own data the same day, without our help. Every record can be imported from a file, fed from a connected source, or typed and edited in Lekhara, and everything can be exported at any time.
 
-Launch market: Bengaluru, then the rest of Karnataka, then other states. The full plan is v7.1 (kept outside the repository).
+Launch market: Bengaluru, then the rest of Karnataka, then other states. The full plan is v7.2 (kept outside the repository).
 
 ## Done
 
@@ -113,10 +113,18 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - Buyer payments imported from a collections register or a bank export through the Import centre, with a template; each row checked (the unit exists and is sold, the date and amount are there), payments already recorded recognised so the file can be imported again, exported in the same layout, and undone.
   - The Import centre now takes any record type through one handler per type, so new types plug in with their own checks.
   - Tested end to end: a 20:80 plan chosen and changed, a plan that does not add up refused, a payment typed in, two imported, and collections showing them.
+- Project details and the set-up checklist:
+  - A Set-up tab on every project: each kind of data Lekhara works from (project details, units and buyers, the payment plan, certified progress, cost lines and budgets, costs, suppliers' bills, buyer payments, RERA account movements, landowners for a joint development, documents, and the architect, engineer and CA), whether it is in, partly in or out of date (accounts older than 45 days, a progress certificate older than 100), what each one switches on, and a link straight to where it comes in.
+  - The Overview shows how many are done and the next one to bring in, until all are.
+  - A project's details can be changed after it is added: name, K-RERA number (checked against the firm's other projects), dates, locality, land structure, GST scheme, escrow bank, auditor, development rights value, labour cess paid. Clearing a field in the form clears it.
+  - The occupancy certificate (applied for, partial or received, with its date and number), the date the association was formed and the date the common areas were conveyed, recorded from the web; the handover desk and Today follow them.
+  - Certified progress recorded from the architect's or engineer's certificate, by the team or by the project's architect or engineer: not in the future, and never lower than an earlier certificate. Demands ready to raise follow at once.
+  - Every change goes into the project's change history.
+  - Tested end to end: a new project's checklist, details saved, an occupancy certificate refused without its date, a field cleared, progress recorded and refused when lower, the sample project complete and read-only to another firm.
 
 ## In progress
 
-- Project details and the completeness meter: change a project's details after adding it; see for each project which data is in, how fresh it is, and what each missing piece unlocks.
+- A full workspace export: everything a firm has in Lekhara, at any time and even when read-only, as one download (an Excel workbook with a sheet per record, the same records as JSON, and every document filed in the vault).
 
 ## Left
 
@@ -125,18 +133,17 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 In this order:
 
 - Self-serve start, still to do: sign-in with Google and by phone code, limits on sign-ups and resets per network address, and row-level security in Postgres as a second wall between firms when production moves to Postgres.
-- Add, edit, import and export for the remaining records that today come only from the demo data: payment plans, receipts, cost lines, budgets, commitments, bills, vendors, landowners and their payments, approvals, filings, and editing a project's own details; spreadsheet-style bulk editing; change history for each.
+- Add, edit, import and export for the remaining records that today come only from the demo data or Tally: suppliers and their bills typed in, commitments, landowner payments typed in, approvals, filings; spreadsheet-style bulk editing; change history for each.
 - Import centre, still to do: bank statements and known CRM export formats, templates in Kannada, AI column mapping for unfamiliar sheets.
 - Tally import, after that: debit notes netted off bills, sales vouchers matched to demands, testing against real exports from design partners.
-- Payment plans and buyer payments: edit the plan from templates; receipts from bank statements.
-- A full workspace export (Excel, JSON and every document) at any time.
-- Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, a completeness meter per project, engines that work with partial data and say what is missing, a sample workspace, first-run help.
+- Buyer payments and RERA account movements from bank statements.
+- Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, engines that work with partial data and say what is missing, first-run help.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
 - A forwarding address per workspace for bills, notices and statements; a background job queue; S3-compatible file storage.
 - A review queue for anything imported or read by AI with doubt.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
 - Collections, next steps: reminders through the team's own WhatsApp or email.
-- Registration and handover, next steps: recording the occupancy certificate and the conveyance from the web, possession letters, the association handover checklist.
+- Registration and handover, next steps: possession letters, the association handover checklist.
 - Disputes, next steps: reading complaints and orders with AI, reply outlines for the lawyer, cancelling the unit when a refund is paid.
 - Document vault, next steps: reading scans and filing documents by themselves, an optional name and email gate for data room visitors.
 - Bank withdrawal pack (PDF); quarterly progress report and annual audit packs.

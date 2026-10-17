@@ -50,7 +50,7 @@ Sign-in is required for everything except `/health`, `/rules`, sign-up, password
 
 Who may do what: the owner, finance and accounts start withdrawals and send them to the bank; only the owner and finance record a release or rejection; each certifier changes and signs only their own certificate, and sees only the projects they certify (escrow and money, not tax or units).
 
-Main endpoints: `/today`, `/projects`, `/projects/{id}` (with `/money`, `/escrow`, `/collections`, `/handover`, `/disputes`, `/documents`, `/tax`, `/units`), `/withdrawals/{id}`, `/demands/{id}`, `/units/{id}/handover`, `/cases/{id}`, `/documents/{id}`, `/rooms/{id}`, `/shared/{token}` (no sign-in) and `/rules`. Interactive docs are at `/docs` while the server runs.
+Main endpoints: `/today`, `/projects`, `/projects/{id}` (with `/money`, `/escrow`, `/collections`, `/handover`, `/disputes`, `/documents`, `/tax`, `/units`, `/setup`; `PUT` changes its details and `POST /progress` records certified progress), `/withdrawals/{id}`, `/demands/{id}`, `/units/{id}/handover`, `/cases/{id}`, `/documents/{id}`, `/rooms/{id}`, `/shared/{token}` (no sign-in) and `/rules`. Interactive docs are at `/docs` while the server runs.
 
 ### Import centre
 
@@ -59,6 +59,10 @@ Record types are defined once in `api/lekhara/records.py` (fields, aliases, pars
 ### Tally import
 
 `api/lekhara/tally/`: `reader.py` recognises a file and reads XML or JSON into one tree of nodes (and Excel, CSV or ASCII reports into rows); `book.py` turns nodes into ledgers, groups and vouchers with Tally's conventions (YYYYMMDD dates; a debit is a negative AMOUNT marked deemed positive, turned round so debits are positive); `reports.py` reads the Day Book and other reports; `plan.py` works out suppliers, bills and buyer payments and the alerts; `ledgers.py` maps expense ledgers to cost lines, finds the RERA account and landowners, and works out cost incurred and paid, escrow movements and landowner payments; `service.py` stores the upload, reviews, applies and undoes. Sample exports for tests are in `api/tests/tally_samples.py`; add real exports from design partners beside them. Tally files can be up to `LEKHARA_TALLY_UPLOAD_MB` (default 100).
+
+### Project set-up
+
+`api/lekhara/readiness.py` checks, per project, each kind of data the engines work from and returns one item for each: done, partial, stale (accounts older than `STALE_DAYS`, progress older than `PROGRESS_STALE_DAYS`) or missing, what it switches on, and where in the web app it comes in. When a new engine needs a new kind of data, add an item there so builders are told about it. Project details and certified progress are changed through `registers.update_project` and `registers.record_progress`, which validate and write to the change history.
 
 ### Document vault
 
