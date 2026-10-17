@@ -48,6 +48,7 @@ export function Nav() {
 const TABS = [
   { segment: "", label: "Overview", team: false },
   { segment: "/escrow", label: "Escrow", team: false },
+  { segment: "/collections", label: "Collections", team: true },
   { segment: "/tax", label: "Tax and statutory", team: true },
   { segment: "/units", label: "Units and landowners", team: true },
 ];

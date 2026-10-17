@@ -266,6 +266,43 @@ class WithdrawalCertificate(Base):
     request: Mapped[WithdrawalRequest] = relationship(back_populates="certificates")
 
 
+# Collections
+
+
+class PaymentMilestone(Base):
+    """One step of a project's payment plan."""
+
+    __tablename__ = "payment_milestones"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    sequence: Mapped[int] = mapped_column(Integer)
+    name: Mapped[str] = mapped_column(String(200))
+    share_pct: Mapped[Decimal] = mapped_column(Percent)
+    trigger: Mapped[str] = mapped_column(String(16))
+    """booking, agreement, progress or possession."""
+    progress_pct: Mapped[Decimal | None] = mapped_column(Percent)
+    due_days: Mapped[int] = mapped_column(Integer, default=15)
+
+
+class DemandRow(Base):
+    """A demand raised on a buyer for one milestone."""
+
+    __tablename__ = "demands"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    unit_id: Mapped[str] = mapped_column(ForeignKey("units.id"), index=True)
+    milestone_id: Mapped[str] = mapped_column(ForeignKey("payment_milestones.id"))
+    amount: Mapped[Decimal] = mapped_column(Money)
+    gst: Mapped[Decimal] = mapped_column(Money)
+    raised_on: Mapped[date] = mapped_column(Date)
+    due_on: Mapped[date] = mapped_column(Date)
+    certified_progress_pct: Mapped[Decimal | None] = mapped_column(Percent)
+    """The certified progress that triggered the demand, if a stage triggered it."""
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
 # People and access
 
 

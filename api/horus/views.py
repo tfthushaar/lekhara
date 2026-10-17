@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
+from horus.engines.collections import CollectionsPosition
 from horus.engines.escrow import (
     ROLE_CERTIFIES,
     ROLE_LABEL,
@@ -14,7 +15,14 @@ from horus.engines.escrow import (
 )
 from horus.engines.obligations import Obligation, ObligationStatus
 from horus.engines.tax import MsmeStatus
-from horus.models import Landowner, Unit, WithdrawalRequest
+from horus.models import (
+    DemandRow,
+    Landowner,
+    PaymentMilestone,
+    Project,
+    Unit,
+    WithdrawalRequest,
+)
 from horus.rules import KARNATAKA, RuleNotFound, RulesPack
 from horus.services import ProjectSnapshot, RequestState
 
@@ -469,6 +477,155 @@ def units(s: ProjectSnapshot, rows: list[Unit], owners: list[Landowner]) -> dict
             }
             for u in rows
         ],
+    }
+
+
+# Collections
+
+
+def collections(c: CollectionsPosition, *, can_raise: bool) -> dict:
+    overdue = sorted((a for a in c.accounts if a.overdue > 0), key=lambda a: -a.overdue)
+    return {
+        "as_of": d(c.as_of),
+        "can_raise": can_raise,
+        "summary": {
+            "billed": m(c.billed),
+            "received": m(c.received),
+            "outstanding": m(c.outstanding),
+            "overdue": m(c.overdue),
+            "overdue_buyers": c.overdue_buyers,
+            "interest": m(c.interest),
+        },
+        "ready": [
+            {
+                "milestone_id": r.milestone.id,
+                "name": r.milestone.name,
+                "units": len(r.unit_ids),
+                "amount": m(r.amount),
+                "gst": m(r.gst),
+                "total": m(r.amount + r.gst),
+                "reason": r.reason,
+            }
+            for r in c.ready
+        ],
+        "milestones": [
+            {
+                "id": s.milestone.id,
+                "sequence": s.milestone.sequence,
+                "name": s.milestone.name,
+                "share_pct": m(s.milestone.share_pct),
+                "trigger": s.milestone.trigger.value,
+                "progress_pct": m(s.milestone.progress_pct),
+                "reached": s.reached,
+                "raised_units": s.raised_units,
+                "billed": m(s.billed),
+            }
+            for s in c.milestones
+        ],
+        "overdue": [
+            {
+                "unit": a.unit.label,
+                "buyer": a.unit.buyer,
+                "overdue": m(a.overdue),
+                "interest": m(a.interest),
+                "days_overdue": max((s.days_overdue for s in a.demands if s.overdue), default=0),
+                "demand_id": next((s.demand.id for s in a.demands if s.overdue), None),
+            }
+            for a in overdue
+        ],
+        "accounts": [
+            {
+                "unit": a.unit.label,
+                "buyer": a.unit.buyer,
+                "agreement_value": m(a.unit.agreement_value),
+                "billed": m(a.billed),
+                "received": m(a.received),
+                "tds": m(a.tds),
+                "outstanding": m(a.outstanding),
+                "overdue": m(a.overdue),
+                "interest": m(a.interest),
+                "last_demand_id": a.demands[-1].demand.id if a.demands else None,
+            }
+            for a in c.accounts
+        ],
+        "deposit_checks": [
+            {
+                "month_end": d(x.month_end),
+                "receipts": m(x.receipts),
+                "required": m(x.required),
+                "deposits": m(x.deposits),
+                "shortfall": m(x.shortfall),
+            }
+            for x in c.deposit_checks
+        ],
+    }
+
+
+def _indian(amount: Decimal) -> str:
+    """Rupees in full with Indian digit grouping: 6,40,00,000.00."""
+    whole, _, paise = f"{amount:.2f}".partition(".")
+    sign = "-" if whole.startswith("-") else ""
+    whole = whole.lstrip("-")
+    head, tail = whole[:-3], whole[-3:]
+    groups = []
+    while len(head) > 2:
+        groups.insert(0, head[-2:])
+        head = head[:-2]
+    if head:
+        groups.insert(0, head)
+    return f"{sign}₹{','.join([*groups, tail]) if groups else tail}.{paise}"
+
+
+def demand_letter(
+    *,
+    demand: DemandRow,
+    project: Project,
+    unit: Unit,
+    milestone: PaymentMilestone,
+    gst_rate: Decimal,
+    tds_threshold: Decimal,
+) -> dict:
+    total = demand.amount + demand.gst
+    share = f"{milestone.share_pct.normalize():f}%"
+    paragraphs = [
+        f"In line with the payment plan in your agreement for sale, the instalment due "
+        f"{milestone.name.lower()} is now payable.",
+    ]
+    if demand.certified_progress_pct is not None:
+        paragraphs.append(
+            "Our architect has certified that construction has reached "
+            f"{demand.certified_progress_pct.normalize():f}% completion, which reaches this "
+            "milestone."
+        )
+    if unit.agreement_value and unit.agreement_value > tds_threshold:
+        paragraphs.append(
+            "As the value of your home is above ₹50 lakh, please deduct TDS at 1% of the "
+            "instalment, deposit it using Form 26QB, and send us the Form 16B certificate."
+        )
+    paragraphs.append(
+        "Your payment will be deposited in the project's RERA account as the law requires."
+    )
+    return {
+        "id": demand.id,
+        "project_id": project.id,
+        "from": project.organization.name,
+        "project": f"{project.name}, {project.locality}, {project.city}",
+        "krera_registration": project.krera_registration,
+        "date": d(demand.raised_on),
+        "to": unit.buyer_name,
+        "unit": unit.label,
+        "subject": f"Demand for payment: {milestone.name}",
+        "paragraphs": paragraphs,
+        "lines": [
+            {
+                "label": f"Instalment ({share} of the agreement value)",
+                "value": _indian(demand.amount),
+            },
+            {"label": f"GST at {(gst_rate * 100).normalize():f}%", "value": _indian(demand.gst)},
+            {"label": "Total due", "value": _indian(total)},
+        ],
+        "due_on": d(demand.due_on),
+        "note": "Draft prepared by Horus. Your team sends it from your own address.",
     }
 
 

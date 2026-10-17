@@ -11,6 +11,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from enum import StrEnum
 
+from horus.engines.collections import CollectionsPosition
 from horus.engines.escrow import EscrowPosition
 from horus.engines.tax import (
     CessPosition,
@@ -43,6 +44,7 @@ class Area(StrEnum):
     """The part of the product where the obligation is handled."""
 
     ESCROW = "escrow"
+    COLLECTIONS = "collections"
     KRERA = "krera"
     TAX = "tax"
     UNITS = "units"
@@ -91,6 +93,7 @@ class ProjectFacts:
     open_withdrawal_amount: Decimal | None = None
     open_withdrawal_waiting_on: str | None = None
     """Who the open withdrawal request is waiting for, for example "the CA" or "the bank"."""
+    collections: CollectionsPosition | None = None
 
 
 def _quarter_ends(start: date, end: date) -> list[date]:
@@ -197,6 +200,41 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
             rule_key="escrow.deposit_share",
             action="Open escrow",
         )
+
+    # Collections: demands a certified stage has unlocked, and buyers past their due date
+    c = f.collections
+    if c is not None:
+        for ready in c.ready:
+            add(
+                key=f"demand:{ready.milestone.id}",
+                title="Demands are ready to raise",
+                detail=(
+                    f"{ready.milestone.name}, for {len(ready.unit_ids)} booked units. "
+                    f"{ready.reason}"
+                ),
+                owed_to="Buyers",
+                status=ObligationStatus.OPPORTUNITY,
+                area=Area.COLLECTIONS,
+                due_on=f.as_of,
+                amount=ready.amount + ready.gst,
+                amount_label="Ready to bill",
+                exposure=False,
+                action="Raise the demands",
+            )
+        if c.overdue > 0:
+            add(
+                key="collections:overdue",
+                title=f"{c.overdue_buyers} buyers are past their due date",
+                detail="Their instalments are overdue; interest at the agreed rate is running.",
+                owed_to="Buyers",
+                status=ObligationStatus.OPPORTUNITY,
+                area=Area.COLLECTIONS,
+                amount=c.overdue,
+                amount_label="Overdue from buyers",
+                exposure=False,
+                rule_key="rera.buyer_late_interest_basis",
+                action="See who owes",
+            )
 
     # Quarterly progress reports
     late_fee = None

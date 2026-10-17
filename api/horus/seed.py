@@ -17,12 +17,13 @@ Run: python -m horus.seed   (resets the database first)
 """
 
 import random
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 from functools import lru_cache
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from horus.auth import hash_password
@@ -33,6 +34,7 @@ from horus.migrate import upgrade
 from horus.models import (
     Bill,
     CostLineRow,
+    DemandRow,
     EscrowTxn,
     Filing,
     Landowner,
@@ -40,6 +42,7 @@ from horus.models import (
     LedgerEntry,
     Membership,
     Organization,
+    PaymentMilestone,
     ProgressCertificate,
     Project,
     ProjectAccess,
@@ -254,6 +257,36 @@ class Seeder:
             )
         )
 
+    def payment_plan(self, p: Project) -> list[PaymentMilestone]:
+        steps = [
+            ("On booking", "booking", None, 7),
+            ("On signing the agreement", "agreement", None, 30),
+            ("On completion of the foundation", "progress", "10", 15),
+            ("On completion of the plinth", "progress", "20", 15),
+            ("On completion of the 4th floor slab", "progress", "35", 15),
+            ("On completion of the 8th floor slab", "progress", "50", 15),
+            ("On completion of the terrace slab", "progress", "65", 15),
+            ("On completion of brickwork and plastering", "progress", "80", 15),
+            ("On completion of flooring and finishes", "progress", "90", 15),
+            ("On possession", "possession", None, 15),
+        ]
+        plan = [
+            PaymentMilestone(
+                project_id=p.id,
+                sequence=i + 1,
+                name=name,
+                share_pct=Decimal("10"),
+                trigger=trigger,
+                progress_pct=Decimal(pct) if pct else None,
+                due_days=due_days,
+            )
+            for i, (name, trigger, pct, due_days) in enumerate(steps)
+        ]
+        for m in plan:
+            self.s.add(m)
+        self.s.flush()
+        return plan
+
     def units(
         self,
         p: Project,
@@ -264,10 +297,19 @@ class Seeder:
         booked_share: Decimal,
         price_per_sqft: int,
         guidance_per_sqft: int,
-        collected_share: Decimal,
+        plan: list[PaymentMilestone],
+        progress_before: Decimal,
+        raise_up_to_pct: Decimal,
+        overdue_every: int,
+        gst_rate: Decimal = Decimal("0.05"),
         below_guidance: int = 0,
     ) -> Decimal:
-        """Creates units and buyer receipts. Returns total receipts."""
+        """Creates units, the demands raised on buyers and what they paid. Returns cash received.
+
+        Progress milestones up to `raise_up_to_pct` have been demanded. A milestone certified
+        since then is left for Horus to show as ready to raise. Every `overdue_every`-th buyer
+        has not paid their latest demand.
+        """
         units: list[Unit] = []
         for tower in towers:
             for n in range(per_tower):
@@ -303,22 +345,58 @@ class Seeder:
         for u in units:
             self.s.add(u)
         self.s.flush()
-        for u in developer_units[:booked_count]:
-            paid = (u.agreement_value * collected_share).quantize(Decimal("1"))
-            first = (paid * Decimal("0.3")).quantize(Decimal("1"))
-            for amount, when in ((first, u.booked_on), (paid - first, self.ago(25))):
+        for index, u in enumerate(developer_units[:booked_count]):
+            raised: list[DemandRow] = []
+            for m in plan:
+                if m.trigger == "booking":
+                    raised_on = u.booked_on
+                elif m.trigger == "agreement":
+                    raised_on = u.booked_on + timedelta(days=20)
+                elif m.trigger == "progress" and m.progress_pct <= raise_up_to_pct:
+                    crossed = self.ago(150) if m.progress_pct <= progress_before else self.ago(18)
+                    raised_on = max(crossed, u.booked_on + timedelta(days=25))
+                else:
+                    continue
+                if raised_on > self.today:
+                    continue
+                amount = (u.agreement_value * m.share_pct / 100).quantize(Decimal("0.01"))
+                demand = DemandRow(
+                    project_id=p.id,
+                    unit_id=u.id,
+                    milestone_id=m.id,
+                    amount=amount,
+                    gst=(amount * gst_rate).quantize(Decimal("0.01")),
+                    raised_on=raised_on,
+                    due_on=raised_on + timedelta(days=m.due_days),
+                    certified_progress_pct=m.progress_pct,
+                )
+                self.s.add(demand)
+                raised.append(demand)
+            unpaid = 0
+            if index % overdue_every == 0:
+                unpaid = 2 if index % (overdue_every * 4) == 0 else 1
+            ordered = sorted(raised, key=lambda d: d.raised_on)
+            for n, demand in enumerate(ordered):
+                if n >= len(ordered) - unpaid and demand.due_on < self.today:
+                    continue
+                paid_on = demand.raised_on + timedelta(days=self.rng.randint(3, 14))
+                paid_on = min(paid_on, self.ago(1))
+                tds = (
+                    (demand.amount * Decimal("0.01")).quantize(Decimal("1"))
+                    if u.agreement_value > Decimal("5000000")
+                    else Decimal("0")
+                )
+                cash = demand.amount + demand.gst - tds
                 self.s.add(
                     Receipt(
                         project_id=p.id,
                         unit_id=u.id,
-                        amount=amount,
-                        received_on=max(when, u.booked_on),
-                        tds_deducted=(amount * Decimal("0.01")).quantize(Decimal("1"))
-                        if u.agreement_value > Decimal("5000000")
-                        else Decimal("0"),
+                        amount=cash,
+                        received_on=max(paid_on, demand.raised_on),
+                        tds_deducted=tds,
                     )
                 )
-            total += paid
+                total += cash
         return total
 
     def escrow(
@@ -331,11 +409,33 @@ class Seeder:
         balance: Decimal,
         last_withdrawal_days: int,
     ) -> Decimal:
-        deposits = (receipts * Decimal("0.70")).quantize(Decimal("0.01")) - deposit_short
-        withdrawn = deposits + interest - balance
-        self.s.add(
-            EscrowTxn(project_id=p.id, kind="deposit", amount=deposits, txn_date=self.ago(30))
+        # Deposit 70% of each month's receipts at that month's end, as a compliant developer
+        # would. The last month carries any rounding and the deliberate shortfall.
+        self.s.flush()
+        by_month: dict[tuple[int, int], Decimal] = defaultdict(lambda: Decimal("0"))
+        for r in self.s.scalars(select(Receipt).where(Receipt.project_id == p.id)):
+            by_month[(r.received_on.year, r.received_on.month)] += r.amount
+        months = sorted(by_month)
+        required = (sum(by_month.values(), Decimal("0")) * Decimal("0.70")).quantize(
+            Decimal("0.01")
         )
+        deposits = Decimal("0")
+        for i, (year, month) in enumerate(months):
+            if i < len(months) - 1:
+                amount = (by_month[(year, month)] * Decimal("0.70")).quantize(Decimal("0.01"))
+            else:
+                amount = required - deposits - deposit_short
+            month_end = date(year + month // 12, month % 12 + 1, 1) - timedelta(days=1)
+            self.s.add(
+                EscrowTxn(
+                    project_id=p.id,
+                    kind="deposit",
+                    amount=amount,
+                    txn_date=min(month_end, self.ago(1)),
+                )
+            )
+            deposits += amount
+        withdrawn = deposits + interest - balance
         self.s.add(
             EscrowTxn(project_id=p.id, kind="interest", amount=interest, txn_date=self.ago(15))
         )
@@ -534,7 +634,10 @@ def seed(session: Session, today: date) -> None:
         booked_share=Decimal("0.79"),
         price_per_sqft=9200,
         guidance_per_sqft=7600,
-        collected_share=Decimal("0.62"),
+        plan=sd.payment_plan(wf),
+        progress_before=Decimal("47"),
+        raise_up_to_pct=Decimal("35"),
+        overdue_every=9,
         below_guidance=2,
     )
     last = sd.escrow(
@@ -672,7 +775,10 @@ def seed(session: Session, today: date) -> None:
         booked_share=Decimal("0.44"),
         price_per_sqft=10400,
         guidance_per_sqft=8800,
-        collected_share=Decimal("0.38"),
+        plan=sd.payment_plan(hb),
+        progress_before=Decimal("18"),
+        raise_up_to_pct=Decimal("20"),
+        overdue_every=6,
     )
     sd.escrow(
         hb,
@@ -773,7 +879,10 @@ def seed(session: Session, today: date) -> None:
         booked_share=Decimal("0.88"),
         price_per_sqft=8800,
         guidance_per_sqft=7200,
-        collected_share=Decimal("0.90"),
+        plan=sd.payment_plan(sg),
+        progress_before=Decimal("84"),
+        raise_up_to_pct=Decimal("90"),
+        overdue_every=7,
         below_guidance=1,
     )
     sd.escrow(

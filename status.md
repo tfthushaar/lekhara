@@ -1,6 +1,6 @@
 # Horus status
 
-Last updated: 2026-10-17, with the commit "Add sign-in, roles and certifier seats".
+Last updated: 2026-10-17, with the commit "Add collections".
 
 ## What we are building
 
@@ -35,10 +35,16 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - Certifier seats: the architect, engineer and CA see only the projects they certify, change and sign only their own certificate (signed under their own name and firm), and get a Today list of certificates waiting for them.
   - Every withdrawal records who started, signed, sent and released it.
   - Web: a sign-in page (with one-click demo accounts in demo mode), a user menu with sign-out, screens and buttons that follow each person's permissions. Tested end to end with six separate people.
+- Collections (the first "also in Horus, done better" module):
+  - A payment plan per project: booking, agreement, certified-progress stages and possession.
+  - Demands ready to raise appear the moment the architect's certificate reaches a stage, on Today and on the project's Collections tab; one click raises them for every booked unit, with GST.
+  - Buyers' payments are matched to their demands in order (TDS a buyer deducts counts as paid); overdue instalments and the interest on them, at the same rate the promoter owes on delay (marked to confirm).
+  - A month-end check that 70% of everything buyers paid was in the RERA account.
+  - A printable demand letter per demand, with the instalment, GST, due date and the buyer's TDS note.
 
 ## In progress
 
-- Collections: payment plans, demand letters raised when a stage is certified, receipt matching and the 70/30 split check.
+- Registration and handover desk.
 
 ## Left
 
@@ -48,7 +54,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - Integration of the founder's existing Tally file import module (details to come).
 - Mailbox connector (read-only), Excel and CRM imports.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
-- Collections: payment plans, demand letters raised when a stage is certified, receipt matching, the 70/30 split check.
+- Collections, next steps: importing receipts from the bank statement and the CRM, reminders through the team's own WhatsApp or email.
 - Registration and handover desk.
 - Disputes and orders desk.
 - Document vault.

@@ -720,6 +720,42 @@ h3 {
   cursor: pointer;
 }
 
+
+/* Letters */
+
+.letter {
+  max-width: 680px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  padding: 40px 48px;
+}
+
+.letter p + p,
+.letter p + ul,
+.letter ul + p {
+  margin-top: 16px;
+}
+
+.letter-head {
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+}
+
+@media print {
+  .topbar,
+  .no-print {
+    display: none !important;
+  }
+  .main {
+    padding: 0;
+  }
+  .letter {
+    border: none;
+    padding: 0;
+  }
+}
+
 @media (max-width: 720px) {
   .table {
     display: block;

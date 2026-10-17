@@ -156,6 +156,16 @@ _rules = (
         effective_from=date(2026, 1, 1),
         note="Set from SBI's published rate before relying on delay interest figures.",
     ),
+    Rule(
+        key="rera.buyer_late_interest_basis",
+        value="same_as_delay_interest",
+        title="Interest buyers pay on late instalments",
+        basis=f"{_RERA_ACT}, s.19(7); {_KRERA_RULES}",
+        source_quality=SourceQuality.UNVERIFIED,
+        confirm_against="Karnataka RERA Rules and the agreement for sale",
+        effective_from=RERA_IN_FORCE,
+        note="Horus charges the same rate the promoter owes buyers on delay (SBI MCLR plus 2%).",
+    ),
     # GST on residential real estate
     Rule(
         key="gst.rate.affordable",

@@ -15,7 +15,7 @@ from horus.db import make_engine, make_sessionmaker
 from horus.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
 from horus.engines.obligations import ObligationStatus, sort_obligations
 from horus.migrate import upgrade
-from horus.models import Organization, Project
+from horus.models import Organization, PaymentMilestone, Project, Unit
 from horus.money import ZERO
 from horus.rules import KARNATAKA
 from horus.services import ServiceError
@@ -294,6 +294,40 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         auth.require_team(me, p)
         s = services.snapshot(session, p, on)
         return views.units(s, services.project_units(session, p), services.landowners(session, p))
+
+    # Collections
+
+    @app.get("/projects/{project_id}/collections")
+    def project_collections(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return views.collections(
+            services.collections_for(session, p, on), can_raise=me.can_prepare(p)
+        )
+
+    @app.post("/projects/{project_id}/milestones/{milestone_id}/raise")
+    def raise_demands(
+        project_id: str, milestone_id: str, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        raised = services.raise_demands(session, p, milestone_id, on, user_id=me.user_id)
+        view = views.collections(services.collections_for(session, p, on), can_raise=True)
+        return {"raised": raised, **view}
+
+    @app.get("/demands/{demand_id}")
+    def demand(demand_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row = services.get_demand(session, demand_id)
+        p = services.get_project(session, row.project_id)
+        auth.require_team(me, p)
+        return views.demand_letter(
+            demand=row,
+            project=p,
+            unit=session.get(Unit, row.unit_id),
+            milestone=session.get(PaymentMilestone, row.milestone_id),
+            gst_rate=services.sale_gst_rate(p, on, KARNATAKA),
+            tds_threshold=KARNATAKA.value("it.s194ia.threshold", on),
+        )
 
     # Withdrawals
 

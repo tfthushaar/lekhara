@@ -6,7 +6,7 @@ import { SESSION_COOKIE } from "@/lib/session-cookie";
 const BASE = process.env.HORUS_API_URL ?? "http://localhost:8000";
 
 export type Status = "overdue" | "due_soon" | "at_risk" | "opportunity" | "upcoming" | "done";
-export type Area = "escrow" | "krera" | "tax" | "units";
+export type Area = "escrow" | "collections" | "krera" | "tax" | "units";
 
 export type Obligation = {
   key: string;
@@ -311,6 +311,82 @@ export type Units = {
   }[];
 };
 
+export type Collections = {
+  as_of: string;
+  can_raise: boolean;
+  summary: {
+    billed: string;
+    received: string;
+    outstanding: string;
+    overdue: string;
+    overdue_buyers: number;
+    interest: string;
+  };
+  ready: {
+    milestone_id: string;
+    name: string;
+    units: number;
+    amount: string;
+    gst: string;
+    total: string;
+    reason: string;
+  }[];
+  milestones: {
+    id: string;
+    sequence: number;
+    name: string;
+    share_pct: string;
+    trigger: "booking" | "agreement" | "progress" | "possession";
+    progress_pct: string | null;
+    reached: boolean;
+    raised_units: number;
+    billed: string;
+  }[];
+  overdue: {
+    unit: string;
+    buyer: string | null;
+    overdue: string;
+    interest: string;
+    days_overdue: number;
+    demand_id: string | null;
+  }[];
+  accounts: {
+    unit: string;
+    buyer: string | null;
+    agreement_value: string;
+    billed: string;
+    received: string;
+    tds: string;
+    outstanding: string;
+    overdue: string;
+    interest: string;
+    last_demand_id: string | null;
+  }[];
+  deposit_checks: {
+    month_end: string;
+    receipts: string;
+    required: string;
+    deposits: string;
+    shortfall: string;
+  }[];
+};
+
+export type DemandLetter = {
+  id: string;
+  project_id: string;
+  from: string;
+  project: string;
+  krera_registration: string;
+  date: string;
+  to: string | null;
+  unit: string;
+  subject: string;
+  paragraphs: string[];
+  lines: { label: string; value: string }[];
+  due_on: string;
+  note: string;
+};
+
 export type Rules = {
   state: string;
   version: string;
@@ -387,6 +463,8 @@ export const api = {
   project: (id: string) => get<ProjectDetail>(`/projects/${id}`),
   money: (id: string) => get<{ summary: MoneySummary; lines: MoneyLine[] }>(`/projects/${id}/money`),
   escrow: (id: string) => get<Escrow>(`/projects/${id}/escrow`),
+  collections: (id: string) => get<Collections>(`/projects/${id}/collections`),
+  demand: (id: string) => get<DemandLetter>(`/demands/${id}`),
   tax: (id: string) => get<Tax>(`/projects/${id}/tax`),
   units: (id: string) => get<Units>(`/projects/${id}/units`),
   withdrawal: (id: string) => get<Withdrawal>(`/withdrawals/${id}`),
@@ -399,6 +477,8 @@ export function areaHref(o: Obligation): string {
   switch (o.area) {
     case "escrow":
       return `${base}/escrow`;
+    case "collections":
+      return `${base}/collections`;
     case "tax":
       return `${base}/tax`;
     case "units":

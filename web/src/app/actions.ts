@@ -47,6 +47,18 @@ export async function startWithdrawal(
   redirect(`/withdrawals/${result.data.id}`);
 }
 
+export async function raiseDemands(
+  projectId: string,
+  milestoneId: string,
+  _previous: ActionState,
+  _form: FormData,
+): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/milestones/${milestoneId}/raise`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function updateFigure(
   requestId: string,
   role: string,

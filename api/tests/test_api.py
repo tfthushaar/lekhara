@@ -201,3 +201,53 @@ def test_ledger_is_append_only(engine) -> None:
         entry.amount = D("1")
         with pytest.raises(AppendOnlyViolation):
             session.flush()
+
+
+def test_collections_show_demands_ready_from_certified_progress(owner) -> None:
+    body = owner.get(f"/projects/{WF}/collections").json()
+    assert body["can_raise"]
+    assert [r["name"] for r in body["ready"]] == ["On completion of the 8th floor slab"]
+    assert body["ready"][0]["units"] == 104
+    assert "certified 56%" in body["ready"][0]["reason"]
+    assert body["summary"]["overdue_buyers"] > 0
+    assert all(D(c["shortfall"]) == 0 for c in body["deposit_checks"])
+    today = {i["key"]: i for i in owner.get("/today").json()["items"] if i["project_id"] == WF}
+    ready_keys = [k for k in today if k.startswith("demand:")]
+    assert len(ready_keys) == 1
+    assert today["collections:overdue"]["amount_label"] == "Overdue from buyers"
+
+
+def test_raising_demands(accounts, owner) -> None:
+    before = owner.get(f"/projects/{WF}/collections").json()
+    milestone_id = before["ready"][0]["milestone_id"]
+    response = accounts.post(f"/projects/{WF}/milestones/{milestone_id}/raise")
+    assert response.status_code == 200, response.text
+    after = response.json()
+    assert after["raised"] == 104
+    assert after["ready"] == []
+    assert D(after["summary"]["billed"]) == D(before["summary"]["billed"]) + D(
+        before["ready"][0]["total"]
+    )
+    assert accounts.post(f"/projects/{WF}/milestones/{milestone_id}/raise").status_code == 409
+    keys = [i["key"] for i in owner.get("/today").json()["items"] if i["project_id"] == WF]
+    assert not [k for k in keys if k.startswith("demand:")]
+
+
+def test_demand_letter(owner) -> None:
+    body = owner.get(f"/projects/{WF}/collections").json()
+    demand_id = body["overdue"][0]["demand_id"]
+    letter = owner.get(f"/demands/{demand_id}").json()
+    assert letter["from"] == "Demo Builders"
+    assert letter["subject"].startswith("Demand for payment: ")
+    assert [line["label"].split(" ")[0] for line in letter["lines"]] == [
+        "Instalment",
+        "GST",
+        "Total",
+    ]
+    assert letter["lines"][2]["value"].startswith("₹")
+    assert any("Form 26QB" in p for p in letter["paragraphs"])
+    assert letter["note"].startswith("Draft prepared by Horus")
+
+
+def test_certifiers_cannot_see_collections(ca) -> None:
+    assert ca.get(f"/projects/{WF}/collections").status_code == 403

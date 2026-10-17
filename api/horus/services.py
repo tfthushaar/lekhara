@@ -11,6 +11,16 @@ from decimal import Decimal
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from horus.engines.collections import (
+    BookedUnit,
+    CollectionsPosition,
+    Milestone,
+    Payment,
+    Trigger,
+    collections_position,
+    new_demand,
+)
+from horus.engines.collections import Demand as DemandIn
 from horus.engines.escrow import (
     ROLE_ORDER,
     AccountTxn,
@@ -56,12 +66,14 @@ from horus.engines.tax import (
 from horus.models import (
     Bill,
     CostLineRow,
+    DemandRow,
     EscrowTxn,
     Filing,
     Landowner,
     LandownerPaymentRow,
     LedgerEntry,
     Organization,
+    PaymentMilestone,
     ProgressCertificate,
     Project,
     Receipt,
@@ -95,6 +107,7 @@ class ProjectSnapshot:
     delay: DelayExposure
     obligations: list[Obligation]
     open_request: WithdrawalRequest | None
+    collections: CollectionsPosition
 
 
 def organization(session: Session) -> Organization:
@@ -301,6 +314,7 @@ def snapshot(
             select(Filing).where(Filing.project_id == project.id, Filing.filed_on <= as_of)
         )
     )
+    collections = collections_for(session, project, as_of, rules)
     request = open_request(session, project)
     waiting_on = None
     if request is not None:
@@ -324,6 +338,7 @@ def snapshot(
         audits_done={f.period_end.year - 1 for f in filings if f.kind == "annual_audit"},
         open_withdrawal_amount=request.amount if request else None,
         open_withdrawal_waiting_on=waiting_on,
+        collections=collections,
     )
     return ProjectSnapshot(
         project=project,
@@ -339,7 +354,144 @@ def snapshot(
         delay=delay,
         obligations=project_obligations(facts, rules=rules),
         open_request=request,
+        collections=collections,
     )
+
+
+# Collections
+
+
+def sale_gst_rate(project: Project, as_of: date, rules: RulesPack) -> Decimal:
+    regime = GstRegime(project.gst_regime)
+    if regime == GstRegime.AFFORDABLE_1PC:
+        return rules.value("gst.rate.affordable", as_of)
+    if regime == GstRegime.COMMERCIAL_12PC:
+        return rules.value("gst.rate.commercial", as_of)
+    return rules.value("gst.rate.residential", as_of)
+
+
+def _milestones(session: Session, project: Project) -> list[PaymentMilestone]:
+    return list(
+        session.scalars(
+            select(PaymentMilestone)
+            .where(PaymentMilestone.project_id == project.id)
+            .order_by(PaymentMilestone.sequence)
+        )
+    )
+
+
+def _latest_progress(session: Session, project: Project, as_of: date) -> ProgressCertificate | None:
+    return session.scalars(
+        select(ProgressCertificate)
+        .where(ProgressCertificate.project_id == project.id, ProgressCertificate.as_of <= as_of)
+        .order_by(ProgressCertificate.as_of.desc())
+    ).first()
+
+
+def _milestone_in(row: PaymentMilestone) -> Milestone:
+    return Milestone(
+        id=row.id,
+        sequence=row.sequence,
+        name=row.name,
+        share_pct=row.share_pct,
+        trigger=Trigger(row.trigger),
+        progress_pct=row.progress_pct,
+        due_days=row.due_days,
+    )
+
+
+def _booked_units(session: Session, project: Project, as_of: date) -> list[BookedUnit]:
+    return [
+        BookedUnit(u.id, u.label, u.buyer_name, u.agreement_value, u.booked_on)
+        for u in session.scalars(
+            select(Unit)
+            .where(Unit.project_id == project.id, Unit.booked.is_(True))
+            .order_by(Unit.label)
+        )
+        if u.agreement_value is not None and u.booked_on is not None and u.booked_on <= as_of
+    ]
+
+
+def collections_for(
+    session: Session, project: Project, as_of: date, rules: RulesPack = KARNATAKA
+) -> CollectionsPosition:
+    progress = _latest_progress(session, project, as_of)
+    demands = [
+        DemandIn(d.id, d.unit_id, d.milestone_id, d.amount, d.gst, d.raised_on, d.due_on)
+        for d in session.scalars(select(DemandRow).where(DemandRow.project_id == project.id))
+    ]
+    payments = [
+        Payment(r.unit_id, r.amount, r.received_on, r.tds_deducted)
+        for r in session.scalars(select(Receipt).where(Receipt.project_id == project.id))
+    ]
+    deposits = [
+        (t.txn_date, t.amount)
+        for t in session.scalars(
+            select(EscrowTxn).where(
+                EscrowTxn.project_id == project.id, EscrowTxn.kind == TxnKind.DEPOSIT.value
+            )
+        )
+    ]
+    return collections_position(
+        milestones=[_milestone_in(m) for m in _milestones(session, project)],
+        units=_booked_units(session, project, as_of),
+        demands=demands,
+        payments=payments,
+        deposits=deposits,
+        certified_progress_pct=progress.completion_pct if progress else None,
+        certified_on=progress.as_of if progress else None,
+        possession_given=False,
+        gst_rate_on_sale=sale_gst_rate(project, as_of, rules),
+        as_of=as_of,
+        rules=rules,
+    )
+
+
+def raise_demands(
+    session: Session,
+    project: Project,
+    milestone_id: str,
+    as_of: date,
+    *,
+    user_id: str | None = None,
+    rules: RulesPack = KARNATAKA,
+) -> int:
+    """Raise this milestone's demand on every booked unit that does not have it yet."""
+    position = collections_for(session, project, as_of, rules)
+    ready = next((r for r in position.ready if r.milestone.id == milestone_id), None)
+    if ready is None:
+        raise ServiceError("This milestone is not ready to raise, or is already raised.", 409)
+    units = {u.id: u for u in _booked_units(session, project, as_of)}
+    rate = sale_gst_rate(project, as_of, rules)
+    progress = _latest_progress(session, project, as_of)
+    for unit_id in ready.unit_ids:
+        amount, gst, due_on = new_demand(
+            units[unit_id], ready.milestone, gst_rate_on_sale=rate, raised_on=as_of
+        )
+        session.add(
+            DemandRow(
+                project_id=project.id,
+                unit_id=unit_id,
+                milestone_id=milestone_id,
+                amount=amount,
+                gst=gst,
+                raised_on=as_of,
+                due_on=due_on,
+                certified_progress_pct=progress.completion_pct
+                if progress and ready.milestone.trigger == Trigger.PROGRESS
+                else None,
+                created_by_user_id=user_id,
+            )
+        )
+    session.commit()
+    return len(ready.unit_ids)
+
+
+def get_demand(session: Session, demand_id: str) -> DemandRow:
+    demand = session.get(DemandRow, demand_id)
+    if demand is None:
+        raise ServiceError("Demand not found.", 404)
+    return demand
 
 
 # Withdrawal workflow
