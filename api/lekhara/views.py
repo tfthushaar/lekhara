@@ -1947,3 +1947,57 @@ def commitments_view(session, project: Project, *, can_edit: bool) -> dict:
         ],
         "total": m(sum((c.amount for c in rows), Decimal("0"))),
     }
+
+
+# The forwarding address
+
+INBOUND_LINK = {
+    "tally_import": "/tally/{}",
+    "bank_statement": "/bank/{}",
+    "import_batch": "/imports/{}",
+    "document": "/documents/{}",
+}
+
+
+def inbound_view(
+    session, project: Project, address: str, *, can_edit: bool, domain_ready: bool
+) -> dict:
+    from lekhara import inbound
+
+    return {
+        "project_id": project.id,
+        "address": address,
+        "ready": domain_ready,
+        "can_edit": can_edit,
+        "messages": [
+            {
+                "id": msg.id,
+                "from_address": msg.from_address,
+                "from_name": msg.from_name,
+                "subject": msg.subject,
+                "received_at": msg.received_at.replace(microsecond=0).isoformat(),
+                "trusted": msg.trusted,
+                "status": msg.status,
+                "note": msg.note,
+                "items": [
+                    {
+                        "id": i.id,
+                        "filename": i.filename,
+                        "size": i.size,
+                        "kind": i.kind,
+                        "status": i.status,
+                        "note": i.note,
+                        "link": INBOUND_LINK[i.result_type].format(i.result_id)
+                        if i.result_type in INBOUND_LINK and i.result_id
+                        else None,
+                        "can_retry": can_edit
+                        and msg.trusted
+                        and i.status in ("failed", "review")
+                        and not i.result_id,
+                    }
+                    for i in inbound.items_of(session, msg)
+                ],
+            }
+            for msg in inbound.messages_of(session, project)
+        ],
+    }

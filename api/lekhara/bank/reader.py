@@ -29,10 +29,9 @@ HEADER_SEARCH = 60
 CENT = Decimal("0.01")
 
 HOW_TO_DOWNLOAD = (
-    "In your net banking, open the account's statement, choose the dates, and download it as "
-    "Excel (XLS or XLSX) or CSV rather than PDF. Every bank builders use offers this; for a "
-    "current account in corporate banking it is under Statements or Reports. If the bank only "
-    "emails a PDF, ask the branch for the same statement in Excel."
+    "In your net banking, open the account's statement, choose the dates and download it. "
+    "Excel (XLS or XLSX) or CSV is best; a PDF works too, as long as it is not a scan. For a "
+    "current account in corporate banking it is under Statements or Reports."
 )
 
 # The bank, from the IFSC printed above the table (its first four letters) or from its name.
@@ -248,8 +247,8 @@ def read_rows(filename: str, data: bytes) -> list[list]:
         raise ServiceError("The file is empty.")
     name = filename.casefold()
     head = data[:2048].lstrip()
-    if data[:4] == b"%PDF" or name.endswith(".pdf"):
-        raise ServiceError(f"Lekhara reads statements as Excel or CSV, not PDF. {HOW_TO_DOWNLOAD}")
+    if name.endswith(".pdf"):
+        raise ServiceError(f"This file is not a readable PDF. {HOW_TO_DOWNLOAD}")
     if data[:2] == b"PK":
         rows = _rows_from_xlsx(data)
     elif data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
@@ -429,7 +428,11 @@ def _bank(texts: list[str], filename: str) -> str | None:
     return None
 
 
-def read_statement(filename: str, data: bytes) -> Statement:
+def read_statement(filename: str, data: bytes, passwords: tuple[str, ...] = ()) -> Statement:
+    if data[:4] == b"%PDF":
+        from lekhara.bank.pdf import read_pdf_statement
+
+        return read_pdf_statement(filename, data, passwords)
     rows = read_rows(filename, data)
     at, cols = find_table(rows)
     above = [" ".join(str(v) for v in r if v not in ("", None)) for r in rows[:at]]
@@ -498,15 +501,36 @@ def read_statement(filename: str, data: bytes) -> Statement:
             )
         )
 
+    return assemble(
+        lines,
+        above=above,
+        below=texts_below,
+        filename=filename,
+        columns={role: str(rows[at][i]) for role, i in cols.items()},
+        opening_from_line=opening_from_line,
+    )
+
+
+def assemble(
+    lines: list[Line],
+    *,
+    above: list[str],
+    below: list[str],
+    filename: str,
+    columns: dict[str, str],
+    opening_from_line: Decimal | None = None,
+) -> Statement:
+    """A statement from its lines and the text around them: oldest first, the account, the
+    period, the opening balance, the lines whose balance jumps, and a key for each line."""
     if not lines:
         raise ServiceError("The statement has no transactions in it.")
     reversed_order = len(lines) > 1 and lines[0].on > lines[-1].on
     if reversed_order:
         lines.reverse()
-        for i, line in enumerate(lines):
-            line.index = i
+    for i, line in enumerate(lines):
+        line.index = i
 
-    texts = above + texts_below
+    texts = above + below
     account_match = _first(_ACCOUNT, texts)
     account = re.sub(r"[^0-9xX*]", "", account_match.group(1)) if account_match else None
     period = _first(_PERIOD, above)
@@ -542,7 +566,7 @@ def read_statement(filename: str, data: bytes) -> Statement:
         opening=opening,
         closing=lines[-1].balance,
         lines=lines,
-        columns={role: str(rows[at][i]) for role, i in cols.items()},
+        columns=columns,
         reversed_order=reversed_order,
         balance_breaks=breaks,
         opening_line=opening_from_line is not None,
@@ -552,14 +576,18 @@ def read_statement(filename: str, data: bytes) -> Statement:
 
 
 def _keys(statement: Statement) -> None:
-    """A key for each line that is the same in any download covering it, so the same line in
-    two overlapping statements is recognised: the account, date, amounts, balance and words."""
+    """A key for each line that is the same in any download covering it, whatever the format,
+    so the same line in two overlapping statements is recognised: the account, the date, the
+    amounts and the running balance (the narration only when there is no balance, since a PDF
+    runs neighbouring columns into it)."""
     seen: dict[str, int] = {}
     account = statement.account_tail or "account"
     for line in statement.lines:
-        words = re.sub(r"[^a-z0-9]", "", line.narration.casefold())
+        words = (
+            "" if line.balance is not None else re.sub(r"[^a-z0-9]", "", line.narration.casefold())
+        )
         base = (
-            f"{account}|{line.on.isoformat()}|{line.debit}|{line.credit}|"
+            f"{account}|{line.on.isoformat()}|{line.debit:.2f}|{line.credit:.2f}|"
             f"{line.balance if line.balance is not None else ''}|{words}"
         )
         n = seen.get(base, 0)

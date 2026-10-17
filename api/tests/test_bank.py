@@ -107,10 +107,39 @@ def test_the_same_line_has_the_same_key_in_every_download() -> None:
 
 
 def test_files_that_are_not_statements() -> None:
-    with pytest.raises(ServiceError, match="not PDF"):
+    with pytest.raises(ServiceError, match="could not be opened"):
         read_statement("statement.pdf", b"%PDF-1.4 ...")
     with pytest.raises(ServiceError, match="table of transactions"):
         read_statement("units.csv", b"Unit,Buyer\nA-101,Priya\n")
+
+
+def test_pdf_statements() -> None:
+    s = read_statement("Statement.pdf", samples.statement_pdf())
+    assert len(s.lines) == len(samples.COLLECTION_LINES)
+    assert s.lines[0].credit == Decimal("495000.00") and "PRIYA SHARMA" in s.lines[0].narration
+    assert s.lines[0].narration.endswith("SBIN426095123456 LLP-SBIN426095123456")  # 2 lines
+    assert s.lines[6].debit == Decimal("300000.00") and s.lines[7].debit == Decimal("500000.00")
+    assert s.balance_breaks == [] and s.closing == Decimal("5371234.00")
+    assert s.account == samples.COLLECTION and s.bank == "HDFC Bank"
+    keys = [line.key for line in read_statement("a.xls", samples.hdfc_xls()).lines]
+    assert [line.key for line in s.lines] == keys  # the same lines as the Excel download
+
+    newest = read_statement("s.pdf", samples.statement_pdf(newest_first=True))
+    assert newest.reversed_order and newest.lines[0].on == date(2026, 4, 5)
+    assert newest.lines[6].debit == Decimal("300000.00")
+
+
+def test_pdf_statements_with_a_password() -> None:
+    from lekhara.bank.pdf import PasswordNeeded, looks_like_statement
+
+    data = samples.statement_pdf(password="KAVE0104")
+    assert looks_like_statement(data)
+    with pytest.raises(PasswordNeeded):
+        read_statement("s.pdf", data)
+    with pytest.raises(PasswordNeeded):
+        read_statement("s.pdf", data, ("wrong",))
+    s = read_statement("s.pdf", data, ("wrong", "KAVE0104"))
+    assert len(s.lines) == len(samples.COLLECTION_LINES)
 
 
 def test_reading_narrations() -> None:

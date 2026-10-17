@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     smtp_url: str | None = None
     """smtp://user:password@host:587 or smtps://...; without it, emails go to the log."""
     mail_from: str = "Lekhara <no-reply@lekhara.local>"
+    inbound_domain: str = "in.lekhara.local"
+    """Each project's forwarding address is <token>@ this domain."""
+    inbound_secret: str | None = None
+    """Shared with the email service that posts incoming mail to /inbound/email."""
+    inbound_imap_url: str | None = None
+    """imaps://user:password@host/INBOX: a catch-all mailbox to check instead of, or as well
+    as, posted mail."""
+    secret_key: str | None = None
+    """Seals secrets kept for firms, such as statement passwords. Set it in production."""
+    worker: bool = True
+    """Run background jobs (incoming mail, connectors) inside the API process."""
 
     def as_of(self) -> date:
         return self.today or date.today()

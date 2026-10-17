@@ -54,6 +54,7 @@ from lekhara.models import (
     ProjectAccess,
     Receipt,
     TallyLink,
+    TrustedSender,
     Unit,
     UnitHandover,
     User,
@@ -80,6 +81,10 @@ NOT_EXPORTED = {
     "tally_imports": "uploaded Tally files, already in the records they made",
     "document_pages": "text read from each document, which is in the files",
     "bank_statements": "uploaded bank statements, already in the records they made",
+    "inbound_messages": "emails received, already in the records and documents they brought",
+    "inbound_items": "files in those emails, already in the records and documents they made",
+    "jobs": "Lekhara's own background work",
+    "statement_passwords": "sealed passwords, never given out",
 }
 """Tables left out of the export, and why."""
 
@@ -173,6 +178,7 @@ SHEETS = [
     Sheet("Tally choices", TallyLink, lambda s: TallyLink.project_id.in_(s.projects)),
     Sheet("Bank accounts", BankAccount, lambda s: BankAccount.project_id.in_(s.projects)),
     Sheet("Bank payers", BankPayer, lambda s: BankPayer.project_id.in_(s.projects)),
+    Sheet("Trusted senders", TrustedSender, lambda s: TrustedSender.organization_id == s.org),
     Sheet("Team", Membership, lambda s: Membership.organization_id == s.org),
     Sheet("Certifiers", ProjectAccess, lambda s: ProjectAccess.project_id.in_(s.projects)),
     Sheet("Change history", ChangeEntry, lambda s: ChangeEntry.organization_id == s.org),

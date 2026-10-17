@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { startImport, uploadStatement, uploadTally } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { InboundBox } from "@/components/inbound";
 import { api } from "@/lib/api";
 import { day } from "@/lib/format";
 
@@ -22,15 +23,18 @@ const STATUS: Record<string, string> = {
 
 async function ImportView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [list, tallyList, bankList] = await Promise.all([
+  const [list, tallyList, bankList, box] = await Promise.all([
     api.imports(id),
     api.tallyImports(id),
     api.bankStatements(id),
+    api.inbound(id),
   ]);
 
   return (
     <>
-      <section>
+      <InboundBox box={box} />
+
+      <section className="section">
         <div className="section-head">
           <h2>From Tally</h2>
           <p>Suppliers, their bills and your buyers&apos; payments, straight from Tally&apos;s own export</p>

@@ -275,6 +275,58 @@ export async function deleteCommitment(commitmentId: string, _previous: ActionSt
   return {};
 }
 
+export async function allowInbound(messageId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", `/inbound/${messageId}/allow`, { trust: form.get("trust") === "yes" });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Allowed; its files are being brought in." };
+}
+
+export async function rejectInbound(messageId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/inbound/${messageId}/reject`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function retryInbound(itemId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/inbound/items/${itemId}/retry`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function addSender(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", "/organization/senders", { address: text(form, "address") });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Added." };
+}
+
+export async function removeSender(senderId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/organization/senders/${senderId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function addStatementPassword(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", "/organization/statement-passwords", {
+    label: text(form, "label"),
+    password: String(form.get("password") ?? ""),
+  });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Kept. Statements protected by it now open." };
+}
+
+export async function removeStatementPassword(passwordId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/organization/statement-passwords/${passwordId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function uploadStatement(
   projectId: string,
   _previous: ActionState,

@@ -31,20 +31,23 @@ def _escape(line: str) -> str:
     return line.encode("latin-1", "replace").decode("latin-1")
 
 
-def _layout(pages: list[list[str]]) -> list[list[str]]:
+def _layout(pages: list[list[str]], wrap_at: int = _WRAP_AT) -> list[list[str]]:
     """Wraps long lines and spills over onto new pages."""
     out = []
     for lines in pages:
         wrapped = []
         for line in lines:
-            wrapped.extend(textwrap.wrap(line, _WRAP_AT) or [""])
+            wrapped.extend(textwrap.wrap(line, wrap_at) or [""])
         for start in range(0, max(len(wrapped), 1), _LINES_PER_PAGE):
             out.append(wrapped[start : start + _LINES_PER_PAGE])
     return out
 
 
-def write_pdf(pages: list[list[str]], *, title: str = "") -> bytes:
-    pages = _layout(pages)
+def write_pdf(
+    pages: list[list[str]], *, title: str = "", font_size: int = 11, wrap_at: int = _WRAP_AT
+) -> bytes:
+    """Text pages; a smaller font with a wider wrap fits wide tables such as statements."""
+    pages = _layout(pages, wrap_at)
     objects: dict[int, bytes] = {
         1: b"<< /Type /Catalog /Pages 2 0 R >>",
         3: b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
@@ -53,7 +56,7 @@ def write_pdf(pages: list[list[str]], *, title: str = "") -> bytes:
     for i, lines in enumerate(pages):
         page_id, content_id = 5 + 2 * i, 6 + 2 * i
         kids.append(f"{page_id} 0 R")
-        ops = ["BT", "/F1 11 Tf", f"{_LINE_HEIGHT} TL", f"56 {_PAGE_HEIGHT - 64} Td"]
+        ops = ["BT", f"/F1 {font_size} Tf", f"{font_size + 3} TL", f"36 {_PAGE_HEIGHT - 48} Td"]
         ops += [f"({_escape(line)}) Tj T*" for line in lines]
         ops.append("ET")
         stream = "\n".join(ops).encode("latin-1")

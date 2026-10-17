@@ -1,5 +1,9 @@
+import base64
+import hmac
+import json
 import re
 from collections.abc import Iterator
+from contextlib import asynccontextmanager
 from datetime import date
 from decimal import Decimal
 from typing import Annotated
@@ -11,7 +15,18 @@ from pydantic import BaseModel
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from lekhara import accounts, auth, export, imports, purchases, registers, services, views
+from lekhara import (
+    accounts,
+    auth,
+    export,
+    imports,
+    inbound,
+    jobs,
+    purchases,
+    registers,
+    services,
+    views,
+)
 from lekhara.bank import service as bank
 from lekhara.config import Settings, get_settings
 from lekhara.db import make_engine, make_sessionmaker
@@ -22,11 +37,15 @@ from lekhara.models import (
     Bill,
     Commitment,
     CostLineRow,
+    InboundItem,
+    InboundMessage,
     Landowner,
     Organization,
     PaymentMilestone,
     Project,
     Receipt,
+    StatementPassword,
+    TrustedSender,
     Unit,
     User,
     Vendor,
@@ -34,6 +53,7 @@ from lekhara.models import (
 from lekhara.money import ZERO
 from lekhara.records import BILLS, COMMITMENTS, RECEIPTS, SUPPLIERS
 from lekhara.rules import KARNATAKA
+from lekhara.secretbox import seal
 from lekhara.services import ServiceError
 from lekhara.storage import LocalStorage
 from lekhara.tally import service as tally
@@ -121,6 +141,19 @@ class CommitmentBody(BaseModel):
     committed_on: str | None = None
     supplier: str | None = None
     description: str | None = None
+
+
+class AllowBody(BaseModel):
+    trust: bool = False
+
+
+class SenderBody(BaseModel):
+    address: str = ""
+
+
+class PasswordBody(BaseModel):
+    label: str | None = None
+    password: str | None = None
 
 
 class StatementOptions(BaseModel):
@@ -371,7 +404,17 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     session_factory = make_sessionmaker(engine)
     throttle = auth.LoginThrottle()
 
-    app = FastAPI(title="Lekhara API", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        worker = None
+        if settings.worker:
+            worker = jobs.Worker(session_factory, app.state.storage, settings)
+            worker.start()
+        yield
+        if worker is not None:
+            worker.stop()
+
+    app = FastAPI(title="Lekhara API", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.session_factory = session_factory
     app.state.storage = LocalStorage(settings.storage_dir)
@@ -1100,7 +1143,8 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         return row, p
 
     def statement_view(session: Session, me: auth.Principal, row, p: Project, on: date) -> dict:
-        statement, plan = bank.review(session, app.state.storage, row, on)
+        passwords = bank.statement_passwords(session, settings, p.organization_id)
+        statement, plan = bank.review(session, app.state.storage, row, on, passwords)
         units = list(
             session.scalars(
                 select(Unit).where(Unit.project_id == p.id, Unit.booked).order_by(Unit.label)
@@ -1129,6 +1173,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             filename=file.filename or "statement",
             data=data,
             user_id=me.user_id,
+            passwords=bank.statement_passwords(session, settings, p.organization_id),
         )
         return {"id": row.id}
 
@@ -1154,14 +1199,26 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     ) -> dict:
         row, p = statement_for(session, me, statement_id, edit=True)
         bank.set_options(
-            session, app.state.storage, row, body.model_dump(exclude_unset=True), as_of=on
+            session,
+            app.state.storage,
+            row,
+            body.model_dump(exclude_unset=True),
+            as_of=on,
+            passwords=bank.statement_passwords(session, settings, p.organization_id),
         )
         return statement_view(session, me, row, p, on)
 
     @app.post("/bank-statements/{statement_id}/apply")
     def apply_statement(statement_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
         row, p = statement_for(session, me, statement_id, edit=True)
-        bank.apply(session, app.state.storage, row, as_of=on, user_id=me.user_id)
+        bank.apply(
+            session,
+            app.state.storage,
+            row,
+            as_of=on,
+            user_id=me.user_id,
+            passwords=bank.statement_passwords(session, settings, p.organization_id),
+        )
         return statement_view(session, me, row, p, on)
 
     @app.post("/bank-statements/{statement_id}/undo")
@@ -1354,6 +1411,164 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         purchases.delete_commitment(session, p, c, user_id=me.user_id)
         session.commit()
         return views.commitments_view(session, p, can_edit=True)
+
+    # The forwarding address
+
+    @app.post("/inbound/email", status_code=202)
+    async def inbound_email(request: Request, session: SessionDep) -> dict:
+        """Mail posted by the email service: raw MIME as the body, a form field (email,
+        body-mime or raw) or JSON {raw: base64, to: [...]}, with the shared secret."""
+        if not settings.inbound_secret:
+            raise ServiceError("Incoming mail is not set up here.", 404)
+        given = request.headers.get("x-lekhara-inbound-secret") or request.query_params.get(
+            "secret", ""
+        )
+        if not hmac.compare_digest(given.encode(), settings.inbound_secret.encode()):
+            raise ServiceError("Not allowed.", 403)
+        kind = request.headers.get("content-type", "").split(";")[0].strip().casefold()
+        envelope: list[str] = []
+        if kind in ("multipart/form-data", "application/x-www-form-urlencoded"):
+            form = await request.form()
+            field = form.get("email") or form.get("body-mime") or form.get("raw")
+            raw = await field.read() if hasattr(field, "read") else str(field or "").encode()
+            if form.get("envelope"):
+                try:
+                    envelope = list(json.loads(str(form["envelope"])).get("to", []))
+                except (ValueError, AttributeError):
+                    envelope = []
+            if form.get("recipient"):
+                envelope.append(str(form["recipient"]))
+        elif kind == "application/json":
+            body = await request.json()
+            raw = base64.b64decode(body.get("raw", ""))
+            envelope = [str(a) for a in body.get("to", [])]
+        else:
+            raw = await request.body()
+        if not raw:
+            raise ServiceError("The email is empty.")
+        message = inbound.receive(session, app.state.storage, settings, raw, envelope_to=envelope)
+        if message is None:
+            return {"status": "no_project"}
+        return {"id": message.id, "status": message.status}
+
+    def message_for(session: Session, me: auth.Principal, message_id: str):
+        msg = session.get(InboundMessage, message_id)
+        if msg is None:
+            raise ServiceError("Email not found.", 404)
+        p = services.get_project(session, msg.project_id)
+        auth.require_prepare(me, p)
+        return msg, p
+
+    def inbound_payload(session: Session, me: auth.Principal, p: Project) -> dict:
+        address = inbound.address_for(session, p, settings)
+        return views.inbound_view(
+            session,
+            p,
+            address,
+            can_edit=me.can_prepare(p) and not me.views_as_sample(p),
+            domain_ready=bool(settings.inbound_secret or settings.inbound_imap_url),
+        )
+
+    @app.get("/projects/{project_id}/inbound")
+    def project_inbound(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return inbound_payload(session, me, p)
+
+    @app.post("/inbound/{message_id}/allow")
+    def allow_inbound(message_id: str, body: AllowBody, session: SessionDep, me: Me) -> dict:
+        msg, p = message_for(session, me, message_id)
+        inbound.allow(session, p.organization_id, msg, user_id=me.user_id, trust=body.trust)
+        jobs.run_pending(session_factory, app.state.storage, settings, limit=5)
+        return inbound_payload(session, me, p)
+
+    @app.post("/inbound/{message_id}/reject")
+    def reject_inbound(message_id: str, session: SessionDep, me: Me) -> dict:
+        msg, p = message_for(session, me, message_id)
+        inbound.reject(session, msg, user_id=me.user_id)
+        return inbound_payload(session, me, p)
+
+    @app.post("/inbound/items/{item_id}/retry")
+    def retry_inbound(item_id: str, session: SessionDep, me: Me) -> dict:
+        item = session.get(InboundItem, item_id)
+        if item is None:
+            raise ServiceError("File not found.", 404)
+        msg, p = message_for(session, me, item.message_id)
+        inbound.retry(session, app.state.storage, settings, item)
+        return inbound_payload(session, me, p)
+
+    def org_manager(session: Session, me: auth.Principal):
+        org = accounts.current_org(session, me)
+        accounts.require_manager(me, org)
+        if services.access_state(org, me.as_of) == "read_only":
+            raise ServiceError(auth.READ_ONLY, 402)
+        return org
+
+    def senders_payload(session: Session, me: auth.Principal) -> dict:
+        org = accounts.current_org(session, me)
+        role = me.org_roles.get(org.id)
+        return {
+            "can_edit": role in (auth.OrgRole.OWNER, auth.OrgRole.FINANCE),
+            "senders": [
+                {"id": t.id, "address": t.address} for t in inbound.trusted_senders(session, org.id)
+            ],
+            "passwords": [
+                {"id": x.id, "label": x.label, "added_on": x.created_at.date().isoformat()}
+                for x in session.scalars(
+                    select(StatementPassword)
+                    .where(StatementPassword.organization_id == org.id)
+                    .order_by(StatementPassword.created_at)
+                )
+            ],
+        }
+
+    @app.get("/organization/inbound")
+    def org_inbound(session: SessionDep, me: Me) -> dict:
+        return senders_payload(session, me)
+
+    @app.post("/organization/senders", status_code=201)
+    def add_sender(body: SenderBody, session: SessionDep, me: Me) -> dict:
+        org = org_manager(session, me)
+        inbound.add_trusted(session, org.id, body.address, user_id=me.user_id)
+        session.commit()
+        return senders_payload(session, me)
+
+    @app.post("/organization/senders/{sender_id}/delete")
+    def remove_sender(sender_id: str, session: SessionDep, me: Me) -> dict:
+        org = org_manager(session, me)
+        row = session.get(TrustedSender, sender_id)
+        if row is None or row.organization_id != org.id:
+            raise ServiceError("Not found.", 404)
+        session.delete(row)
+        session.commit()
+        return senders_payload(session, me)
+
+    @app.post("/organization/statement-passwords", status_code=201)
+    def add_password(body: PasswordBody, session: SessionDep, me: Me) -> dict:
+        org = org_manager(session, me)
+        label, secret = (body.label or "").strip(), body.password or ""
+        if not label or not secret:
+            raise ServiceError("Give the account or bank it is for, and the password.")
+        session.add(
+            StatementPassword(
+                organization_id=org.id,
+                label=label[:200],
+                sealed=seal(settings, secret),
+                added_by_user_id=me.user_id,
+            )
+        )
+        session.commit()
+        return senders_payload(session, me)
+
+    @app.post("/organization/statement-passwords/{password_id}/delete")
+    def remove_password(password_id: str, session: SessionDep, me: Me) -> dict:
+        org = org_manager(session, me)
+        row = session.get(StatementPassword, password_id)
+        if row is None or row.organization_id != org.id:
+            raise ServiceError("Not found.", 404)
+        session.delete(row)
+        session.commit()
+        return senders_payload(session, me)
 
     # Today
 

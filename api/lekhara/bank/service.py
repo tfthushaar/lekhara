@@ -38,14 +38,27 @@ ROLES = ("rera", "collections")
 _cache: "OrderedDict[str, Statement]" = OrderedDict()
 
 
-def _read(filename: str, data: bytes) -> Statement:
-    return read_statement(filename, data)
+def _read(filename: str, data: bytes, passwords: tuple[str, ...] = ()) -> Statement:
+    return read_statement(filename, data, passwords)
 
 
-def statement_of(storage: Storage, row: BankStatement) -> Statement:
+def statement_passwords(session: Session, settings, organization_id: str) -> tuple[str, ...]:
+    """The passwords the firm has given for its banks' emailed statements."""
+    from lekhara.models import StatementPassword
+    from lekhara.secretbox import unseal
+
+    rows = session.scalars(
+        select(StatementPassword).where(StatementPassword.organization_id == organization_id)
+    )
+    return tuple(p for p in (unseal(settings, r.sealed) for r in rows) if p)
+
+
+def statement_of(
+    storage: Storage, row: BankStatement, passwords: tuple[str, ...] = ()
+) -> Statement:
     cached = _cache.get(row.storage_key)
     if cached is None:
-        cached = _read(row.filename, storage.get(row.storage_key))
+        cached = _read(row.filename, storage.get(row.storage_key), passwords)
         _cache[row.storage_key] = cached
         while len(_cache) > 8:
             _cache.popitem(last=False)
@@ -70,8 +83,9 @@ def upload(
     filename: str,
     data: bytes,
     user_id: str | None,
+    passwords: tuple[str, ...] = (),
 ) -> BankStatement:
-    statement = _read(filename, data)
+    statement = _read(filename, data, passwords)
     key = storage.put(data)
     _cache[key] = statement
     known = _account(session, project.id, statement.account)
@@ -164,15 +178,25 @@ def context(session: Session, project: Project, row: BankStatement, as_of: date)
 
 
 def review(
-    session: Session, storage: Storage, row: BankStatement, as_of: date
+    session: Session,
+    storage: Storage,
+    row: BankStatement,
+    as_of: date,
+    passwords: tuple[str, ...] = (),
 ) -> tuple[Statement, Plan]:
     project = session.get(Project, row.project_id)
-    statement = statement_of(storage, row)
+    statement = statement_of(storage, row, passwords)
     return statement, make_plan(statement, context(session, project, row, as_of))
 
 
 def set_options(
-    session: Session, storage: Storage, row: BankStatement, body: dict, *, as_of: date
+    session: Session,
+    storage: Storage,
+    row: BankStatement,
+    body: dict,
+    *,
+    as_of: date,
+    passwords: tuple[str, ...] = (),
 ) -> None:
     if row.status != "review":
         raise ServiceError("This statement has already been applied.")
@@ -184,7 +208,7 @@ def set_options(
     if body.get("buyers_pay_here") is not None:
         opts["buyers_pay_here"] = bool(body["buyers_pay_here"])
 
-    statement = statement_of(storage, row)
+    statement = statement_of(storage, row, passwords)
     lines = {line.key: line for line in statement.lines}
     units = {
         u.id
@@ -213,7 +237,7 @@ def set_options(
         account.role = opts["role"]
         account.buyers_pay_here = bool(opts.get("buyers_pay_here"))
         account.updated_at = utcnow()
-    _, plan = review(session, storage, row, as_of)
+    _, plan = review(session, storage, row, as_of, passwords)
     by_key = {p.key: p for p in plan.lines}
     for key, value in (body.get("lines") or {}).items():
         p = by_key.get(key)
@@ -233,13 +257,19 @@ def set_options(
 
 
 def apply(
-    session: Session, storage: Storage, row: BankStatement, *, as_of: date, user_id: str | None
+    session: Session,
+    storage: Storage,
+    row: BankStatement,
+    *,
+    as_of: date,
+    user_id: str | None,
+    passwords: tuple[str, ...] = (),
 ) -> dict:
     if row.status != "review":
         raise ServiceError("This statement has already been applied.")
     if not options(row).get("role"):
         raise ServiceError("Say which account this statement is for first.")
-    _, plan = review(session, storage, row, as_of)
+    _, plan = review(session, storage, row, as_of, passwords)
     result: dict[str, list[str]] = {"receipts": [], "escrow": []}
     for p in plan.lines:
         if p.receipt and not p.receipt_exists:

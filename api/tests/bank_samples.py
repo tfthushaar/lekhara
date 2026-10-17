@@ -226,3 +226,50 @@ def axis_html(lines=COLLECTION_LINES, account="917020012345678") -> bytes:
         "<th>BAL</th><th>SOL</th></tr>"
         f"{rows}</table></body></html>"
     ).encode()
+
+
+def statement_pdf(
+    lines=COLLECTION_LINES,
+    account=COLLECTION,
+    *,
+    newest_first: bool = False,
+    password: str | None = None,
+) -> bytes:
+    """A statement the way banks email it: a PDF of text, one transaction a line, with the
+    narration running onto a second line where it is long; optionally newest first, and
+    protected by a password."""
+    from pypdf import PdfReader, PdfWriter
+
+    from lekhara.pdf import write_pdf
+
+    rows = _with_balances(lines, Decimal(0))
+    body = []
+    for on, narration, ref, debit, credit, balance in reversed(rows) if newest_first else rows:
+        first, rest = narration[:46], narration[46:]
+        body.append(
+            f"{on:%d/%m/%y}  {first:<46}  {ref or '-':<20}  {on:%d/%m/%y}  "
+            f"{_inr(debit) if debit else '':>14}  {_inr(credit) if credit else '':>14}  "
+            f"{_inr(balance):>14}"
+        )
+        if rest:
+            body.append(f"          {rest}")
+    page = [
+        "HDFC BANK Ltd.",
+        "KAVERI HOMES LLP",
+        f"Account No : {account}",
+        "Statement From : 01/04/2026 To : 30/09/2026",
+        "Opening Balance : 0.00",
+        "Date      Narration                                       Chq./Ref.No.          Value Dt"
+        "   Withdrawal Amt.  Deposit Amt.  Closing Balance",
+        *body,
+        "STATEMENT SUMMARY",
+        f"Closing Balance : {_inr(rows[-1][5])}",
+    ]
+    data = write_pdf([page], title="Statement", font_size=6, wrap_at=220)
+    if password is None:
+        return data
+    writer = PdfWriter(clone_from=PdfReader(io.BytesIO(data)))
+    writer.encrypt(user_password=password, algorithm="AES-128")
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()

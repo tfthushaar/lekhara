@@ -1,7 +1,17 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { cancelInvitation, changeRole, inviteMember, removeMember, updateFirm } from "@/app/actions";
+import {
+  addSender,
+  addStatementPassword,
+  cancelInvitation,
+  changeRole,
+  inviteMember,
+  removeMember,
+  removeSender,
+  removeStatementPassword,
+  updateFirm,
+} from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { type Firm, api } from "@/lib/api";
 import { day } from "@/lib/format";
@@ -75,6 +85,10 @@ async function SettingsView() {
           <p className="small">The owner or finance can download it.</p>
         )}
       </section>
+
+      <Suspense fallback={<p className="loading">Loading email settings</p>}>
+        <EmailIn />
+      </Suspense>
 
       <section className="section">
         <div className="section-head">
@@ -269,5 +283,79 @@ async function SettingsView() {
         </section>
       ) : null}
     </>
+  );
+}
+
+async function EmailIn() {
+  const e = await api.inboundSettings();
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>Email in</h2>
+        <p>Each project has its own address, shown on its Import page; these settings cover them all</p>
+      </div>
+      <div className="field-grid" style={{ marginTop: 12 }}>
+        <div>
+          <p className="row-title">Trusted senders</p>
+          <p className="small muted" style={{ maxWidth: 420 }}>
+            Mail from your team is read at once. So is mail from these: a bank&apos;s statement service, your accountant,
+            a contractor. Anyone else&apos;s waits for you to allow it. A whole domain is written as @bank.example.
+          </p>
+          {e.senders.length === 0 ? (
+            <p className="empty">None yet.</p>
+          ) : (
+            <ul className="calc" style={{ maxWidth: 420 }}>
+              {e.senders.map((t) => (
+                <li key={t.id}>
+                  <span>{t.address}</span>
+                  {e.can_edit ? <ActionForm action={removeSender.bind(null, t.id)} label="Remove" pendingLabel="Removing" secondary /> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {e.can_edit ? (
+            <ActionForm action={addSender} label="Trust this sender" pendingLabel="Adding" secondary>
+              <div className="field">
+                <label htmlFor="sender-address">Email address or @domain</label>
+                <input id="sender-address" name="address" placeholder="statements@bank.example" required />
+              </div>
+            </ActionForm>
+          ) : null}
+        </div>
+        <div>
+          <p className="row-title">Statement passwords</p>
+          <p className="small muted" style={{ maxWidth: 420 }}>
+            Banks lock emailed statements with a password, such as your customer ID or a date of birth. Give it once and
+            Lekhara opens every statement locked with it. It is kept sealed and never shown again.
+          </p>
+          {e.passwords.length === 0 ? (
+            <p className="empty">None yet.</p>
+          ) : (
+            <ul className="calc" style={{ maxWidth: 420 }}>
+              {e.passwords.map((x) => (
+                <li key={x.id}>
+                  <span>{`${x.label}, added ${x.added_on}`}</span>
+                  {e.can_edit ? (
+                    <ActionForm action={removeStatementPassword.bind(null, x.id)} label="Remove" pendingLabel="Removing" secondary />
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {e.can_edit ? (
+            <ActionForm action={addStatementPassword} label="Keep the password" pendingLabel="Keeping it" secondary>
+              <div className="field">
+                <label htmlFor="password-label">For which account or bank</label>
+                <input id="password-label" name="label" placeholder="HDFC collection account" required />
+              </div>
+              <div className="field">
+                <label htmlFor="password-value">Password</label>
+                <input id="password-value" name="password" type="password" autoComplete="off" required />
+              </div>
+            </ActionForm>
+          ) : null}
+        </div>
+      </div>
+    </section>
   );
 }

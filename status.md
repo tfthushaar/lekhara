@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Add suppliers, bills and commitments".
+Last updated: 2026-10-18, with the commit "Add the forwarding address and PDF statements".
 
 ## What we are building
 
@@ -151,9 +151,18 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - Every change is in each record's history; the demo's commitments are now real work orders.
   - Tested end to end: a supplier added and a wrong GSTIN refused, a bill added and paid with its cost on the budget, an order added, a sheet of bills imported with a new supplier, the supplier's page, the export, and the tax tab.
 
+- The forwarding address (the first automatic feed):
+  - Each project has its own email address, shown on its Import page. Whatever is sent or forwarded to it is kept, and each file is brought in the way it would be if uploaded: a Tally export through the Tally import (applied by itself unless it needs choices), a bank statement through the bank statement import (applied by itself once the account is known), a sheet of units, payments, suppliers, bills or orders into an Import centre preview, and anything else into the document vault, filed by what its name says (bills, approvals, insurance, deeds and so on).
+  - Mail from the firm's team and from senders it trusts (an address, or a whole domain such as a bank's) is read at once; anyone else's waits until a team member allows it or turns it away, and allowing can trust the sender from then on. A sender whose domain fails the mail service's checks is not taken at its word.
+  - Banks can email statements on a schedule straight to the address. Statements emailed as PDF are read too, including those locked with a password: the firm gives each password once in Settings, where it is kept sealed with the server's key and never shown again, and a statement that was waiting for its password can be tried again.
+  - Mail reaches Lekhara either from an email service that posts each message to Lekhara with a shared secret (SendGrid, Mailgun, Cloudflare Email Routing and others), or by Lekhara checking a catch-all mailbox every two minutes.
+  - A background job queue in the database runs the work, retries failures with a growing wait, and runs inside the API (or on its own).
+- Bank statements as PDF: the transactions are read line by line from the text of each page, whatever the bank, with whether money went in or out read from the running balance; narrations over two lines are joined, the value date taken out, statements listed newest first put in order. A line has the same fingerprint in the PDF and the Excel download of the same statement, so nothing is counted twice across formats.
+  - Tested end to end: a statement emailed by the team and read by the background worker, a document from an outsider held, allowed and its sender trusted, a locked PDF statement waiting for its password and read once the password is given.
+
 ## In progress
 
-- The forwarding address: each workspace gets its own email address. Bank statements, Tally exports, bills and documents sent or forwarded to it come in by themselves, through the same imports and the document vault, on a background job queue; statements banks email as PDF are read too.
+- The review queue: one place for everything waiting for the builder across projects (buyers' payments to place, Tally choices, sheets to check, mail to allow, statements waiting for a password), with Today showing how many.
 
 ## Left
 
@@ -167,9 +176,8 @@ In this order:
 - Tally import, after that: debit notes netted off bills, sales vouchers matched to demands, testing against real exports from design partners.
 - Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, engines that work with partial data and say what is missing, first-run help.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
-- A forwarding address per workspace for bills, notices and statements; a background job queue; S3-compatible file storage.
-- Automatic feeds, waiting for your decision (plan v7.3, section 7.4.2, researched on 2026-10-18): bank statements and scheduled reports by email to the forwarding address; an optional Lekhara Connector on the Tally computer; Sell.Do and other CRMs by API; the GST portal through a GSP (an OTP about once a month); bank APIs with each bank as a partner. The Account Aggregator is open only to regulated entities.
-- A review queue for anything imported or read by AI with doubt.
+- S3-compatible file storage.
+- Automatic feeds, decided on 2026-10-18 (everything except what needs a bank partnership): an optional Lekhara Connector on the Tally computer; Sell.Do and other CRMs by API; the GST portal through a GSP (an OTP about once a month), and GSTR-2B files downloaded from the portal. Bank APIs and the Account Aggregator wait.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
 - Collections, next steps: reminders through the team's own WhatsApp or email.
 - Registration and handover, next steps: possession letters, the association handover checklist.

@@ -77,6 +77,8 @@ class Project(Base):
     oc_reference: Mapped[str | None] = mapped_column(String(200))
     association_formed_on: Mapped[date | None] = mapped_column(Date)
     common_areas_conveyed_on: Mapped[date | None] = mapped_column(Date)
+    mail_token: Mapped[str | None] = mapped_column(String(32), unique=True)
+    """The project's own forwarding address is <mail_token>@ the inbound domain."""
 
     organization: Mapped[Organization] = relationship(back_populates="projects")
     cost_lines: Mapped[list["CostLineRow"]] = relationship(
@@ -832,6 +834,94 @@ class Commitment(Base):
     amount: Mapped[Decimal] = mapped_column(Money)
     committed_on: Mapped[date] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class TrustedSender(Base):
+    """An address whose emails to a firm's projects are brought in without asking, besides the
+    firm's own team: a bank's statement service, the accountant, a contractor."""
+
+    __tablename__ = "trusted_senders"
+    __table_args__ = (UniqueConstraint("organization_id", "address"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    address: Mapped[str] = mapped_column(String(320))
+    """Lower case; a whole domain is written as @bank.example."""
+    added_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class StatementPassword(Base):
+    """A password a bank puts on the statements it emails, given once so Lekhara can open them.
+    Kept sealed with the server's secret key; never shown again."""
+
+    __tablename__ = "statement_passwords"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    label: Mapped[str] = mapped_column(String(200))
+    """Which account or bank it is for, in the firm's words."""
+    sealed: Mapped[str] = mapped_column(Text)
+    added_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class InboundMessage(Base):
+    """An email that reached a project's forwarding address."""
+
+    __tablename__ = "inbound_messages"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    from_address: Mapped[str] = mapped_column(String(320))
+    from_name: Mapped[str | None] = mapped_column(String(200))
+    subject: Mapped[str | None] = mapped_column(String(500))
+    storage_key: Mapped[str] = mapped_column(String(200))
+    """The whole email as received."""
+    trusted: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(16), default="queued")
+    """queued, held (waiting for a team member to allow it), done, rejected or failed."""
+    note: Mapped[str | None] = mapped_column(String(500))
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    decided_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
+class InboundItem(Base):
+    """One file in an inbound email, and what became of it."""
+
+    __tablename__ = "inbound_items"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    message_id: Mapped[str] = mapped_column(ForeignKey("inbound_messages.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(300))
+    size: Mapped[int] = mapped_column(Integer)
+    storage_key: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str | None] = mapped_column(String(32))
+    """tally, bank_statement, sheet, document or unknown, once looked at."""
+    status: Mapped[str] = mapped_column(String(16), default="queued")
+    """queued, done (brought in), review (waiting for a choice), ignored or failed."""
+    note: Mapped[str | None] = mapped_column(String(500))
+    result_type: Mapped[str | None] = mapped_column(String(32))
+    """tally_import, bank_statement, import_batch or document."""
+    result_id: Mapped[str | None] = mapped_column(String(64))
+
+
+class Job(Base):
+    """Work done in the background: an email to read, a mailbox to check."""
+
+    __tablename__ = "jobs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    kind: Mapped[str] = mapped_column(String(64), index=True)
+    payload: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(16), default="queued", index=True)
+    """queued, running, done or failed."""
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    run_after: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class AppendOnlyViolation(RuntimeError):

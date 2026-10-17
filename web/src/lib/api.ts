@@ -780,6 +780,43 @@ export type ImportList = {
   }[];
 };
 
+export type InboundItem = {
+  id: string;
+  filename: string;
+  size: number;
+  kind: string | null;
+  status: "queued" | "done" | "review" | "ignored" | "failed";
+  note: string | null;
+  link: string | null;
+  can_retry: boolean;
+};
+
+export type InboundMessage = {
+  id: string;
+  from_address: string;
+  from_name: string | null;
+  subject: string | null;
+  received_at: string;
+  trusted: boolean;
+  status: "queued" | "held" | "done" | "rejected" | "failed";
+  note: string | null;
+  items: InboundItem[];
+};
+
+export type Inbound = {
+  project_id: string;
+  address: string;
+  ready: boolean;
+  can_edit: boolean;
+  messages: InboundMessage[];
+};
+
+export type InboundSettings = {
+  can_edit: boolean;
+  senders: { id: string; address: string }[];
+  passwords: { id: string; label: string; added_on: string }[];
+};
+
 export type HistoryEntry = { at: string; action: string; source: string; by: string; changes: FieldChange[] };
 
 export type CostLineRef = { id: string; code: string; name: string };
@@ -1224,6 +1261,8 @@ export const api = {
   tally: (id: string) => get<TallyReview>(`/tally/${id}`),
   bankStatement: (id: string) => get<BankReview>(`/bank-statements/${id}`),
   purchases: (projectId: string) => get<Purchases>(`/projects/${projectId}/purchases`),
+  inbound: (projectId: string) => get<Inbound>(`/projects/${projectId}/inbound`),
+  inboundSettings: () => get<InboundSettings>("/organization/inbound"),
   bill: (id: string) => get<BillDetail>(`/bills/${id}`),
   supplier: (id: string) => get<SupplierDetail>(`/suppliers/${id}`),
   commitments: (projectId: string) => get<Commitments>(`/projects/${projectId}/commitments`),

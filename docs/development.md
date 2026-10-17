@@ -60,6 +60,14 @@ Record types are defined once in `api/lekhara/records.py` (fields, aliases, pars
 
 `api/lekhara/tally/`: `reader.py` recognises a file and reads XML or JSON into one tree of nodes (and Excel, CSV or ASCII reports into rows); `book.py` turns nodes into ledgers, groups and vouchers with Tally's conventions (YYYYMMDD dates; a debit is a negative AMOUNT marked deemed positive, turned round so debits are positive); `reports.py` reads the Day Book and other reports; `plan.py` works out suppliers, bills and buyer payments and the alerts; `ledgers.py` maps expense ledgers to cost lines, finds the RERA account and landowners, and works out cost incurred and paid, escrow movements and landowner payments; `service.py` stores the upload, reviews, applies and undoes. Sample exports for tests are in `api/tests/tally_samples.py`; add real exports from design partners beside them. Tally files can be up to `LEKHARA_TALLY_UPLOAD_MB` (default 100).
 
+### The forwarding address and background jobs
+
+`api/lekhara/inbound.py` gives each project an address (`<mail_token>@LEKHARA_INBOUND_DOMAIN`), keeps each email (`InboundMessage`) and file (`InboundItem`), decides whether the sender is trusted (the firm's team, `TrustedSender` rows, and the mail service's Authentication-Results), and routes each file to the Tally import, the bank statement import, an Import centre preview or the document vault. Mail arrives at `POST /inbound/email` (raw MIME, a form field `email`/`body-mime`/`raw`, or JSON `{raw: base64, to: [...]}`, with the header `X-Lekhara-Inbound-Secret` or `?secret=` matching `LEKHARA_INBOUND_SECRET`), or from a mailbox polled every two minutes when `LEKHARA_INBOUND_IMAP_URL` is set. To try it locally, start the API with `LEKHARA_INBOUND_SECRET=...` and post an `.eml` file with curl.
+
+`api/lekhara/jobs.py` is the job queue: `enqueue`, `@handler(kind)`, `every(kind, seconds)` for periodic work, and `run_pending`, which the API runs in a worker thread (`LEKHARA_WORKER=0` turns it off; `python -m lekhara.jobs` runs it on its own). Tests call `run_pending` directly.
+
+Statement passwords are sealed with `LEKHARA_SECRET_KEY` (`lekhara/secretbox.py`); set it in production, and keep it, or the stored passwords cannot be opened. PDF statements are read by `lekhara/bank/pdf.py`.
+
 ### Suppliers, bills and commitments
 
 `api/lekhara/purchases.py` adds, changes and deletes suppliers (firm-wide), bills and commitments (per project) with a change history; `imports.py` has a handler for each. Records that carry money into the append-only ledger (a bill with a cost line, a commitment) go through `sync_ledger`, which adds the entries that bring the ledger to the record's current figures under a reference prefix (`bill:<id>:`, `commitment:<id>:`), so edits and deletes never rewrite history.
