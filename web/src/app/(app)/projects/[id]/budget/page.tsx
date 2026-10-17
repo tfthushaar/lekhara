@@ -1,9 +1,20 @@
 import { Suspense } from "react";
 
-import { createCostLine, deleteCostLine, standardCostLines, updateCostLine } from "@/app/actions";
+import Link from "next/link";
+
+import {
+  createCommitment,
+  createCostLine,
+  deleteCommitment,
+  deleteCostLine,
+  standardCostLines,
+  updateCommitment,
+  updateCostLine,
+} from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { CommitmentFields } from "@/components/purchase-fields";
 import { type CostLines, api } from "@/lib/api";
-import { inr } from "@/lib/format";
+import { day, inr, plural } from "@/lib/format";
 
 export default function BudgetPage({ params }: PageProps<"/projects/[id]/budget">) {
   return (
@@ -48,7 +59,7 @@ function LineFields({ c, line, prefix }: { c: CostLines; line?: CostLines["lines
 
 async function BudgetView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const c = await api.costLines(id);
+  const [c, orders, purchases] = await Promise.all([api.costLines(id), api.commitments(id), api.purchases(id)]);
 
   return (
     <>
@@ -128,6 +139,71 @@ async function BudgetView({ params }: { params: Promise<{ id: string }> }) {
             <summary>Add any standard lines that are missing</summary>
             <ActionForm action={standardCostLines.bind(null, id)} label="Add them" pendingLabel="Adding" secondary />
           </details>
+        </section>
+      ) : null}
+
+      {c.lines.length > 0 ? (
+        <section className="section">
+          <div className="section-head">
+            <h2>Commitments</h2>
+            <p>Work orders, purchase orders and contracts: what each cost line is committed to</p>
+          </div>
+          <p className="small" style={{ marginTop: 12 }}>
+            {`${plural(orders.commitments.length, "order")}, ${inr(orders.total)} in all. `}
+            <a href={`/download/projects/${id}/exports/commitments.xlsx`} className="link-action">
+              Export to Excel
+            </a>
+            {"  ·  "}
+            <Link href={`/projects/${id}/import#purchases`} className="link-action">
+              Import a sheet of orders
+            </Link>
+          </p>
+          {orders.can_edit ? (
+            <details className="disclosure">
+              <summary>Add an order</summary>
+              <ActionForm action={createCommitment.bind(null, id)} label="Add the order" pendingLabel="Adding">
+                <CommitmentFields prefix="new-order" lines={orders.cost_lines} suppliers={purchases.suppliers} />
+              </ActionForm>
+            </details>
+          ) : null}
+          {orders.commitments.length === 0 ? (
+            <p className="empty">No orders yet.</p>
+          ) : (
+            <table className="table" style={{ marginTop: 12 }}>
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Cost line</th>
+                  <th>Supplier</th>
+                  <th>Ordered on</th>
+                  <th className="right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.commitments.map((o) => (
+                  <tr key={o.id}>
+                    <td>
+                      {o.reference}
+                      {o.description ? <span className="small muted">{` ${o.description}`}</span> : null}
+                      {orders.can_edit ? (
+                        <details className="disclosure">
+                          <summary>Change</summary>
+                          <ActionForm action={updateCommitment.bind(null, o.id)} label="Save" pendingLabel="Saving" secondary>
+                            <CommitmentFields prefix={`order-${o.id}`} lines={orders.cost_lines} suppliers={purchases.suppliers} c={o} />
+                          </ActionForm>
+                          <ActionForm action={deleteCommitment.bind(null, o.id)} label="Delete this order" pendingLabel="Deleting" secondary />
+                        </details>
+                      ) : null}
+                    </td>
+                    <td>{o.cost_line.code}</td>
+                    <td>{o.supplier ?? ""}</td>
+                    <td className="nowrap">{day(o.committed_on)}</td>
+                    <td className="right num">{inr(o.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </section>
       ) : null}
     </>

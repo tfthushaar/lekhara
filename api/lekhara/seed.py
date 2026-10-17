@@ -35,6 +35,7 @@ from lekhara.migrate import upgrade
 from lekhara.models import (
     Bill,
     ChecklistWaiver,
+    Commitment,
     CostLineRow,
     DataRoomVisit,
     DemandRow,
@@ -224,7 +225,7 @@ class Seeder:
             self.s.flush()
             if spec.category == "contingency":
                 continue
-            self._entries(p, line.id, "commitment", cr(spec.committed), [span - 30])
+            self._commitment(p, line, cr(spec.committed), self.ago(span - 30))
             # Spread incurred and paid over time so point-in-time positions are meaningful.
             offsets = [int(span * 0.8), int(span * 0.5), int(span * 0.2), 20]
             self._entries(p, line.id, "incurred", cr(spec.incurred), offsets)
@@ -232,6 +233,31 @@ class Seeder:
             if spec.category == "construction" and Decimal(spec.incurred) > 0:
                 held = (cr(spec.incurred) * Decimal("0.05")).quantize(Decimal("0.01"))
                 self._entries(p, line.id, "retention_held", held, [20])
+
+    def _commitment(self, p: Project, line: CostLineRow, amount: Decimal, on: date) -> None:
+        """The line's main work order, in the commitments register and the ledger."""
+        if amount == 0:
+            return
+        order = Commitment(
+            project_id=p.id,
+            cost_line_id=line.id,
+            reference=f"WO/{line.code}/001",
+            description=f"Main contract: {line.name.lower()}",
+            amount=amount,
+            committed_on=on,
+        )
+        self.s.add(order)
+        self.s.flush()
+        self.s.add(
+            LedgerEntry(
+                project_id=p.id,
+                cost_line_id=line.id,
+                kind="commitment",
+                amount=amount,
+                entry_date=on,
+                reference=f"commitment:{order.id}:commitment",
+            )
+        )
 
     def _entries(self, p: Project, line_id: str, kind: str, total: Decimal, offsets: list[int]):
         if total == 0:

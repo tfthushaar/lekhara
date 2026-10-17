@@ -780,6 +780,83 @@ export type ImportList = {
   }[];
 };
 
+export type HistoryEntry = { at: string; action: string; source: string; by: string; changes: FieldChange[] };
+
+export type CostLineRef = { id: string; code: string; name: string };
+
+export type SupplierRow = {
+  id: string;
+  name: string;
+  gstin: string | null;
+  registered: boolean;
+  pan: string | null;
+  state: string | null;
+  msme_category: string;
+  msme_label: string;
+  udyam_number: string | null;
+  written_agreement: boolean;
+  bills: number;
+  unpaid: number;
+};
+
+export type BillRow = {
+  id: string;
+  supplier: { id: string; name: string; registered: boolean; msme: boolean };
+  bill_no: string;
+  bill_date: string;
+  accepted_on: string;
+  taxable_value: string;
+  gst_amount: string | null;
+  paid_on: string | null;
+  cost_line: CostLineRef | null;
+  is_cement: boolean;
+  rcm_paid: boolean;
+  excluded: boolean;
+  source: string;
+};
+
+export type Purchases = {
+  project_id: string;
+  can_edit: boolean;
+  bills: BillRow[];
+  suppliers: SupplierRow[];
+  cost_lines: CostLineRef[];
+  totals: { taxable: string; gst: string; unpaid: number };
+};
+
+export type BillDetail = BillRow & {
+  project_id: string;
+  project_name: string;
+  can_edit: boolean;
+  can_delete: boolean;
+  cost_lines: CostLineRef[];
+  gst_is_cost: boolean;
+  history: HistoryEntry[];
+};
+
+export type SupplierDetail = SupplierRow & {
+  can_edit: boolean;
+  can_delete: boolean;
+  bill_list: (BillRow & { project: string | null })[];
+  history: HistoryEntry[];
+};
+
+export type Commitments = {
+  project_id: string;
+  can_edit: boolean;
+  cost_lines: CostLineRef[];
+  commitments: {
+    id: string;
+    reference: string;
+    description: string | null;
+    amount: string;
+    committed_on: string;
+    cost_line: { id: string; code: string | null; name: string | null };
+    supplier: string | null;
+  }[];
+  total: string;
+};
+
 export type BankStatementRow = {
   id: string;
   filename: string;
@@ -1146,6 +1223,10 @@ export const api = {
   importBatch: (id: string) => get<ImportBatch>(`/imports/${id}`),
   tally: (id: string) => get<TallyReview>(`/tally/${id}`),
   bankStatement: (id: string) => get<BankReview>(`/bank-statements/${id}`),
+  purchases: (projectId: string) => get<Purchases>(`/projects/${projectId}/purchases`),
+  bill: (id: string) => get<BillDetail>(`/bills/${id}`),
+  supplier: (id: string) => get<SupplierDetail>(`/suppliers/${id}`),
+  commitments: (projectId: string) => get<Commitments>(`/projects/${projectId}/commitments`),
   bankStatements: (projectId: string) => get<BankStatementList>(`/projects/${projectId}/bank-statements`),
   costLines: (projectId: string) => get<CostLines>(`/projects/${projectId}/cost-lines`),
   paymentPlan: (projectId: string) => get<PaymentPlan>(`/projects/${projectId}/payment-plan`),

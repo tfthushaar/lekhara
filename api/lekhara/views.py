@@ -44,6 +44,7 @@ from lekhara.models import (
     PaymentMilestone,
     Project,
     Unit,
+    Vendor,
     WithdrawalRequest,
 )
 from lekhara.money import ZERO
@@ -1783,4 +1784,166 @@ def bank_review(
             for p in plan.lines
         ],
         "units": [{"id": u.id, "label": u.label, "buyer": u.buyer} for u in units],
+    }
+
+
+# Suppliers, bills and commitments
+
+MSME_LABEL = {"none": "Not MSME", "micro": "Micro", "small": "Small", "medium": "Medium"}
+
+
+def vendor_row(v, *, bills: int = 0, unpaid: int = 0) -> dict:
+    return {
+        "id": v.id,
+        "name": v.name,
+        "gstin": v.gstin,
+        "registered": v.registered,
+        "pan": v.pan,
+        "state": v.state,
+        "msme_category": v.msme_category,
+        "msme_label": MSME_LABEL.get(v.msme_category, v.msme_category),
+        "udyam_number": v.udyam_number,
+        "written_agreement": v.written_agreement,
+        "bills": bills,
+        "unpaid": unpaid,
+    }
+
+
+def bill_row(b, lines: dict) -> dict:
+    line = lines.get(b.cost_line_id)
+    return {
+        "id": b.id,
+        "supplier": {
+            "id": b.vendor.id,
+            "name": b.vendor.name,
+            "registered": b.vendor.registered,
+            "msme": b.vendor.msme_category in ("micro", "small"),
+        },
+        "bill_no": b.bill_no,
+        "bill_date": d(b.bill_date),
+        "accepted_on": d(b.accepted_on),
+        "taxable_value": m(b.taxable_value),
+        "gst_amount": m(b.gst_amount),
+        "paid_on": d(b.paid_on),
+        "cost_line": {"id": line.id, "code": line.code, "name": line.name} if line else None,
+        "is_cement": b.is_cement,
+        "rcm_paid": b.rcm_paid,
+        "excluded": b.excluded,
+        "source": "Tally" if (b.source_ref or "").startswith("tally:") else "Lekhara",
+    }
+
+
+def _lines(session, project) -> dict:
+    from lekhara.registers import cost_lines
+
+    return {line.id: line for line in cost_lines(session, project)}
+
+
+def purchases_view(session, project: Project, *, can_edit: bool) -> dict:
+    from lekhara import purchases
+
+    lines = _lines(session, project)
+    bills = purchases.bills_of(session, project)
+    counts: dict[str, list[int]] = {}
+    for b in bills:
+        c = counts.setdefault(b.vendor_id, [0, 0])
+        c[0] += 1
+        c[1] += 0 if b.paid_on else 1
+    vendors = purchases.vendors_of(session, project.organization_id)
+    return {
+        "project_id": project.id,
+        "can_edit": can_edit,
+        "bills": [bill_row(b, lines) for b in bills],
+        "suppliers": [
+            vendor_row(v, bills=counts.get(v.id, [0, 0])[0], unpaid=counts.get(v.id, [0, 0])[1])
+            for v in vendors
+        ],
+        "cost_lines": [{"id": x.id, "code": x.code, "name": x.name} for x in lines.values()],
+        "totals": {
+            "taxable": m(sum((b.taxable_value for b in bills), Decimal("0"))),
+            "gst": m(sum((b.gst_amount or Decimal("0") for b in bills), Decimal("0"))),
+            "unpaid": sum(1 for b in bills if not b.paid_on),
+        },
+    }
+
+
+def history_rows(changes: list, names: dict[str, str], labels: dict[str, str]) -> list[dict]:
+    return [
+        {
+            "at": c.at.replace(microsecond=0).isoformat(),
+            "action": c.action,
+            "source": c.source,
+            "by": names.get(c.user_id, "Lekhara"),
+            "changes": [
+                {"field": labels.get(k, k), "before": b, "after": a}
+                for k, (b, a) in json.loads(c.changes).items()
+            ],
+        }
+        for c in changes
+    ]
+
+
+def bill_detail(session, bill, project: Project, changes, names, *, can_edit: bool) -> dict:
+    from lekhara.records import BILLS
+
+    lines = _lines(session, project)
+    labels = {f.key: f.label for f in BILLS.fields}
+    return {
+        **bill_row(bill, lines),
+        "project_id": project.id,
+        "project_name": project.name,
+        "can_edit": can_edit,
+        "can_delete": can_edit and not (bill.source_ref or "").startswith("tally:"),
+        "cost_lines": [{"id": x.id, "code": x.code, "name": x.name} for x in lines.values()],
+        "gst_is_cost": project.gst_regime != "commercial_12pc",
+        "history": history_rows(changes, names, labels),
+    }
+
+
+def vendor_detail(session, vendor, changes, names, *, can_edit: bool, projects: dict) -> dict:
+    from lekhara import purchases
+    from lekhara.records import SUPPLIERS
+
+    bills = purchases.vendor_bills(session, vendor)
+    labels = {f.key: f.label for f in SUPPLIERS.fields}
+    lines: dict = {}
+    return {
+        **vendor_row(vendor, bills=len(bills), unpaid=sum(1 for b in bills if not b.paid_on)),
+        "can_edit": can_edit,
+        "can_delete": can_edit and not bills,
+        "bill_list": [
+            {**bill_row(b, lines), "project": projects.get(b.project_id)}
+            for b in reversed(bills)
+            if b.project_id in projects
+        ],
+        "history": history_rows(changes, names, labels),
+    }
+
+
+def commitments_view(session, project: Project, *, can_edit: bool) -> dict:
+    from lekhara import purchases
+
+    lines = _lines(session, project)
+    rows = purchases.commitments_of(session, project)
+    return {
+        "project_id": project.id,
+        "can_edit": can_edit,
+        "cost_lines": [{"id": x.id, "code": x.code, "name": x.name} for x in lines.values()],
+        "commitments": [
+            {
+                "id": c.id,
+                "reference": c.reference,
+                "description": c.description,
+                "amount": m(c.amount),
+                "committed_on": d(c.committed_on),
+                "cost_line": {
+                    "id": c.cost_line_id,
+                    "code": lines[c.cost_line_id].code if c.cost_line_id in lines else None,
+                    "name": lines[c.cost_line_id].name if c.cost_line_id in lines else None,
+                },
+                "supplier": session.get(Vendor, c.vendor_id).name if c.vendor_id else None,
+            }
+            for c in rows
+        ],
+        "total": m(sum((c.amount for c in rows), Decimal("0"))),
     }

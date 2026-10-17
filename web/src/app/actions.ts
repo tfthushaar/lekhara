@@ -189,6 +189,92 @@ export async function undoTally(importId: string, _previous: ActionState): Promi
   return {};
 }
 
+const BILL_FIELDS = [
+  "supplier",
+  "bill_no",
+  "bill_date",
+  "taxable_value",
+  "gst_amount",
+  "accepted_on",
+  "paid_on",
+  "cost_line",
+  "is_cement",
+  "rcm_paid",
+  "excluded",
+];
+const SUPPLIER_FIELDS = ["name", "gstin", "pan", "state", "msme_category", "udyam_number", "written_agreement"];
+const COMMITMENT_FIELDS = ["reference", "cost_line", "amount", "committed_on", "supplier", "description"];
+
+/** The optional fields a form left blank, so saving clears them. */
+function blanks(form: FormData, names: string[]): string[] {
+  return names.filter((name) => form.has(name) && !text(form, name));
+}
+
+export async function createBill(projectId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/bills`, filled(form, BILL_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Bill added." };
+}
+
+export async function updateBill(billId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const body = { ...filled(form, BILL_FIELDS), clear: blanks(form, ["paid_on", "gst_amount", "cost_line"]) };
+  const result = await send("PUT", `/bills/${billId}`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function deleteBill(billId: string, projectId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/bills/${billId}/delete`);
+  if (!result.ok) return { error: result.error };
+  redirect(`/projects/${projectId}/suppliers`);
+}
+
+export async function createSupplier(projectId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/suppliers`, filled(form, SUPPLIER_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Supplier added." };
+}
+
+export async function updateSupplier(supplierId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const body = { ...filled(form, SUPPLIER_FIELDS), clear: blanks(form, ["gstin", "pan", "state", "udyam_number"]) };
+  const result = await send("PUT", `/suppliers/${supplierId}`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function deleteSupplier(supplierId: string, backTo: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/suppliers/${supplierId}/delete`);
+  if (!result.ok) return { error: result.error };
+  redirect(backTo);
+}
+
+export async function createCommitment(projectId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/commitments`, filled(form, COMMITMENT_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Order added." };
+}
+
+export async function updateCommitment(commitmentId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const body: Record<string, string> = filled(form, COMMITMENT_FIELDS);
+  for (const name of blanks(form, ["supplier", "description"])) body[name] = "";
+  const result = await send("PUT", `/commitments/${commitmentId}`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function deleteCommitment(commitmentId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/commitments/${commitmentId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function uploadStatement(
   projectId: string,
   _previous: ActionState,

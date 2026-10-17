@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Update status after researching automatic feeds".
+Last updated: 2026-10-18, with the commit "Add suppliers, bills and commitments".
 
 ## What we are building
 
@@ -141,9 +141,19 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - Built to the layouts banks print and tested on sample statements in those layouts; to be tested against real statements from design partners.
   - Tested end to end: a PDF refused with steps, an HDFC collection account statement read and matched (by name, by unit number, a home-loan disbursement, a bounced cheque), a payer placed by hand, payments on the unit, the same account in ICICI's layout adding nothing, an SBI RERA account statement shown in escrow and the set-up checklist, and an undo.
 
+- Suppliers, their bills and commitments, for builders who keep them outside Tally (or alongside it):
+  - Suppliers belong to the firm and serve every project: name, GSTIN (checked, with the PAN and state filled in from it), MSME category, Udyam number and whether a written agreement fixes payment terms. Added, changed, cleared and deleted (only while they have no bills or orders) on a page of their own, with every bill they sent across projects.
+  - A "Suppliers and bills" tab on each project: every bill with its supplier, date, taxable value, GST, cost line and payment, where it came from (Lekhara or Tally), and forms to add bills and suppliers.
+  - A bill can name a cost line: it then counts as cost incurred on that line (with the GST when the project's GST scheme gives no input credit) and as cost paid once paid. Changing the amount, the line or the payment, clearing it or deleting the bill moves the cost with it, through new entries in the append-only ledger. A bill from Tally carries no cost line here, so nothing counts twice; it can be corrected but not deleted.
+  - Commitments: work orders, purchase orders and contracts on the Budget page, each committing a cost line to an amount; a variation changes the amount, and the committed figures and anticipated final cost follow.
+  - The 80% registered-supplier test and the MSME clock use every bill at once, whichever way it came in.
+  - All three import from a sheet through the Import centre, with templates: suppliers matched on GSTIN or name, bills on the supplier and the bill number (a new supplier is added), orders on their number; the preview, re-import that changes nothing, undo (the cost goes back too) and export in the same layout, as for units.
+  - Every change is in each record's history; the demo's commitments are now real work orders.
+  - Tested end to end: a supplier added and a wrong GSTIN refused, a bill added and paid with its cost on the budget, an order added, a sheet of bills imported with a new supplier, the supplier's page, the export, and the tax tab.
+
 ## In progress
 
-- Suppliers, their bills and commitments: typed in, edited, imported from a sheet and exported, like units and buyer payments, for builders who do not keep them in Tally, with a change history for each.
+- The forwarding address: each workspace gets its own email address. Bank statements, Tally exports, bills and documents sent or forwarded to it come in by themselves, through the same imports and the document vault, on a background job queue; statements banks email as PDF are read too.
 
 ## Left
 
@@ -152,7 +162,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 In this order:
 
 - Self-serve start, still to do: sign-in with Google and by phone code, limits on sign-ups and resets per network address, and row-level security in Postgres as a second wall between firms when production moves to Postgres.
-- Add, edit, import and export for the remaining records that today come only from the demo data or Tally: suppliers and their bills typed in, commitments, landowner payments typed in, approvals, filings; spreadsheet-style bulk editing; change history for each.
+- Add, edit, import and export for the remaining records that today come only from the demo data or Tally: landowner payments typed in, approvals, filings; spreadsheet-style bulk editing; change history for each.
 - Import centre, still to do: known CRM export formats, templates in Kannada, AI column mapping for unfamiliar sheets.
 - Tally import, after that: debit notes netted off bills, sales vouchers matched to demands, testing against real exports from design partners.
 - Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, engines that work with partial data and say what is missing, first-run help.

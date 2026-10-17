@@ -56,7 +56,82 @@ async function BatchView({ params }: { params: Promise<{ id: string }> }) {
   );
 }
 
+type Words = {
+  one: string;
+  many: string;
+  column: string;
+  fresh: string;
+  changed: string;
+  link: string;
+  linkLabel: string;
+  undone: string;
+  undo: string;
+};
+
+const WORDS: Record<string, Words> = {
+  units: {
+    one: "unit",
+    many: "units",
+    column: "Unit",
+    fresh: "Units not in Lekhara yet",
+    changed: "Units whose details differ",
+    link: "/units",
+    linkLabel: "See the units",
+    undone: "The units are as they were before it.",
+    undo: "New units are removed and changed ones go back to what they were.",
+  },
+  receipts: {
+    one: "payment",
+    many: "payments",
+    column: "Unit",
+    fresh: "Payments not recorded yet",
+    changed: "Payments are only added",
+    link: "/collections",
+    linkLabel: "See collections",
+    undone: "The payments it added have been removed.",
+    undo: "The payments it added are removed.",
+  },
+  suppliers: {
+    one: "supplier",
+    many: "suppliers",
+    column: "Supplier",
+    fresh: "Suppliers not in Lekhara yet",
+    changed: "Suppliers whose details differ",
+    link: "/suppliers",
+    linkLabel: "See suppliers and bills",
+    undone: "The suppliers are as they were before it.",
+    undo: "New suppliers are removed and changed ones go back to what they were.",
+  },
+  bills: {
+    one: "bill",
+    many: "bills",
+    column: "Bill",
+    fresh: "Bills not recorded yet",
+    changed: "Bills whose details differ",
+    link: "/suppliers",
+    linkLabel: "See suppliers and bills",
+    undone: "The bills are as they were before it, and so is their cost.",
+    undo: "New bills are removed and changed ones go back to what they were, with their cost.",
+  },
+  commitments: {
+    one: "order",
+    many: "orders",
+    column: "Order",
+    fresh: "Orders not recorded yet",
+    changed: "Orders whose amount or details differ",
+    link: "/budget",
+    linkLabel: "See the budget",
+    undone: "The orders are as they were before it.",
+    undo: "New orders are removed and changed ones go back to what they were.",
+  },
+};
+
+function wordsFor(kind: string): Words {
+  return WORDS[kind] ?? WORDS.units;
+}
+
 function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
+  const w = wordsFor(b.kind);
   return (
     <>
       <p className="status-line">
@@ -66,12 +141,12 @@ function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
         <div className="stat">
           <p className="stat-label">New</p>
           <p className="stat-value">{b.counts.add}</p>
-          <p className="stat-note">{b.kind === "receipts" ? "Payments not recorded yet" : "Units not in Lekhara yet"}</p>
+          <p className="stat-note">{w.fresh}</p>
         </div>
         <div className="stat">
           <p className="stat-label">Changes</p>
           <p className="stat-value">{b.counts.update}</p>
-          <p className="stat-note">{b.kind === "receipts" ? "Payments are only added" : "Units whose details differ"}</p>
+          <p className="stat-note">{w.changed}</p>
         </div>
         <div className="stat">
           <p className="stat-label">Already the same</p>
@@ -130,7 +205,7 @@ function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
       <section className="section">
         <div className="section-head">
           <h2>Rows</h2>
-          <p>Rows to fix first, then new units, then changes</p>
+          <p>{`Rows to fix first, then new ${w.many}, then changes`}</p>
         </div>
         {b.rows.length === 0 ? (
           <p className="empty">Every row matches what Lekhara already has.</p>
@@ -139,7 +214,7 @@ function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
             <thead>
               <tr>
                 <th>Row</th>
-                <th>Unit</th>
+                <th>{w.column}</th>
                 <th>What happens</th>
                 <th>Details</th>
               </tr>
@@ -172,7 +247,7 @@ function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
           {ready > 0 ? (
             <ActionForm
               action={applyImport.bind(null, b.id)}
-              label={`Import ${plural(ready, b.kind === "receipts" ? "payment" : "unit")}`}
+              label={`Import ${plural(ready, w.one, w.many)}`}
               pendingLabel="Importing"
             >
               <p style={{ marginBottom: 12 }}>
@@ -192,14 +267,15 @@ function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
 
 function Result({ b, base }: { b: ImportBatch; base: string }) {
   const r = b.result;
+  const w = wordsFor(b.kind);
   return (
     <>
       <p className="status-line">
         {b.status === "undone"
-          ? "This import was undone. The units are as they were before it."
+          ? `This import was undone. ${w.undone}`
           : b.kind === "receipts"
             ? `Imported: ${r ? plural(r.added, "payment") : ""} recorded.`
-            : `Imported: ${r ? `${plural(r.added, "unit")} added, ${plural(r.updated, "unit")} changed` : ""}.`}
+            : `Imported: ${r ? `${plural(r.added, w.one, w.many)} added, ${plural(r.updated, w.one, w.many)} changed` : ""}.`}
       </p>
       {r && b.status === "applied" ? (
         <p className="muted">
@@ -208,16 +284,15 @@ function Result({ b, base }: { b: ImportBatch; base: string }) {
         </p>
       ) : null}
       <p style={{ marginTop: 16 }}>
-        <Link href={b.kind === "receipts" ? `${base}/collections` : `${base}/units`} className="link-action">
-          {b.kind === "receipts" ? "See collections" : "See the units"}
+        <Link href={`${base}${w.link}`} className="link-action">
+          {w.linkLabel}
         </Link>
       </p>
       {b.can_undo ? (
         <details className="disclosure" style={{ marginTop: 24 }}>
           <summary>Undo this import</summary>
           <p className="small muted" style={{ margin: "8px 0 12px", maxWidth: 640 }}>
-            New units are removed and changed ones go back to what they were. This works only
-            while nothing has happened to them since.
+            {`${w.undo} This works only while nothing has happened to them since.`}
           </p>
           <ActionForm action={undoImport.bind(null, b.id)} label="Undo the import" pendingLabel="Undoing" secondary />
         </details>

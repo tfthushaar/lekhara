@@ -144,7 +144,7 @@ def readiness(session: Session, project: Project, as_of: date) -> list[Item]:
         )
     )
 
-    for key, title, model, column, unlocks, action in (
+    for key, title, model, column, unlocks, action, page in (
         (
             "costs",
             "Costs from your accounts",
@@ -152,6 +152,7 @@ def readiness(session: Session, project: Project, as_of: date) -> list[Item]:
             LedgerEntry.entry_date,
             "Cost incurred and paid, and how much can be withdrawn from the RERA account.",
             "Import from Tally",
+            "import",
         ),
         (
             "bills",
@@ -159,7 +160,8 @@ def readiness(session: Session, project: Project, as_of: date) -> list[Item]:
             Bill,
             Bill.bill_date,
             "The 80% registered-supplier test and the MSME 45-day clock.",
-            "Import from Tally",
+            "Add bills, or bring them in from Tally",
+            "suppliers",
         ),
         (
             "receipts",
@@ -168,6 +170,7 @@ def readiness(session: Session, project: Project, as_of: date) -> list[Item]:
             Receipt.received_on,
             "Collections, overdue interest and the 70% deposit check.",
             "Import a bank statement or Tally",
+            "import",
         ),
         (
             "escrow",
@@ -176,6 +179,7 @@ def readiness(session: Session, project: Project, as_of: date) -> list[Item]:
             EscrowTxn.txn_date,
             "The 70% deposit check and withdrawals.",
             "Import the RERA account's statement",
+            "import",
         ),
     ):
         count, last = _count_and_last(session, column, model, model.project_id == p.id)
@@ -187,7 +191,7 @@ def readiness(session: Session, project: Project, as_of: date) -> list[Item]:
                 f"Up to {_when(last)}." if count else "Nothing yet.",
                 unlocks,
                 action,
-                f"{base}/import",
+                f"{base}/{page}",
             )
         )
 

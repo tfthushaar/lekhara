@@ -21,8 +21,18 @@ from openpyxl.utils.exceptions import InvalidFileException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from lekhara import registers
-from lekhara.models import ImportBatch, ImportMapping, Project, Receipt, Unit, utcnow
+from lekhara import purchases, registers
+from lekhara.models import (
+    Bill,
+    Commitment,
+    ImportBatch,
+    ImportMapping,
+    Project,
+    Receipt,
+    Unit,
+    Vendor,
+    utcnow,
+)
 from lekhara.records import RECORD_TYPES, RecordType, match_columns, normalise_header
 from lekhara.services import ServiceError
 
@@ -360,15 +370,284 @@ class ReceiptImport:
         ]
 
 
-HANDLERS = {h.kind: h for h in (UnitImport(), ReceiptImport())}
+def _same(a, b) -> bool:
+    return registers.to_json(a) == registers.to_json(b)
 
 
-def evaluate(session: Session, batch: ImportBatch) -> list[dict]:
+class SupplierImport:
+    """Suppliers: matched on GSTIN or name; new ones added, changed details filled in. They belong
+    to the firm, so a supplier imported in one project serves every project."""
+
+    kind = "suppliers"
+
+    def context(self, session: Session, project: Project) -> dict:
+        return {"session": session, "org": project.organization_id}
+
+    def evaluate(self, values: dict, problems: list[str], seen: set, ctx: dict) -> dict:
+        name = values.get("name")
+        key = (name or "").strip()
+        if not key:
+            problems.insert(0, "The supplier's name is missing.")
+        else:
+            folded = purchases._fold(key)
+            if folded in seen or (values.get("gstin") and values["gstin"].upper() in seen):
+                problems.insert(0, f"{key} appears more than once in the file.")
+            seen.add(folded)
+            if values.get("gstin"):
+                seen.add(values["gstin"].upper())
+        existing = None
+        if not problems:
+            existing = purchases.find_vendor(
+                ctx["session"], ctx["org"], values.get("gstin")
+            ) or purchases.find_vendor(ctx["session"], ctx["org"], key)
+            values, more = purchases.clean_vendor(values, existing)
+            problems.extend(more)
+        if problems:
+            return {"key": key, "action": "error", "messages": problems, "changes": {}}
+        if existing is None:
+            return {"key": key, "action": "add", "messages": [], "changes": {}}
+        before = purchases.vendor_values(existing)
+        changes = {
+            k: [registers.to_json(before[k]), registers.to_json(v)]
+            for k, v in values.items()
+            if v is not None and k in before and not _same(before[k], v)
+        }
+        return {
+            "key": existing.id,
+            "action": "update" if changes else "unchanged",
+            "messages": [],
+            "changes": changes,
+        }
+
+    def add(self, session, project, values, *, user_id, batch_id, ctx) -> str:
+        vendor = purchases.create_vendor(
+            session,
+            project.organization_id,
+            values,
+            project=project,
+            user_id=user_id,
+            source="import",
+            batch_id=batch_id,
+        )
+        return vendor.id
+
+    def update(self, session, project, key, values, *, user_id, batch_id) -> tuple[str, dict]:
+        vendor = session.get(Vendor, key)
+        changes = purchases.update_vendor(
+            session, vendor, values, project=project, user_id=user_id, source="import",
+            batch_id=batch_id,
+        )  # fmt: skip
+        return vendor.id, changes
+
+    def blocker(self, session, item) -> str | None:
+        vendor = session.get(Vendor, item["id"])
+        if vendor is None:
+            return f"row {item['row']} (the supplier has been deleted)"
+        if item["action"] == "add" and purchases.vendor_bills(session, vendor):
+            return f"{vendor.name} (now has bills)"
+        return None
+
+    def reverse(self, session, project, item, *, user_id, batch_id) -> None:
+        vendor = session.get(Vendor, item["id"])
+        if item["action"] == "add":
+            purchases.delete_vendor(session, vendor, user_id=user_id)
+            return
+        record = record_type(self.kind)
+        for k, (before, _) in item["changes"].items():
+            setattr(vendor, k, registers.from_json(record, k, before))
+        vendor.registered = bool(vendor.gstin)
+
+    def export_rows(self, session, project, record) -> list[list]:
+        return [
+            [_display(record, k, v) for k, v in purchases.vendor_values(vendor).items()]
+            for vendor in purchases.vendors_of(session, project.organization_id)
+        ]
+
+
+class BillImport:
+    """Suppliers' bills: matched on the supplier and the bill number; a supplier not yet in
+    Lekhara is added. A bill with a cost line counts as cost incurred, and as paid once paid."""
+
+    kind = "bills"
+
+    def context(self, session: Session, project: Project) -> dict:
+        return {"session": session, "project": project}
+
+    def evaluate(self, values: dict, problems: list[str], seen: set, ctx: dict) -> dict:
+        session, project = ctx["session"], ctx["project"]
+        supplier = (values.get("supplier") or "").strip()
+        bill_no = (values.get("bill_no") or "").strip()
+        label = f"{bill_no} from {supplier}" if supplier and bill_no else bill_no or supplier
+        if not problems:
+            problems = purchases.check_bill(session, project, values, as_of=ctx["as_of"])
+        pair = (purchases._fold(supplier), purchases._fold(bill_no))
+        if supplier and bill_no:
+            if pair in seen:
+                problems.insert(0, f"Bill {bill_no} from {supplier} appears more than once.")
+            seen.add(pair)
+        if problems:
+            return {"key": label, "action": "error", "messages": problems, "changes": {}}
+        vendor = purchases.find_vendor(session, project.organization_id, supplier)
+        if vendor is None:
+            return {
+                "key": label,
+                "action": "add",
+                "messages": [f"{supplier} is new and will be added as a supplier."],
+                "changes": {},
+            }
+        bill = purchases._bill_clash(session, project, vendor.id, bill_no)
+        if bill is None:
+            return {"key": label, "action": "add", "messages": [], "changes": {}}
+        before = purchases.bill_values(session, bill)
+        line = purchases.find_cost_line(session, project, values.get("cost_line"))
+        wanted = {**values, "supplier": vendor.name}
+        if line is not None:
+            wanted["cost_line"] = line.code
+        changes = {
+            k: [registers.to_json(before[k]), registers.to_json(v)]
+            for k, v in wanted.items()
+            if v is not None and k in before and not _same(before[k], v)
+        }
+        return {
+            "key": bill.id,
+            "action": "update" if changes else "unchanged",
+            "messages": [],
+            "changes": changes,
+        }
+
+    def add(self, session, project, values, *, user_id, batch_id, ctx) -> str:
+        bill = purchases.create_bill(
+            session, project, values, as_of=ctx["as_of"], user_id=user_id, source="import",
+            batch_id=batch_id,
+        )  # fmt: skip
+        return bill.id
+
+    def update(self, session, project, key, values, *, user_id, batch_id) -> tuple[str, dict]:
+        bill = session.get(Bill, key)
+        changes = purchases.update_bill(
+            session, project, bill, values, as_of=date.max, user_id=user_id, source="import",
+            batch_id=batch_id,
+        )  # fmt: skip
+        return bill.id, changes
+
+    def blocker(self, session, item) -> str | None:
+        if session.get(Bill, item["id"]) is None:
+            return f"row {item['row']} (the bill has been deleted)"
+        return None
+
+    def reverse(self, session, project, item, *, user_id, batch_id) -> None:
+        bill = session.get(Bill, item["id"])
+        if item["action"] == "add":
+            purchases.delete_bill(session, project, bill, user_id=user_id)
+            return
+        record = record_type(self.kind)
+        before = {k: registers.from_json(record, k, b) for k, (b, _) in item["changes"].items()}
+        for key in [k for k, v in before.items() if v is None]:
+            purchases.clear_bill_field(session, project, bill, key, user_id=user_id)
+        restore = {k: v for k, v in before.items() if v is not None}
+        if restore:
+            purchases.update_bill(
+                session, project, bill, restore, as_of=date.max, user_id=user_id, source="undo",
+                batch_id=batch_id,
+            )  # fmt: skip
+
+    def export_rows(self, session, project, record) -> list[list]:
+        return [
+            [_display(record, k, v) for k, v in purchases.bill_values(session, bill).items()]
+            for bill in reversed(purchases.bills_of(session, project))
+        ]
+
+
+class CommitmentImport:
+    """Commitments: work orders, purchase orders and contracts, matched on their number; a
+    changed amount (a variation) updates the commitment on its cost line."""
+
+    kind = "commitments"
+
+    def context(self, session: Session, project: Project) -> dict:
+        return {"session": session, "project": project}
+
+    def evaluate(self, values: dict, problems: list[str], seen: set, ctx: dict) -> dict:
+        session, project = ctx["session"], ctx["project"]
+        reference = (values.get("reference") or "").strip()
+        if not problems:
+            problems = purchases.check_commitment(session, project, values, as_of=ctx["as_of"])
+        if reference:
+            if purchases._fold(reference) in seen:
+                problems.insert(0, f"Order {reference} appears more than once in the file.")
+            seen.add(purchases._fold(reference))
+        if problems:
+            return {"key": reference, "action": "error", "messages": problems, "changes": {}}
+        existing = purchases.find_commitment(session, project, reference)
+        if existing is None:
+            return {"key": reference, "action": "add", "messages": [], "changes": {}}
+        before = purchases.commitment_values(session, existing)
+        line = purchases.find_cost_line(session, project, values.get("cost_line"))
+        wanted = {**values, "cost_line": line.code if line else values.get("cost_line")}
+        changes = {
+            k: [registers.to_json(before[k]), registers.to_json(v)]
+            for k, v in wanted.items()
+            if v is not None and k in before and not _same(before[k], v)
+        }
+        return {
+            "key": existing.id,
+            "action": "update" if changes else "unchanged",
+            "messages": [],
+            "changes": changes,
+        }
+
+    def add(self, session, project, values, *, user_id, batch_id, ctx) -> str:
+        c = purchases.create_commitment(
+            session, project, values, as_of=ctx["as_of"], user_id=user_id, source="import",
+            batch_id=batch_id,
+        )  # fmt: skip
+        return c.id
+
+    def update(self, session, project, key, values, *, user_id, batch_id) -> tuple[str, dict]:
+        c = session.get(Commitment, key)
+        changes = purchases.update_commitment(
+            session, project, c, values, as_of=date.max, user_id=user_id, source="import",
+            batch_id=batch_id,
+        )  # fmt: skip
+        return c.id, changes
+
+    def blocker(self, session, item) -> str | None:
+        if session.get(Commitment, item["id"]) is None:
+            return f"row {item['row']} (the order has been deleted)"
+        return None
+
+    def reverse(self, session, project, item, *, user_id, batch_id) -> None:
+        c = session.get(Commitment, item["id"])
+        if item["action"] == "add":
+            purchases.delete_commitment(session, project, c, user_id=user_id)
+            return
+        record = record_type(self.kind)
+        before = {k: registers.from_json(record, k, b) for k, (b, _) in item["changes"].items()}
+        purchases.update_commitment(
+            session, project, c, before, as_of=date.max, user_id=user_id, source="undo",
+            batch_id=batch_id,
+        )  # fmt: skip
+
+    def export_rows(self, session, project, record) -> list[list]:
+        return [
+            [_display(record, k, v) for k, v in purchases.commitment_values(session, c).items()]
+            for c in reversed(purchases.commitments_of(session, project))
+        ]
+
+
+HANDLERS = {
+    h.kind: h
+    for h in (UnitImport(), ReceiptImport(), SupplierImport(), BillImport(), CommitmentImport())
+}
+
+
+def evaluate(session: Session, batch: ImportBatch, *, as_of: date | None = None) -> list[dict]:
     """What each row would do: add, update, unchanged or error, with the reasons."""
     record = record_type(batch.kind)
     handler = HANDLERS[batch.kind]
     project = session.get(Project, batch.project_id)
     ctx = handler.context(session, project)
+    ctx["as_of"] = as_of or date.today()
     mapping = mapping_of(batch)
     seen: set = set()
     out = []
@@ -383,14 +662,17 @@ def evaluate(session: Session, batch: ImportBatch) -> list[dict]:
     return out
 
 
-def apply(session: Session, batch: ImportBatch, *, user_id: str | None) -> dict:
+def apply(
+    session: Session, batch: ImportBatch, *, user_id: str | None, as_of: date | None = None
+) -> dict:
     if batch.status != "preview":
         raise ServiceError("This import has already been applied.")
     record = record_type(batch.kind)
     handler = HANDLERS[batch.kind]
     project = session.get(Project, batch.project_id)
-    rows = evaluate(session, batch)
+    rows = evaluate(session, batch, as_of=as_of)
     ctx = handler.context(session, project)
+    ctx["as_of"] = as_of or date.today()
     done = []
     for row in rows:
         if row["action"] not in ("add", "update"):

@@ -170,6 +170,9 @@ class Bill(Base):
     gst_amount: Mapped[Decimal | None] = mapped_column(Money)
     source_ref: Mapped[str | None] = mapped_column(String(200), index=True)
     """Where the bill came from, such as a Tally voucher, so it is never brought in twice."""
+    cost_line_id: Mapped[str | None] = mapped_column(ForeignKey("cost_lines.id"))
+    """For a bill typed in or imported from a sheet: the cost line it is cost incurred against.
+    Bills from Tally leave it empty, since Tally's ledgers carry their cost."""
 
     vendor: Mapped[Vendor] = relationship()
 
@@ -811,6 +814,24 @@ class BankPayer(Base):
     unit_id: Mapped[str | None] = mapped_column(ForeignKey("units.id"))
     """None when the payer is not a buyer."""
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class Commitment(Base):
+    """A work order, purchase order or contract committing the project to spend on a cost line.
+    Its amount is mirrored in the append-only ledger as a commitment."""
+
+    __tablename__ = "commitments"
+    __table_args__ = (UniqueConstraint("project_id", "reference"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    cost_line_id: Mapped[str] = mapped_column(ForeignKey("cost_lines.id"))
+    vendor_id: Mapped[str | None] = mapped_column(ForeignKey("vendors.id"))
+    reference: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(String(300))
+    amount: Mapped[Decimal] = mapped_column(Money)
+    committed_on: Mapped[date] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class AppendOnlyViolation(RuntimeError):

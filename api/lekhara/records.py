@@ -223,7 +223,279 @@ RECEIPTS = RecordType(
     ),
 )
 
-RECORD_TYPES = {UNITS.kind: UNITS, RECEIPTS.kind: RECEIPTS}
+SUPPLIER_NAMES = (
+    "supplier name",
+    "vendor",
+    "vendor name",
+    "party",
+    "party name",
+    "contractor",
+    "contractor name",
+    "name",
+    "creditor",
+    "sundry creditor",
+)
+COST_LINE_NAMES = ("cost head", "budget head", "head", "cost code", "account head", "budget line")
+
+SUPPLIERS = RecordType(
+    kind="suppliers",
+    title="Suppliers",
+    key="name",
+    fields=(
+        Field(
+            "name",
+            "Supplier",
+            "text",
+            required=True,
+            aliases=SUPPLIER_NAMES,
+            help="The supplier's name as on their bills. Each supplier appears once.",
+            example="Bharat TMT Steel",
+        ),
+        Field(
+            "gstin",
+            "GSTIN",
+            "text",
+            aliases=("gst no", "gst number", "gstin/uin", "gst", "gstin no", "gst registration"),
+            help="15 characters. Blank if the supplier is not registered for GST.",
+            example="29ABCDE1234F1Z5",
+        ),
+        Field(
+            "pan",
+            "PAN",
+            "text",
+            aliases=("pan no", "pan number", "income tax pan"),
+            help="Filled in from the GSTIN if left blank.",
+            example="ABCDE1234F",
+        ),
+        Field(
+            "state",
+            "State",
+            "text",
+            aliases=("state name", "place of supply"),
+            help="Filled in from the GSTIN if left blank.",
+            example="Karnataka",
+        ),
+        Field(
+            "msme_category",
+            "MSME category",
+            "choice",
+            aliases=("msme", "msme type", "udyam category", "enterprise type", "msme status"),
+            choices=(
+                ("none", "Not MSME"),
+                ("micro", "Micro"),
+                ("small", "Small"),
+                ("medium", "Medium"),
+            ),
+            help="From the supplier's Udyam certificate. Micro and small suppliers must be paid "
+            "within 45 days.",
+            example="Small",
+        ),
+        Field(
+            "udyam_number",
+            "Udyam number",
+            "text",
+            aliases=("udyam", "udyam registration", "udyam no", "msme registration no"),
+            example="UDYAM-KR-03-0012345",
+        ),
+        Field(
+            "written_agreement",
+            "Written agreement on payment terms",
+            "bool",
+            aliases=("agreement", "written agreement", "payment terms agreed"),
+            help="Yes if a written agreement fixes when you pay. Without one, bills from micro "
+            "and small suppliers are due in 15 days.",
+            example="Yes",
+        ),
+    ),
+)
+
+BILLS = RecordType(
+    kind="bills",
+    title="Suppliers' bills",
+    key="bill_no",
+    fields=(
+        Field(
+            "supplier",
+            "Supplier",
+            "text",
+            required=True,
+            aliases=SUPPLIER_NAMES + ("gstin of supplier", "supplier gstin"),
+            help="The supplier's name or GSTIN. A supplier not yet in Lekhara is added.",
+            example="Bharat TMT Steel",
+        ),
+        Field(
+            "bill_no",
+            "Bill number",
+            "text",
+            required=True,
+            aliases=(
+                "invoice no",
+                "invoice number",
+                "bill no",
+                "supplier invoice no",
+                "inv no",
+                "ra bill no",
+                "invoice",
+                "bill",
+            ),
+            help="The supplier's own invoice or RA bill number.",
+            example="BTS/2026/0412",
+        ),
+        Field(
+            "bill_date",
+            "Bill date",
+            "date",
+            required=True,
+            aliases=("invoice date", "date", "inv date", "bill dt"),
+            example="12/04/2026",
+        ),
+        Field(
+            "taxable_value",
+            "Taxable value",
+            "money",
+            required=True,
+            aliases=(
+                "taxable amount",
+                "basic amount",
+                "amount before tax",
+                "value",
+                "taxable",
+                "basic value",
+            ),
+            help="Before GST, in rupees.",
+            example="1850000",
+        ),
+        Field(
+            "gst_amount",
+            "GST",
+            "money",
+            aliases=("gst amount", "tax amount", "total tax", "tax", "igst cgst sgst"),
+            help="CGST, SGST and IGST together.",
+            example="333000",
+        ),
+        Field(
+            "accepted_on",
+            "Accepted on",
+            "date",
+            aliases=("date of acceptance", "received on", "goods received on", "grn date"),
+            help="When the goods or work were accepted; the MSME clock starts here. The bill "
+            "date if left blank.",
+            example="15/04/2026",
+        ),
+        Field(
+            "paid_on",
+            "Paid on",
+            "date",
+            aliases=("payment date", "paid date", "date of payment", "paid"),
+            help="Blank while unpaid.",
+            example="20/05/2026",
+        ),
+        Field(
+            "cost_line",
+            "Cost line",
+            "text",
+            aliases=COST_LINE_NAMES,
+            help="The cost line's code or name, so the bill counts as cost incurred, and as "
+            "paid once paid. Leave blank when your cost comes from Tally.",
+            example="CIV",
+        ),
+        Field(
+            "is_cement",
+            "Cement",
+            "bool",
+            aliases=("is cement", "cement purchase"),
+            help="Yes for cement: from unregistered suppliers it carries reverse charge.",
+            example="No",
+        ),
+        Field(
+            "rcm_paid",
+            "Reverse charge paid",
+            "bool",
+            aliases=("rcm", "rcm paid"),
+            example="No",
+        ),
+        Field(
+            "excluded",
+            "Leave out of the 80% test",
+            "bool",
+            aliases=("excluded", "exclude", "not for 80"),
+            help="Yes for bills the 80% test leaves out, such as electricity, fuel or capital "
+            "goods.",
+            example="No",
+        ),
+    ),
+)
+
+COMMITMENTS = RecordType(
+    kind="commitments",
+    title="Commitments",
+    key="reference",
+    fields=(
+        Field(
+            "reference",
+            "Order number",
+            "text",
+            required=True,
+            aliases=(
+                "po no",
+                "po number",
+                "wo no",
+                "work order no",
+                "work order number",
+                "purchase order no",
+                "order no",
+                "contract no",
+                "reference",
+                "po",
+                "wo",
+            ),
+            help="The work order, purchase order or contract number. Each appears once.",
+            example="WO/CIV/014",
+        ),
+        Field(
+            "cost_line",
+            "Cost line",
+            "text",
+            required=True,
+            aliases=COST_LINE_NAMES,
+            help="The cost line's code or name.",
+            example="CIV",
+        ),
+        Field(
+            "amount",
+            "Amount",
+            "money",
+            required=True,
+            aliases=("order value", "contract value", "po value", "wo value", "value"),
+            help="What the order commits you to, before GST. Change it when a variation is agreed.",
+            example="4.5 crore",
+        ),
+        Field(
+            "committed_on",
+            "Ordered on",
+            "date",
+            required=True,
+            aliases=("po date", "wo date", "order date", "date", "contract date"),
+            example="01/04/2026",
+        ),
+        Field(
+            "supplier",
+            "Supplier",
+            "text",
+            aliases=SUPPLIER_NAMES,
+            example="Shree Constructions",
+        ),
+        Field(
+            "description",
+            "What for",
+            "text",
+            aliases=("description", "scope", "particulars", "work", "details", "nature of work"),
+            example="Structure, towers A and B",
+        ),
+    ),
+)
+
+RECORD_TYPES = {r.kind: r for r in (UNITS, RECEIPTS, SUPPLIERS, BILLS, COMMITMENTS)}
 
 
 def normalise_header(text: str) -> str:

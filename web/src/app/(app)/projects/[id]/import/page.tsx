@@ -236,6 +236,45 @@ async function ImportView({ params }: { params: Promise<{ id: string }> }) {
         ) : null}
       </section>
 
+      <section className="section" id="purchases">
+        <div className="section-head">
+          <h2>Import suppliers, bills and orders</h2>
+          <p>For bills and orders you keep in a sheet rather than in Tally</p>
+        </div>
+        <div className="field-grid" style={{ marginTop: 12 }}>
+          {(
+            [
+              ["suppliers", "Suppliers", "Name, GSTIN, MSME category, Udyam number", "Preview the suppliers"],
+              ["bills", "Suppliers' bills", "Supplier, bill number and date, taxable value, GST, paid on, cost line", "Preview the bills"],
+              ["commitments", "Work and purchase orders", "Order number, cost line, amount, date, supplier", "Preview the orders"],
+            ] as const
+          ).map(([kind, title, what, label]) => (
+            <div key={kind}>
+              <p className="row-title">{title}</p>
+              <p className="small muted">{what}</p>
+              <p className="small" style={{ margin: "6px 0 10px" }}>
+                <a href={`/download/imports/templates/${kind}.xlsx`} className="link-action">
+                  Template
+                </a>
+              </p>
+              {list.can_import ? (
+                <ActionForm action={startImport.bind(null, id, kind)} label={label} pendingLabel="Reading the file" secondary>
+                  <div className="field">
+                    <label htmlFor={`${kind}-file`}>Your file</label>
+                    <input id={`${kind}-file`} name="file" type="file" accept=".xlsx,.xlsm,.csv" required />
+                  </div>
+                </ActionForm>
+              ) : null}
+            </div>
+          ))}
+        </div>
+        <p className="small muted" style={{ maxWidth: 760 }}>
+          Suppliers are matched on GSTIN or name, bills on the supplier and bill number, orders on their number, so the
+          same sheet imported again changes nothing. A bill with a cost line counts as cost; leave the cost line blank
+          when Tally already brings in your costs.
+        </p>
+      </section>
+
       <section className="section">
         <div className="section-head">
           <h2>Earlier imports</h2>

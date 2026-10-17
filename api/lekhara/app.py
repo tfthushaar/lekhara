@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from lekhara import accounts, auth, export, imports, registers, services, views
+from lekhara import accounts, auth, export, imports, purchases, registers, services, views
 from lekhara.bank import service as bank
 from lekhara.config import Settings, get_settings
 from lekhara.db import make_engine, make_sessionmaker
@@ -19,6 +19,8 @@ from lekhara.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
 from lekhara.engines.obligations import ObligationStatus, sort_obligations
 from lekhara.migrate import upgrade
 from lekhara.models import (
+    Bill,
+    Commitment,
     CostLineRow,
     Landowner,
     Organization,
@@ -27,9 +29,10 @@ from lekhara.models import (
     Receipt,
     Unit,
     User,
+    Vendor,
 )
 from lekhara.money import ZERO
-from lekhara.records import RECEIPTS
+from lekhara.records import BILLS, COMMITMENTS, RECEIPTS, SUPPLIERS
 from lekhara.rules import KARNATAKA
 from lekhara.services import ServiceError
 from lekhara.storage import LocalStorage
@@ -83,6 +86,41 @@ class ProgressBody(BaseModel):
     as_of: str | None = None
     completion_pct: str | None = None
     certified_by: str | None = None
+
+
+class BillBody(BaseModel):
+    supplier: str | None = None
+    bill_no: str | None = None
+    bill_date: str | None = None
+    taxable_value: str | None = None
+    gst_amount: str | None = None
+    accepted_on: str | None = None
+    paid_on: str | None = None
+    cost_line: str | None = None
+    is_cement: str | None = None
+    rcm_paid: str | None = None
+    excluded: str | None = None
+    clear: list[str] | None = None
+
+
+class SupplierBody(BaseModel):
+    name: str | None = None
+    gstin: str | None = None
+    pan: str | None = None
+    state: str | None = None
+    msme_category: str | None = None
+    udyam_number: str | None = None
+    written_agreement: str | None = None
+    clear: list[str] | None = None
+
+
+class CommitmentBody(BaseModel):
+    reference: str | None = None
+    cost_line: str | None = None
+    amount: str | None = None
+    committed_on: str | None = None
+    supplier: str | None = None
+    description: str | None = None
 
 
 class StatementOptions(BaseModel):
@@ -758,7 +796,8 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         return batch, p
 
     def batch_view(session: Session, me: auth.Principal, batch, p: Project) -> dict:
-        rows = imports.evaluate(session, batch) if batch.status == "preview" else None
+        on = settings.as_of()
+        rows = imports.evaluate(session, batch, as_of=on) if batch.status == "preview" else None
         editable = me.can_prepare(p) and not me.views_as_sample(p)
         return views.import_batch(
             batch, rows, p, can_edit=editable, can_undo=editable and imports.can_undo(batch)
@@ -778,7 +817,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     @app.post("/imports/{batch_id}/apply")
     def apply_import(batch_id: str, session: SessionDep, me: Me) -> dict:
         batch, p = batch_for(session, me, batch_id, edit=True)
-        imports.apply(session, batch, user_id=me.user_id)
+        imports.apply(session, batch, user_id=me.user_id, as_of=settings.as_of())
         return batch_view(session, me, batch, p)
 
     @app.post("/imports/{batch_id}/undo")
@@ -1130,6 +1169,191 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         row, p = statement_for(session, me, statement_id, edit=True)
         bank.undo(session, row)
         return statement_view(session, me, row, p, on)
+
+    # Suppliers, bills and commitments
+
+    def bill_for(session: Session, me: auth.Principal, bill_id: str, *, edit=False):
+        bill = session.get(Bill, bill_id)
+        if bill is None:
+            raise ServiceError("Bill not found.", 404)
+        p = services.get_project(session, bill.project_id)
+        if edit:
+            auth.require_prepare(me, p)
+        else:
+            auth.require_team(me, p)
+        return bill, p
+
+    def vendor_for(session: Session, me: auth.Principal, vendor_id: str, *, edit=False):
+        vendor = session.get(Vendor, vendor_id)
+        org = session.get(Organization, vendor.organization_id) if vendor else None
+        role = me.org_roles.get(vendor.organization_id) if vendor else None
+        if vendor is None or (role is None and not org.is_sample):
+            raise ServiceError("Supplier not found.", 404)
+        if edit:
+            if role not in (auth.OrgRole.OWNER, auth.OrgRole.FINANCE, auth.OrgRole.ACCOUNTS):
+                raise ServiceError("Your role cannot change suppliers.", 403)
+            if services.access_state(org, me.as_of) == "read_only":
+                raise ServiceError(auth.READ_ONLY, 402)
+        return vendor, org
+
+    def names_for(session: Session, changes) -> dict:
+        ids = {c.user_id for c in changes if c.user_id}
+        return {u.id: u.name for u in session.scalars(select(User).where(User.id.in_(ids)))}
+
+    def bill_view(session: Session, me: auth.Principal, bill, p: Project) -> dict:
+        changes = registers.history(session, "bill", bill.id)
+        return views.bill_detail(
+            session,
+            bill,
+            p,
+            changes,
+            names_for(session, changes),
+            can_edit=me.can_prepare(p) and not me.views_as_sample(p),
+        )
+
+    def vendor_view(session: Session, me: auth.Principal, vendor, org) -> dict:
+        changes = registers.history(session, "vendor", vendor.id)
+        role = me.org_roles.get(vendor.organization_id)
+        projects = {
+            x.id: x.name
+            for x in session.scalars(select(Project).where(Project.organization_id == org.id))
+        }
+        return views.vendor_detail(
+            session,
+            vendor,
+            changes,
+            names_for(session, changes),
+            can_edit=role in (auth.OrgRole.OWNER, auth.OrgRole.FINANCE, auth.OrgRole.ACCOUNTS),
+            projects=projects,
+        )
+
+    def form_values(record, body: BaseModel) -> tuple[dict, list[str]]:
+        values, problems = purchases.parse_form(record, body.model_dump(exclude_unset=True))
+        if problems:
+            raise ServiceError(" ".join(problems))
+        return values, list(getattr(body, "clear", None) or [])
+
+    @app.get("/projects/{project_id}/purchases")
+    def project_purchases(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return views.purchases_view(
+            session, p, can_edit=me.can_prepare(p) and not me.views_as_sample(p)
+        )
+
+    @app.post("/projects/{project_id}/bills", status_code=201)
+    def create_bill(project_id: str, body: BillBody, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        values, _ = form_values(BILLS, body)
+        bill = purchases.create_bill(session, p, values, as_of=on, user_id=me.user_id)
+        session.commit()
+        return {"id": bill.id}
+
+    @app.get("/bills/{bill_id}")
+    def get_bill(bill_id: str, session: SessionDep, me: Me) -> dict:
+        bill, p = bill_for(session, me, bill_id)
+        return bill_view(session, me, bill, p)
+
+    @app.put("/bills/{bill_id}")
+    def update_bill(bill_id: str, body: BillBody, session: SessionDep, me: Me, on: AsOf) -> dict:
+        bill, p = bill_for(session, me, bill_id, edit=True)
+        values, clear = form_values(BILLS, body)
+        purchases.update_bill(session, p, bill, values, as_of=on, user_id=me.user_id)
+        for key in clear:
+            if key not in values:
+                purchases.clear_bill_field(session, p, bill, key, user_id=me.user_id)
+        session.commit()
+        return bill_view(session, me, bill, p)
+
+    @app.post("/bills/{bill_id}/delete")
+    def delete_bill(bill_id: str, session: SessionDep, me: Me) -> dict:
+        bill, p = bill_for(session, me, bill_id, edit=True)
+        purchases.delete_bill(session, p, bill, user_id=me.user_id)
+        session.commit()
+        return {"project_id": p.id}
+
+    @app.post("/projects/{project_id}/suppliers", status_code=201)
+    def create_supplier(project_id: str, body: SupplierBody, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        values, _ = form_values(SUPPLIERS, body)
+        vendor = purchases.create_vendor(
+            session, p.organization_id, values, project=p, user_id=me.user_id
+        )
+        session.commit()
+        return {"id": vendor.id}
+
+    @app.get("/suppliers/{vendor_id}")
+    def get_supplier(vendor_id: str, session: SessionDep, me: Me) -> dict:
+        vendor, org = vendor_for(session, me, vendor_id)
+        return vendor_view(session, me, vendor, org)
+
+    @app.put("/suppliers/{vendor_id}")
+    def update_supplier(vendor_id: str, body: SupplierBody, session: SessionDep, me: Me) -> dict:
+        vendor, org = vendor_for(session, me, vendor_id, edit=True)
+        values, clear = form_values(SUPPLIERS, body)
+        purchases.update_vendor(session, vendor, values, project=None, user_id=me.user_id)
+        for key in clear:
+            if key not in values:
+                purchases.clear_vendor_field(session, vendor, key, user_id=me.user_id)
+        session.commit()
+        return vendor_view(session, me, vendor, org)
+
+    @app.post("/suppliers/{vendor_id}/delete")
+    def delete_supplier(vendor_id: str, session: SessionDep, me: Me) -> dict:
+        vendor, _ = vendor_for(session, me, vendor_id, edit=True)
+        purchases.delete_vendor(session, vendor, user_id=me.user_id)
+        session.commit()
+        return {"ok": True}
+
+    @app.get("/projects/{project_id}/commitments")
+    def project_commitments(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return views.commitments_view(
+            session, p, can_edit=me.can_prepare(p) and not me.views_as_sample(p)
+        )
+
+    @app.post("/projects/{project_id}/commitments", status_code=201)
+    def create_commitment(
+        project_id: str, body: CommitmentBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        values, _ = form_values(COMMITMENTS, body)
+        c = purchases.create_commitment(session, p, values, as_of=on, user_id=me.user_id)
+        session.commit()
+        return {"id": c.id}
+
+    def commitment_for(session: Session, me: auth.Principal, commitment_id: str):
+        c = session.get(Commitment, commitment_id)
+        if c is None:
+            raise ServiceError("Order not found.", 404)
+        p = services.get_project(session, c.project_id)
+        auth.require_prepare(me, p)
+        return c, p
+
+    @app.put("/commitments/{commitment_id}")
+    def update_commitment(
+        commitment_id: str, body: CommitmentBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        c, p = commitment_for(session, me, commitment_id)
+        values, _ = form_values(COMMITMENTS, body)
+        if "description" in body.model_fields_set and not body.description:
+            values["description"] = None
+        if "supplier" in body.model_fields_set and not body.supplier:
+            values["supplier"] = None
+        purchases.update_commitment(session, p, c, values, as_of=on, user_id=me.user_id)
+        session.commit()
+        return views.commitments_view(session, p, can_edit=True)
+
+    @app.post("/commitments/{commitment_id}/delete")
+    def delete_commitment(commitment_id: str, session: SessionDep, me: Me) -> dict:
+        c, p = commitment_for(session, me, commitment_id)
+        purchases.delete_commitment(session, p, c, user_id=me.user_id)
+        session.commit()
+        return views.commitments_view(session, p, can_edit=True)
 
     # Today
 
