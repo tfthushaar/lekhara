@@ -17,7 +17,15 @@ from lekhara.db import make_engine, make_sessionmaker
 from lekhara.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
 from lekhara.engines.obligations import ObligationStatus, sort_obligations
 from lekhara.migrate import upgrade
-from lekhara.models import Organization, PaymentMilestone, Project, Unit, User
+from lekhara.models import (
+    CostLineRow,
+    Landowner,
+    Organization,
+    PaymentMilestone,
+    Project,
+    Unit,
+    User,
+)
 from lekhara.money import ZERO
 from lekhara.rules import KARNATAKA
 from lekhara.services import ServiceError
@@ -43,7 +51,23 @@ class UnitBody(BaseModel):
 
 class TallyOptions(BaseModel):
     cost_centre: str | None = None
-    links: dict[str, str] = {}
+    links: dict[str, str | dict[str, str | None]] = {}
+
+
+class CostLineBody(BaseModel):
+    code: str | None = None
+    name: str | None = None
+    category: str | None = None
+    original_budget: str | None = None
+    revised_budget: str | None = None
+
+
+class LandownerBody(BaseModel):
+    name: str | None = None
+    share_type: str | None = None
+    share_pct: str | None = None
+    refundable_deposit: str | None = None
+    pan: str | None = None
 
 
 class MappingBody(BaseModel):
@@ -693,6 +717,83 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         imports.undo(session, batch, user_id=me.user_id)
         return batch_view(session, me, batch, p)
 
+    # Cost lines and landowners
+
+    @app.get("/projects/{project_id}/cost-lines")
+    def get_cost_lines(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return views.cost_lines(
+            registers.cost_lines(session, p),
+            services.snapshot(session, p, on),
+            can_edit=me.can_prepare(p) and not me.views_as_sample(p),
+        )
+
+    @app.post("/projects/{project_id}/cost-lines/standard")
+    def standard_cost_lines(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        added = registers.add_standard_lines(session, p, user_id=me.user_id)
+        session.commit()
+        return {"added": added}
+
+    @app.post("/projects/{project_id}/cost-lines", status_code=201)
+    def create_cost_line(project_id: str, body: CostLineBody, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        line = registers.create_cost_line(
+            session, p, body.model_dump(exclude_unset=True), user_id=me.user_id
+        )
+        session.commit()
+        return {"id": line.id}
+
+    def cost_line_for(session: Session, me: auth.Principal, line_id: str):
+        line = session.get(CostLineRow, line_id)
+        if line is None:
+            raise ServiceError("Cost line not found.", 404)
+        p = services.get_project(session, line.project_id)
+        auth.require_prepare(me, p)
+        return line, p
+
+    @app.put("/cost-lines/{line_id}")
+    def update_cost_line(line_id: str, body: CostLineBody, session: SessionDep, me: Me) -> dict:
+        line, p = cost_line_for(session, me, line_id)
+        registers.update_cost_line(
+            session, p, line, body.model_dump(exclude_unset=True), user_id=me.user_id
+        )
+        session.commit()
+        return {"ok": True}
+
+    @app.post("/cost-lines/{line_id}/delete")
+    def delete_cost_line(line_id: str, session: SessionDep, me: Me) -> dict:
+        line, p = cost_line_for(session, me, line_id)
+        registers.delete_cost_line(session, p, line, user_id=me.user_id)
+        session.commit()
+        return {"project_id": p.id}
+
+    @app.post("/projects/{project_id}/landowners", status_code=201)
+    def create_landowner(project_id: str, body: LandownerBody, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        owner = registers.create_landowner(
+            session, p, body.model_dump(exclude_unset=True), user_id=me.user_id
+        )
+        session.commit()
+        return {"id": owner.id}
+
+    @app.put("/landowners/{owner_id}")
+    def update_landowner(owner_id: str, body: LandownerBody, session: SessionDep, me: Me) -> dict:
+        owner = session.get(Landowner, owner_id)
+        if owner is None:
+            raise ServiceError("Landowner not found.", 404)
+        p = services.get_project(session, owner.project_id)
+        auth.require_prepare(me, p)
+        registers.update_landowner(
+            session, p, owner, body.model_dump(exclude_unset=True), user_id=me.user_id
+        )
+        session.commit()
+        return {"ok": True}
+
     # Tally imports
 
     def tally_for(session: Session, me: auth.Principal, import_id: str, *, edit=False):
@@ -711,7 +812,15 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         )
         editable = me.can_prepare(p) and not me.views_as_sample(p)
         return views.tally_review(
-            row, book, plan, p, units, can_edit=editable, can_undo=editable and tally.can_undo(row)
+            row,
+            book,
+            plan,
+            p,
+            units,
+            can_edit=editable,
+            can_undo=editable and tally.can_undo(row),
+            lines=registers.cost_lines(session, p),
+            owners=services.landowners(session, p),
         )
 
     @app.post("/projects/{project_id}/tally", status_code=201)

@@ -482,6 +482,8 @@ def units(s: ProjectSnapshot, rows: list[Unit], owners: list[Landowner]) -> dict
         },
         "landowners": [
             {
+                "id": o.id,
+                "pan": o.pan,
                 "name": o.name,
                 "share_type": o.share_type,
                 "share_pct": m(o.share_pct),
@@ -1271,7 +1273,16 @@ def batch_row(batch) -> dict:
 
 
 def tally_review(
-    row, book, plan, project: Project, units: list, *, can_edit: bool, can_undo: bool
+    row,
+    book,
+    plan,
+    project: Project,
+    units: list,
+    *,
+    can_edit: bool,
+    can_undo: bool,
+    lines: list = (),
+    owners: list = (),
 ) -> dict:
     from lekhara.tally.service import SOURCE_LABEL
 
@@ -1376,6 +1387,12 @@ def tally_review(
             for r in new_receipts[:100]
         ],
         "result": json.loads(row.result) if row.result else None,
+        "money": {
+            **tally_money(plan, list(lines), list(owners)),
+            "party_ledgers": sorted(
+                (x.name for x in book.ledgers.values() if x.kind == "creditor"), key=str.casefold
+            ),
+        },
     }
 
 
@@ -1389,6 +1406,71 @@ def tally_row(row) -> dict:
         "created_at": row.created_at.replace(microsecond=0).isoformat(),
         "bills": len(result["bills_added"]) if result else None,
         "receipts": len(result["receipts_added"]) if result else None,
+    }
+
+
+# Cost lines and the Tally ledger map
+
+
+def cost_lines(lines: list, s, *, can_edit: bool) -> dict:
+    from lekhara.registers import CATEGORY_LABEL
+
+    spend = {row["id"]: row for row in money_lines(s)} if s else {}
+    return {
+        "can_edit": can_edit,
+        "categories": [{"value": k, "label": v} for k, v in CATEGORY_LABEL.items()],
+        "lines": [
+            {
+                "id": line.id,
+                "code": line.code,
+                "name": line.name,
+                "category": line.category,
+                "category_label": CATEGORY_LABEL.get(line.category, line.category),
+                "rera_head": line.rera_head,
+                "original_budget": m(line.original_budget),
+                "revised_budget": m(line.revised_budget),
+                "incurred": spend.get(line.id, {}).get("incurred"),
+                "paid": spend.get(line.id, {}).get("paid"),
+            }
+            for line in lines
+        ],
+    }
+
+
+def tally_money(plan, lines: list, owners: list) -> dict:
+    cash = plan.money
+    new_cost = [e for e in cash.cost_entries if not e.exists]
+    return {
+        "counts": {
+            "incurred": m(sum((e.amount for e in new_cost if e.kind == "incurred"), ZERO)),
+            "paid": m(sum((e.amount for e in new_cost if e.kind == "paid"), ZERO)),
+            "cost_entries": len(new_cost),
+            "escrow": sum(1 for e in cash.escrow if not e.exists),
+            "deposits": m(
+                sum((e.amount for e in cash.escrow if not e.exists and e.kind == "deposit"), ZERO)
+            ),
+            "withdrawals": m(
+                sum(
+                    (e.amount for e in cash.escrow if not e.exists and e.kind == "withdrawal"), ZERO
+                )
+            ),
+            "landowner_payments": sum(1 for p in cash.landowner_payments if not p.exists),
+            "unmapped_spend": m(cash.unmapped_spend),
+        },
+        "cost_ledgers": [
+            {"ledger": c.ledger, "target": c.target, "source": c.source, "total": m(c.total)}
+            for c in cash.cost_ledgers
+        ],
+        "bank_ledgers": [
+            {"ledger": b.ledger, "rera": bool(b.target), "source": b.source, "total": m(b.total)}
+            for b in cash.bank_ledgers
+        ],
+        "landowner_ledgers": [
+            {"ledger": o.ledger, "target": o.target, "source": o.source, "total": m(o.total)}
+            for o in cash.landowner_ledgers
+        ],
+        "cost_lines": [{"id": c.id, "code": c.code, "name": c.name} for c in lines],
+        "landowners": [{"id": o.id, "name": o.name} for o in owners],
     }
 
 

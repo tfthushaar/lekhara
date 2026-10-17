@@ -1,8 +1,10 @@
 """Tally imports in the database: the uploaded file, the review, apply and undo.
 
 The file is kept in storage and read again for each review, so a builder can come back to an
-import, match buyers to units, and apply it later. Applying adds suppliers, their bills and
-buyers' payments; undoing removes what the import added and puts back what it changed.
+import, make their choices (a unit for each buyer, a cost line for each expense ledger, the RERA
+account, the landowners) and apply it later. Applying adds suppliers, their bills, buyers'
+payments, cost incurred and paid, the RERA account's movements and landowner payments. The
+money ledgers are append-only, so undoing adds reversing entries; everything else is removed.
 """
 
 import json
@@ -15,6 +17,11 @@ from sqlalchemy.orm import Session
 from lekhara import registers
 from lekhara.models import (
     Bill,
+    CostLineRow,
+    EscrowTxn,
+    Landowner,
+    LandownerPaymentRow,
+    LedgerEntry,
     Project,
     Receipt,
     TallyImport,
@@ -27,6 +34,7 @@ from lekhara.services import ServiceError
 from lekhara.storage import Storage
 from lekhara.tally import reports
 from lekhara.tally.book import Book, from_nodes
+from lekhara.tally.ledgers import CostLineRef, LandownerRef
 from lekhara.tally.plan import Context, Plan, UnitRef, VendorRef, make_plan
 from lekhara.tally.reader import (
     HOW_TO_EXPORT,
@@ -39,6 +47,7 @@ from lekhara.tally.reader import (
 )
 
 UNDO_DAYS = 30
+ROLES = ("unit", "cost_line", "rera_account", "landowner", "ignore")
 SOURCE_LABEL = {
     "xml": "Tally XML",
     "json": "Tally JSON",
@@ -137,6 +146,13 @@ def options(row: TallyImport) -> dict:
     return json.loads(row.options or "{}")
 
 
+def _live_refs(refs) -> set[str]:
+    """References still in force: those added, less those an undo has reversed."""
+    refs = [r for r in refs if r]
+    reversed_ = {r.removeprefix("undo:") for r in refs if r.startswith("undo:")}
+    return {r for r in refs if not r.startswith("undo:") and r not in reversed_}
+
+
 def context(session: Session, project: Project, row: TallyImport, as_of: date) -> Context:
     units = tuple(
         UnitRef(u.id, u.label, u.buyer_name)
@@ -152,19 +168,30 @@ def context(session: Session, project: Project, row: TallyImport, as_of: date) -
             select(Vendor).where(Vendor.organization_id == project.organization_id)
         )
     )
-    known = {
-        ref
-        for ref in session.scalars(select(Bill.source_ref).where(Bill.project_id == project.id))
-        if ref
-    } | {
-        ref
-        for ref in session.scalars(
-            select(Receipt.source_ref).where(Receipt.project_id == project.id)
+    owners = list(session.scalars(select(Landowner).where(Landowner.project_id == project.id)))
+    known = (
+        _live_refs(session.scalars(select(Bill.source_ref).where(Bill.project_id == project.id)))
+        | _live_refs(
+            session.scalars(select(Receipt.source_ref).where(Receipt.project_id == project.id))
         )
-        if ref
-    }
+        | _live_refs(
+            session.scalars(
+                select(LedgerEntry.reference).where(LedgerEntry.project_id == project.id)
+            )
+        )
+        | _live_refs(
+            session.scalars(select(EscrowTxn.reference).where(EscrowTxn.project_id == project.id))
+        )
+        | _live_refs(
+            session.scalars(
+                select(LandownerPaymentRow.source_ref).where(
+                    LandownerPaymentRow.landowner_id.in_([o.id for o in owners])
+                )
+            )
+        )
+    )
     links = {
-        link.ledger: ("ignore" if link.ignored else link.unit_id)
+        link.ledger: (link.role, link.target_id)
         for link in session.scalars(select(TallyLink).where(TallyLink.project_id == project.id))
     }
     return Context(
@@ -175,6 +202,13 @@ def context(session: Session, project: Project, row: TallyImport, as_of: date) -
         known_refs=frozenset(known),
         links=links,
         cost_centre=options(row).get("cost_centre"),
+        cost_lines=tuple(
+            CostLineRef(c.id, c.code, c.name, c.category)
+            for c in registers.cost_lines(session, project)
+        ),
+        landowners=tuple(LandownerRef(o.id, o.name, o.pan) for o in owners),
+        gst_is_cost=project.gst_regime != "commercial_12pc",
+        jda=project.land_structure.startswith("jda"),
     )
 
 
@@ -184,34 +218,46 @@ def review(session: Session, storage: Storage, row: TallyImport, as_of: date) ->
     return book, make_plan(book, context(session, project, row, as_of))
 
 
+def _target_ok(session: Session, project_id: str, role: str, target: str | None) -> bool:
+    if role in ("ignore", "rera_account"):
+        return True
+    model = {"unit": Unit, "cost_line": CostLineRow, "landowner": Landowner}[role]
+    record = session.get(model, target) if target else None
+    return record is not None and record.project_id == project_id
+
+
 def set_options(
-    session: Session, row: TallyImport, *, cost_centre: str | None, links: dict[str, str]
+    session: Session, row: TallyImport, *, cost_centre: str | None, links: dict
 ) -> None:
+    """links: a ledger's name to a unit id, "ignore", "" to forget, or {"role", "target"}."""
     if row.status != "review":
         raise ServiceError("This import has already been applied.")
     opts = options(row)
     opts["cost_centre"] = (cost_centre or "").strip() or None
     row.options = json.dumps(opts)
-    project_units = {
-        u.id for u in session.scalars(select(Unit).where(Unit.project_id == row.project_id))
-    }
     for ledger_name, choice in links.items():
         key = " ".join(ledger_name.split()).casefold()
+        if isinstance(choice, dict):
+            role, target = choice.get("role") or "", choice.get("target") or None
+        elif choice == "ignore":
+            role, target = "ignore", None
+        else:
+            role, target = ("unit", choice) if choice else ("", None)
         link = session.scalars(
             select(TallyLink).where(TallyLink.project_id == row.project_id, TallyLink.ledger == key)
         ).first()
-        if not choice:
+        if not role or (role != "ignore" and role != "rera_account" and not target):
             if link is not None:
                 session.delete(link)
             continue
-        if choice != "ignore" and choice not in project_units:
-            raise ServiceError("Choose a unit from this project.")
+        if role not in ROLES or not _target_ok(session, row.project_id, role, target):
+            raise ServiceError("Choose from the lists for this project.")
         if link is None:
             link = TallyLink(project_id=row.project_id, ledger=key)
             session.add(link)
         link.ledger_name = ledger_name[:200]
-        link.ignored = choice == "ignore"
-        link.unit_id = None if choice == "ignore" else choice
+        link.role = role
+        link.target_id = target
         link.updated_at = utcnow()
     session.commit()
 
@@ -229,6 +275,9 @@ def apply(
         "bills_added": [],
         "bills_paid": [],
         "receipts_added": [],
+        "cost_entries": [],
+        "escrow": [],
+        "landowner_payments": [],
     }
     vendor_ids: dict[str, str] = {}
     for vp in plan.vendors:
@@ -311,6 +360,44 @@ def apply(
         session.add(receipt)
         session.flush()
         result["receipts_added"].append(receipt.id)
+    for cp in plan.money.cost_entries:
+        if cp.exists:
+            continue
+        entry = LedgerEntry(
+            project_id=project.id,
+            cost_line_id=cp.cost_line_id,
+            kind=cp.kind,
+            amount=cp.amount,
+            entry_date=cp.on,
+            reference=cp.ref,
+        )
+        session.add(entry)
+        session.flush()
+        result["cost_entries"].append(entry.id)
+    for ep in plan.money.escrow:
+        if ep.exists:
+            continue
+        txn = EscrowTxn(
+            project_id=project.id, kind=ep.kind, amount=ep.amount, txn_date=ep.on, reference=ep.ref
+        )
+        session.add(txn)
+        session.flush()
+        result["escrow"].append(txn.id)
+    for lp in plan.money.landowner_payments:
+        if lp.exists:
+            continue
+        payment = LandownerPaymentRow(
+            landowner_id=lp.landowner_id,
+            amount=lp.amount,
+            paid_on=lp.on,
+            tds_deducted=lp.tds,
+            monetary_consideration=lp.monetary,
+            note=lp.voucher[:200],
+            source_ref=lp.ref,
+        )
+        session.add(payment)
+        session.flush()
+        result["landowner_payments"].append(payment.id)
     row.status = "applied"
     row.applied_at = utcnow()
     row.result = json.dumps(result)
@@ -330,6 +417,35 @@ def undo(session: Session, row: TallyImport) -> None:
     if not can_undo(row):
         raise ServiceError(f"An import can be undone for {UNDO_DAYS} days after it is applied.")
     result = json.loads(row.result)
+    for entry_id in result.get("cost_entries", []):
+        entry = session.get(LedgerEntry, entry_id)
+        if entry is not None:
+            session.add(
+                LedgerEntry(
+                    project_id=entry.project_id,
+                    cost_line_id=entry.cost_line_id,
+                    kind=entry.kind,
+                    amount=-entry.amount,
+                    entry_date=entry.entry_date,
+                    reference=f"undo:{entry.reference}",
+                )
+            )
+    for txn_id in result.get("escrow", []):
+        txn = session.get(EscrowTxn, txn_id)
+        if txn is not None:
+            session.add(
+                EscrowTxn(
+                    project_id=txn.project_id,
+                    kind=txn.kind,
+                    amount=-txn.amount,
+                    txn_date=txn.txn_date,
+                    reference=f"undo:{txn.reference}",
+                )
+            )
+    for payment_id in result.get("landowner_payments", []):
+        payment = session.get(LandownerPaymentRow, payment_id)
+        if payment is not None:
+            session.delete(payment)
     for receipt_id in result["receipts_added"]:
         receipt = session.get(Receipt, receipt_id)
         if receipt is not None:

@@ -39,7 +39,10 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
         <div className="stat">
           <p className="stat-label">Cost incurred</p>
           <p className="stat-value">{inr(m.incurred)}</p>
-          <p className="stat-note">{pct(m.development_incurred_pct)} of development cost</p>
+          <p className="stat-note">
+            {pct(m.development_incurred_pct)} of development cost.{" "}
+            <Link href={`/projects/${id}/budget`}>Cost lines and budget</Link>
+          </p>
         </div>
         <div className="stat">
           <p className="stat-label">Can draw now</p>

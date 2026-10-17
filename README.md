@@ -75,7 +75,7 @@ Lekhara tells you what needs you today, in order of what matters most. Approve w
 
 ## Your data, in and out
 
-- **Straight from Tally.** Export from TallyPrime or Tally.ERP 9 as XML, JSON or an Excel report, and drop the file in. Lekhara fills in your suppliers, their bills and your buyers' payments, and tells you exactly what the file is missing, such as a supplier's GSTIN or MSME details, and where to add it. Nothing to install on your Tally machine.
+- **Straight from Tally.** Export from TallyPrime or Tally.ERP 9 as XML, JSON or an Excel report, and drop the file in. Lekhara fills in your suppliers, their bills, your buyers' payments, cost incurred and paid against each cost line, the RERA account's deposits and withdrawals, and payments to landowners, and tells you exactly what the file is missing, such as a supplier's GSTIN or MSME details, and where to add it. Nothing to install on your Tally machine.
 - **Bring it in any way you like.** Upload a file with a ready template for every kind of record, forward emails to your own Lekhara address, or type it in. The same file uploaded twice changes nothing, and an import can be undone.
 - **Edit anything.** Every record can be added, corrected or archived in Lekhara, one at a time or many at once, with a history of who changed what.
 - **Take it out at any time.** Every list exports to Excel, and your whole workspace, with every document, exports in one step.

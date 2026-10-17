@@ -89,6 +89,33 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
         </div>
       </div>
 
+      <div className="stats" style={{ marginTop: 24 }}>
+        <div className="stat">
+          <p className="stat-label">Cost incurred</p>
+          <p className="stat-value">{inr(t.money.counts.incurred)}</p>
+          <p className="stat-note">
+            {Number(t.money.counts.unmapped_spend) > 0
+              ? `${inr(t.money.counts.unmapped_spend)} more once every expense ledger has a cost line`
+              : "Against the project's cost lines"}
+          </p>
+        </div>
+        <div className="stat">
+          <p className="stat-label">Cost paid</p>
+          <p className="stat-value">{inr(t.money.counts.paid)}</p>
+          <p className="stat-note">Paid directly, or to suppliers against their bills</p>
+        </div>
+        <div className="stat">
+          <p className="stat-label">Into the RERA account</p>
+          <p className="stat-value">{inr(t.money.counts.deposits)}</p>
+          <p className="stat-note">{`${inr(t.money.counts.withdrawals)} taken out`}</p>
+        </div>
+        <div className="stat">
+          <p className="stat-label">Landowner payments</p>
+          <p className="stat-value">{t.money.counts.landowner_payments}</p>
+          <p className="stat-note">With the TDS cut on each</p>
+        </div>
+      </div>
+
       <section className="section">
         <div className="section-head">
           <h2>What needs attention</h2>
@@ -121,7 +148,7 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
         )}
       </section>
 
-      {t.can_edit && (waiting.length > 0 || t.cost_centres.length > 0 || t.buyers.length > 0) ? (
+      {t.can_edit ? (
         <section className="section">
           <div className="section-head">
             <h2>Your choices</h2>
@@ -174,6 +201,7 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
                 </tbody>
               </table>
             ) : null}
+            <MoneyChoices t={t} />
           </ActionForm>
         </section>
       ) : null}
@@ -334,5 +362,103 @@ function Preview({ t }: { t: TallyReview }) {
         </details>
       ) : null}
     </section>
+  );
+}
+
+function MoneyChoices({ t }: { t: TallyReview }) {
+  const m = t.money;
+  const rera = m.bank_ledgers.find((b) => b.rera)?.ledger ?? "";
+  return (
+    <>
+      {m.cost_ledgers.length > 0 ? (
+        <>
+          <h3 style={{ marginTop: 24 }}>Expense ledgers and their cost lines</h3>
+          {m.cost_lines.length === 0 ? (
+            <p className="empty">
+              Set up the project&apos;s cost lines first (Overview, Cost lines and budget).
+            </p>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Ledger in Tally</th>
+                  <th className="right">Spent</th>
+                  <th>Cost line</th>
+                </tr>
+              </thead>
+              <tbody>
+                {m.cost_ledgers.map((c, i) => (
+                  <tr key={c.ledger}>
+                    <td>
+                      {c.ledger}
+                      <input type="hidden" name={`costledger_${i}`} value={c.ledger} />
+                      {c.source === "suggested" ? <span className="small muted"> (matched by name)</span> : null}
+                    </td>
+                    <td className="right num">{inr(c.total)}</td>
+                    <td>
+                      <select
+                        name={`cost_${i}`}
+                        defaultValue={c.source === "ignored" ? "ignore" : (c.target ?? "")}
+                        aria-label={`Cost line for ${c.ledger}`}
+                      >
+                        <option value="">Choose a cost line</option>
+                        {m.cost_lines.map((line) => (
+                          <option key={line.id} value={line.id}>{`${line.code}, ${line.name}`}</option>
+                        ))}
+                        <option value="ignore">Not project cost</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      ) : null}
+      {m.bank_ledgers.length > 0 ? (
+        <div className="field" style={{ maxWidth: 480, marginTop: 24 }}>
+          <label htmlFor="rera_account">The RERA designated account (where 70% of buyer money goes)</label>
+          <select id="rera_account" name="rera_account" defaultValue={rera}>
+            <option value="">None of these</option>
+            {m.bank_ledgers.map((b) => (
+              <option key={b.ledger} value={b.ledger}>
+                {b.ledger}
+              </option>
+            ))}
+          </select>
+          {m.bank_ledgers.map((b, i) => (
+            <input key={b.ledger} type="hidden" name={`bankledger_${i}`} value={b.ledger} />
+          ))}
+        </div>
+      ) : null}
+      {m.landowners.length > 0 ? (
+        <>
+          <h3 style={{ marginTop: 24 }}>Landowners&apos; ledgers</h3>
+          {m.landowner_ledgers.map((o, i) => (
+            <input key={o.ledger} type="hidden" name={`ownerwas_${i}`} value={o.ledger} />
+          ))}
+          <div className="field-grid">
+            {m.landowners.map((owner, i) => (
+              <div key={owner.id} className="field">
+                <label htmlFor={`owner_${i}`}>{`${owner.name}'s ledger in Tally`}</label>
+                <input type="hidden" name={`ownerid_${i}`} value={owner.id} />
+                <select
+                  id={`owner_${i}`}
+                  name={`owner_${i}`}
+                  defaultValue={m.landowner_ledgers.find((l) => l.target === owner.id)?.ledger ?? ""}
+                >
+                  <option value="">Not in this file</option>
+                  {m.party_ledgers.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </>
   );
 }

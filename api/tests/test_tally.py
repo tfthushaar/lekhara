@@ -14,8 +14,10 @@ from tally_samples import (
 
 from lekhara.db import make_sessionmaker
 from lekhara.models import Vendor
+from lekhara.registers import STANDARD_LINES
 from lekhara.services import ServiceError
 from lekhara.tally.book import parse_amount, parse_date, parse_quantity
+from lekhara.tally.ledgers import CostLineRef, LandownerRef, suggest_line
 from lekhara.tally.plan import Context, UnitRef, make_plan
 from lekhara.tally.reader import detect
 from lekhara.tally.service import read_book
@@ -311,3 +313,137 @@ def test_who_can_import_from_tally(app, ca) -> None:
     client, _ = firm_with_units(app)
     assert upload(client, "sarjapur-greens", full_xml_utf16()).status_code == 403
     assert ca.get("/projects/sarjapur-greens/tally").status_code == 403
+
+
+# Cost lines, the RERA account and landowners
+
+
+STANDARD = tuple(
+    CostLineRef(f"line-{code}", code, name, category) for code, name, category, _ in STANDARD_LINES
+)
+
+
+def test_expense_ledgers_are_matched_to_cost_lines_by_name() -> None:
+    assert suggest_line("TMT Steel Fe500", "", STANDARD) == "line-CIVIL"
+    assert suggest_line("Lift and elevator works", "", STANDARD) == "line-MEP"
+    assert suggest_line("BBMP plan sanction fee", "", STANDARD) == "line-APPR"
+    assert suggest_line("Architect fees", "", STANDARD) == "line-CONS"
+    assert suggest_line("Vitrified tiles", "", STANDARD) == "line-FIN"
+    assert suggest_line("Miscellaneous", "", STANDARD) is None
+    assert suggest_line("Cement", "", ()) is None
+
+
+def test_cost_incurred_and_paid() -> None:
+    _, book = read_book("export.xml", full_xml_utf16())
+    plan = make_plan(book, ctx(cost_lines=STANDARD))
+    cash = plan.money
+    incurred = sum(e.amount for e in cash.cost_entries if e.kind == "incurred")
+    paid = sum(e.amount for e in cash.cost_entries if e.kind == "paid")
+    # Steel 1,00,000 with GST 18,000; RA bill 2,50,000; cement 50,000 with GST 9,000.
+    assert incurred == D("427000.00")
+    # Paid to the steel supplier in full, and 1,00,000 to the shuttering contractor.
+    assert paid == D("218000.00")
+    assert {c.ledger: c.source for c in cash.cost_ledgers}["Steel Purchases"] == "suggested"
+
+    no_gst = make_plan(book, ctx(cost_lines=STANDARD, gst_is_cost=False)).money
+    assert sum(e.amount for e in no_gst.cost_entries if e.kind == "incurred") == D("400000.00")
+
+    chosen = make_plan(
+        book, ctx(cost_lines=STANDARD, links={"civil works": ("cost_line", "line-EXT")})
+    ).money
+    assert any(e.cost_line_id == "line-EXT" for e in chosen.cost_entries)
+
+
+def test_rera_account_and_landowners() -> None:
+    _, book = read_book("export.xml", full_xml_utf16())
+    owners = (LandownerRef("lo1", "Lakshmamma", "ABCPL1234K"),)
+    plan = make_plan(book, ctx(cost_lines=STANDARD, landowners=owners, jda=True))
+    cash = plan.money
+    assert [m.ledger for m in cash.bank_ledgers if m.target] == ["HDFC RERA Collection A/c"]
+    assert sorted(e.amount for e in cash.escrow) == [D("100000.00"), D("300000.00"), D("495000.00")]
+    assert {e.kind for e in cash.escrow} == {"deposit"}
+    payment = cash.landowner_payments[0]
+    assert (payment.landowner_id, payment.amount, payment.tds) == (
+        "lo1",
+        D("100000.00"),
+        D("10000.00"),
+    )
+    # A landowner is not a supplier.
+    assert "Lakshmamma (Landowner)" not in {v.name for v in plan.vendors}
+    assert "paid.unattributed" not in {a.code for a in plan.alerts}
+
+    codes = {a.code for a in make_plan(book, ctx()).alerts}
+    assert "cost.no_lines" in codes
+    assert "landowner.none" not in codes
+    assert "landowner.none" in {a.code for a in make_plan(book, ctx(jda=True)).alerts}
+
+
+def test_cost_lines_and_landowners_through_the_api(app) -> None:
+    client, project = firm_with_units(app)
+    assert client.post(f"/projects/{project}/cost-lines/standard").json() == {"added": 11}
+    assert client.post(f"/projects/{project}/cost-lines/standard").json() == {"added": 0}
+    lines = client.get(f"/projects/{project}/cost-lines").json()["lines"]
+    assert [line["code"] for line in lines][:3] == ["LAND", "APPR", "CIVIL"]
+    civil = next(line for line in lines if line["code"] == "CIVIL")
+    assert (
+        client.put(f"/cost-lines/{civil['id']}", json={"revised_budget": "45 crore"}).status_code
+        == 200
+    )
+    budget = next(
+        line
+        for line in client.get(f"/projects/{project}/cost-lines").json()["lines"]
+        if line["code"] == "CIVIL"
+    )
+    assert budget["revised_budget"] == "450000000.00"
+    taken = client.post(
+        f"/projects/{project}/cost-lines",
+        json={"code": "civil", "name": "X", "category": "construction"},
+    )
+    assert taken.status_code == 400
+
+    owner = client.post(
+        f"/projects/{project}/landowners",
+        json={"name": "Lakshmamma", "share_type": "area", "share_pct": "40", "pan": "abcpl1234k"},
+    )
+    assert owner.status_code == 201, owner.text
+    bad = client.post(
+        f"/projects/{project}/landowners",
+        json={"name": "X", "share_type": "area", "share_pct": "40", "pan": "123"},
+    )
+    assert bad.status_code == 400
+
+
+def test_tally_money_through_the_api(app) -> None:
+    client, project = firm_with_units(app)
+    client.post(f"/projects/{project}/cost-lines/standard")
+    client.post(
+        f"/projects/{project}/landowners",
+        json={"name": "Lakshmamma", "share_type": "area", "share_pct": "40"},
+    )
+    review = client.get(f"/tally/{upload(client, project, full_xml_utf16()).json()['id']}").json()
+    money = review["money"]
+    assert money["counts"]["incurred"] == "427000.00"
+    assert money["counts"]["deposits"] == "895000.00"
+    assert money["counts"]["landowner_payments"] == 1
+    assert {b["ledger"]: b["rera"] for b in money["bank_ledgers"]}[
+        "HDFC RERA Collection A/c"
+    ] is True
+
+    sbi = client.put(
+        f"/tally/{review['id']}/options",
+        json={"links": {"Unknown Buyer X": "ignore", "SBI Current A/c": {"role": "ignore"}}},
+    )
+    assert sbi.status_code == 200
+    client.post(f"/tally/{review['id']}/apply")
+    summary = client.get(f"/projects/{project}/money").json()["summary"]
+    assert (summary["incurred"], summary["paid"]) == ("427000.00", "218000.00")
+    escrow = client.get(f"/projects/{project}/escrow").json()
+    assert (
+        escrow["deposits"]["deposited"] == "895000.00"
+    )  # every rupee paid into the RERA account counts
+
+    client.post(f"/tally/{review['id']}/undo")
+    summary = client.get(f"/projects/{project}/money").json()["summary"]
+    assert summary["incurred"] == "0.00"  # reversed, never deleted
+    again = client.get(f"/tally/{upload(client, project, full_xml_utf16()).json()['id']}").json()
+    assert again["money"]["counts"]["incurred"] == "427000.00"  # undone entries come back

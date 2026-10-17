@@ -5,17 +5,21 @@ and the same checks, so a record is never valid one way and invalid the other.
 """
 
 import json
+import re
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from lekhara.models import (
     ChangeEntry,
+    CostLineRow,
     DemandRow,
     DisputeCase,
     Document,
+    Landowner,
+    LedgerEntry,
     Project,
     Receipt,
     Unit,
@@ -273,3 +277,258 @@ def parse_unit_form(raw: dict) -> dict:
     if problems:
         raise ServiceError(" ".join(problems))
     return values
+
+
+# Cost lines
+
+
+STANDARD_LINES = (
+    ("LAND", "Land, deposit and registration", "land", "land"),
+    ("APPR", "Approvals, premium FAR and fees", "approvals", "land"),
+    ("CIVIL", "Civil and structure", "construction", "development"),
+    ("MEP", "Mechanical, electrical and plumbing", "construction", "development"),
+    ("FIN", "Finishes", "construction", "development"),
+    ("EXT", "External works and amenities", "construction", "development"),
+    ("CONS", "Consultants", "construction", "development"),
+    ("FINC", "Finance cost", "finance", "development"),
+    ("MKT", "Sales and marketing", "marketing", "development"),
+    ("OH", "Project overheads", "overheads", "development"),
+    ("CONT", "Contingency", "contingency", "development"),
+)
+CATEGORY_LABEL = {
+    "land": "Land",
+    "approvals": "Approvals",
+    "construction": "Construction",
+    "finance": "Finance",
+    "marketing": "Marketing",
+    "overheads": "Overheads",
+    "contingency": "Contingency",
+}
+
+
+def cost_lines(session: Session, project: Project) -> list[CostLineRow]:
+    return list(
+        session.scalars(
+            select(CostLineRow)
+            .where(CostLineRow.project_id == project.id)
+            .order_by(CostLineRow.position)
+        )
+    )
+
+
+def add_standard_lines(session: Session, project: Project, *, user_id: str | None) -> int:
+    existing = {line.code for line in cost_lines(session, project)}
+    position = len(existing)
+    added = 0
+    for code, name, category, head in STANDARD_LINES:
+        if code in existing:
+            continue
+        line = CostLineRow(
+            project_id=project.id,
+            code=code,
+            name=name,
+            category=category,
+            rera_head=head,
+            original_budget=ZERO,
+            revised_budget=ZERO,
+            position=position,
+        )
+        session.add(line)
+        session.flush()
+        log_change(
+            session,
+            project,
+            "cost_line",
+            line.id,
+            "created",
+            {"name": [None, name]},
+            user_id=user_id,
+            source="typed",
+        )
+        position += 1
+        added += 1
+    return added
+
+
+def _line_values(fields: dict) -> dict:
+    values = {}
+    for key in ("code", "name"):
+        if fields.get(key) is not None:
+            text = str(fields[key]).strip()
+            if not text:
+                raise ServiceError("Give the cost line a code and a name.")
+            values[key] = text[:32] if key == "code" else text[:200]
+    if fields.get("category") is not None:
+        if fields["category"] not in CATEGORY_LABEL:
+            raise ServiceError("Choose the kind of cost from the list.")
+        values["category"] = fields["category"]
+        values["rera_head"] = (
+            "land" if fields["category"] in ("land", "approvals") else "development"
+        )
+    for key in ("original_budget", "revised_budget"):
+        raw = fields.get(key)
+        if raw is not None and str(raw).strip():
+            try:
+                value = parse_value(UNITS.field("list_price"), raw)
+            except ParseError as exc:
+                raise ServiceError(f"The budget {exc}.") from None
+            values[key] = value
+    return values
+
+
+def create_cost_line(
+    session: Session, project: Project, fields: dict, *, user_id: str | None
+) -> CostLineRow:
+    values = _line_values(fields)
+    if "code" not in values or "name" not in values or "category" not in values:
+        raise ServiceError("Give the cost line a code, a name and a kind.")
+    if values["code"].casefold() in {line.code.casefold() for line in cost_lines(session, project)}:
+        raise ServiceError(f"The code {values['code']} is already used in this project.")
+    budget = values.get("original_budget", ZERO)
+    line = CostLineRow(
+        project_id=project.id,
+        position=len(cost_lines(session, project)),
+        original_budget=budget,
+        revised_budget=values.get("revised_budget", budget),
+        **{k: v for k, v in values.items() if k not in ("original_budget", "revised_budget")},
+    )
+    session.add(line)
+    session.flush()
+    log_change(
+        session,
+        project,
+        "cost_line",
+        line.id,
+        "created",
+        {k: [None, to_json(v)] for k, v in values.items()},
+        user_id=user_id,
+        source="typed",
+    )
+    return line
+
+
+def update_cost_line(
+    session: Session, project: Project, line: CostLineRow, fields: dict, *, user_id: str | None
+) -> None:
+    values = _line_values(fields)
+    taken = {x.code.casefold() for x in cost_lines(session, project) if x.id != line.id}
+    if "code" in values and values["code"].casefold() in taken:
+        raise ServiceError(f"The code {values['code']} is already used in this project.")
+    changes = {}
+    for key, value in values.items():
+        if getattr(line, key) != value:
+            changes[key] = [to_json(getattr(line, key)), to_json(value)]
+            setattr(line, key, value)
+    if changes:
+        log_change(
+            session,
+            project,
+            "cost_line",
+            line.id,
+            "updated",
+            changes,
+            user_id=user_id,
+            source="typed",
+        )
+
+
+def delete_cost_line(
+    session: Session, project: Project, line: CostLineRow, *, user_id: str | None
+) -> None:
+    used = session.scalar(
+        select(func.count()).select_from(LedgerEntry).where(LedgerEntry.cost_line_id == line.id)
+    )
+    if used:
+        raise ServiceError(f"{line.name} has costs recorded against it, so it cannot be deleted.")
+    log_change(
+        session,
+        project,
+        "cost_line",
+        line.id,
+        "deleted",
+        {"name": [line.name, None]},
+        user_id=user_id,
+        source="typed",
+    )
+    session.delete(line)
+
+
+# Landowners
+
+
+def _landowner_values(fields: dict, *, new: bool) -> dict:
+    values = {}
+    name = fields.get("name")
+    if name is not None:
+        if not str(name).strip():
+            raise ServiceError("Enter the landowner's name.")
+        values["name"] = str(name).strip()[:200]
+    if fields.get("share_type") is not None:
+        if fields["share_type"] not in ("area", "revenue"):
+            raise ServiceError("The share is either of the built area or of revenue.")
+        values["share_type"] = fields["share_type"]
+    if fields.get("share_pct") not in (None, ""):
+        try:
+            share = Decimal(str(fields["share_pct"]).replace("%", "").strip())
+        except InvalidOperation:
+            raise ServiceError("The share should be a percentage, like 40.") from None
+        if not 0 < share < 100:
+            raise ServiceError("The share should be between 0 and 100 per cent.")
+        values["share_pct"] = share
+    if fields.get("refundable_deposit") not in (None, ""):
+        try:
+            values["refundable_deposit"] = parse_value(
+                UNITS.field("list_price"), fields["refundable_deposit"]
+            )
+        except ParseError as exc:
+            raise ServiceError(f"The deposit {exc}.") from None
+    if fields.get("pan") not in (None, ""):
+        pan = str(fields["pan"]).strip().upper()
+        if not re.fullmatch(r"[A-Z]{5}\d{4}[A-Z]", pan):
+            raise ServiceError("A PAN has ten characters, like ABCDE1234F.")
+        values["pan"] = pan
+    if new and not {"name", "share_type", "share_pct"} <= set(values):
+        raise ServiceError("Enter the landowner's name, the kind of share and the share.")
+    return values
+
+
+def create_landowner(
+    session: Session, project: Project, fields: dict, *, user_id: str | None
+) -> Landowner:
+    values = _landowner_values(fields, new=True)
+    owner = Landowner(project_id=project.id, **values)
+    session.add(owner)
+    session.flush()
+    log_change(
+        session,
+        project,
+        "landowner",
+        owner.id,
+        "created",
+        {k: [None, to_json(v)] for k, v in values.items()},
+        user_id=user_id,
+        source="typed",
+    )
+    return owner
+
+
+def update_landowner(
+    session: Session, project: Project, owner: Landowner, fields: dict, *, user_id: str | None
+) -> None:
+    values = _landowner_values(fields, new=False)
+    changes = {}
+    for key, value in values.items():
+        if getattr(owner, key) != value:
+            changes[key] = [to_json(getattr(owner, key)), to_json(value)]
+            setattr(owner, key, value)
+    if changes:
+        log_change(
+            session,
+            project,
+            "landowner",
+            owner.id,
+            "updated",
+            changes,
+            user_id=user_id,
+            source="typed",
+        )

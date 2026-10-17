@@ -342,6 +342,8 @@ export type Units = {
     developer_unbooked: number;
   };
   landowners: {
+    id: string;
+    pan: string | null;
     name: string;
     share_type: "area" | "revenue";
     share_pct: string;
@@ -821,6 +823,7 @@ export type TallyReview = {
   vendors: { name: string; gstin: string | null; registered: boolean; msme: string | null; existing: boolean; changes: string[]; bills: number }[];
   bills: { vendor: string; bill_no: string; bill_date: string; taxable_value: string; gst: string; paid_on: string | null; is_cement: boolean }[];
   receipts: { ledger: string; unit: string | null; amount: string; tds: string; received_on: string }[];
+  money: TallyMoney;
   result: {
     vendors_added: string[];
     vendors_changed: unknown[];
@@ -841,6 +844,42 @@ export type TallyList = {
     bills: number | null;
     receipts: number | null;
   }[];
+};
+
+export type CostLines = {
+  can_edit: boolean;
+  categories: Choice[];
+  lines: {
+    id: string;
+    code: string;
+    name: string;
+    category: string;
+    category_label: string;
+    rera_head: string;
+    original_budget: string;
+    revised_budget: string;
+    incurred: string | null;
+    paid: string | null;
+  }[];
+};
+
+export type TallyMoney = {
+  counts: {
+    incurred: string;
+    paid: string;
+    cost_entries: number;
+    escrow: number;
+    deposits: string;
+    withdrawals: string;
+    landowner_payments: number;
+    unmapped_spend: string;
+  };
+  cost_ledgers: { ledger: string; target: string | null; source: string; total: string }[];
+  bank_ledgers: { ledger: string; rera: boolean; source: string; total: string }[];
+  landowner_ledgers: { ledger: string; target: string | null; source: string; total: string }[];
+  cost_lines: { id: string; code: string; name: string }[];
+  landowners: { id: string; name: string }[];
+  party_ledgers: string[];
 };
 
 export type Rules = {
@@ -985,6 +1024,7 @@ export const api = {
   imports: (projectId: string) => get<ImportList>(`/projects/${projectId}/imports`),
   importBatch: (id: string) => get<ImportBatch>(`/imports/${id}`),
   tally: (id: string) => get<TallyReview>(`/tally/${id}`),
+  costLines: (projectId: string) => get<CostLines>(`/projects/${projectId}/cost-lines`),
   tallyImports: (projectId: string) => get<TallyList>(`/projects/${projectId}/tally`),
   demand: (id: string) => get<DemandLetter>(`/demands/${id}`),
   tax: (id: string) => get<Tax>(`/projects/${id}/tax`),

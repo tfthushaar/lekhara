@@ -218,6 +218,7 @@ class Landowner(Base):
     """area or revenue."""
     share_pct: Mapped[Decimal] = mapped_column(Percent)
     refundable_deposit: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    pan: Mapped[str | None] = mapped_column(String(10))
 
     payments: Mapped[list["LandownerPaymentRow"]] = relationship(
         back_populates="landowner", order_by="LandownerPaymentRow.paid_on"
@@ -234,6 +235,7 @@ class LandownerPaymentRow(Base):
     tds_deducted: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
     monetary_consideration: Mapped[bool] = mapped_column(Boolean, default=True)
     note: Mapped[str | None] = mapped_column(String(200))
+    source_ref: Mapped[str | None] = mapped_column(String(200), index=True)
 
     landowner: Mapped[Landowner] = relationship(back_populates="payments")
 
@@ -730,7 +732,8 @@ class TallyImport(Base):
 
 
 class TallyLink(Base):
-    """A buyer's ledger in Tally matched to a unit by the builder, remembered per project."""
+    """What a Tally ledger stands for in a project, chosen by the builder and remembered: a
+    buyer's unit, a cost line, the RERA designated account, a landowner, or nothing."""
 
     __tablename__ = "tally_links"
     __table_args__ = (UniqueConstraint("project_id", "ledger"),)
@@ -740,8 +743,10 @@ class TallyLink(Base):
     ledger: Mapped[str] = mapped_column(String(200))
     """The ledger's name, lowercased with single spaces."""
     ledger_name: Mapped[str] = mapped_column(String(200), default="")
-    unit_id: Mapped[str | None] = mapped_column(String(64))
-    ignored: Mapped[bool] = mapped_column(Boolean, default=False)
+    role: Mapped[str] = mapped_column(String(16), default="unit", server_default="unit")
+    """unit, cost_line, rera_account, landowner or ignore."""
+    target_id: Mapped[str | None] = mapped_column(String(64))
+    """The unit, cost line or landowner the ledger stands for."""
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

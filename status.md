@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-17, with the commit "Add the Tally import".
+Last updated: 2026-10-18, with the commit "Bring cost, the RERA account and landowners in from Tally".
 
 ## What we are building
 
@@ -97,10 +97,19 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - A review page: what the file holds, what will come in, the alerts, the builder's choices (a cost centre for this project, a unit for each unmatched buyer), a look at the suppliers, bills and payments, then bring it in. Safe to repeat: vouchers are matched on their Tally identity, so the same export twice adds nothing. Undo within 30 days.
   - Built to Tally's documented structure and tested on sample exports in that structure; to be tested against real exports from design partners.
   - Tested end to end: a PDF refused with steps, an XML export reviewed with its alerts, a buyer matched by hand, everything brought in and shown in collections, the same file again adding nothing, a Day Book report read with its limits named, and an undo.
+- Tally import, second part: cost, the RERA account and landowners.
+  - Cost lines for any project: set up in one step from the standard list for a Karnataka residential project (land, approvals, civil and structure, MEP, finishes, external works, consultants, finance, marketing, overheads, contingency), then added to, renamed, budgeted (amounts like 45 crore are understood) or deleted while nothing is recorded against them. A Cost lines and budget page, linked from the Overview.
+  - Landowners added and changed on the Units and landowners tab, with their share and PAN.
+  - Each expense ledger in Tally is matched to a cost line, suggested from its name (cement and steel to civil works, lifts to MEP, sanction fees to approvals, architects to consultants) and confirmed or changed once; Lekhara remembers the choice. Ledgers can be set aside as not project cost.
+  - Cost incurred: every debit to a matched expense ledger, plus the GST on the voucher when the project's GST scheme gives no input credit. Cost paid: what was paid straight from bank or cash, and payments to suppliers spread over the cost lines of their bills. Both feed the money engine and the withdrawable amount.
+  - The RERA designated account: suggested from bank ledgers named RERA, escrow or designated, and confirmed once; its debits are deposits, its credits withdrawals, and interest credited by the bank is interest. Feeds the 70% check and escrow.
+  - Landowner payments, matched to the project's landowners by name or chosen once, with the TDS cut on each (s.194-IC) and refundable deposits told apart from consideration.
+  - New alerts: no cost lines yet, expense ledgers without a cost line (with the spending left out), which bank account is the RERA account, payments to suppliers that cannot be spread over cost lines, a joint development with no landowners, landowners without a PAN.
+  - Undo adds reversing entries for cost and the RERA account (both are append-only) and removes landowner payments; importing the same file again afterwards brings them back.
+  - Tested end to end: standard cost lines set up, a landowner added, an export reviewed with cost, RERA deposits and the landowner matched, brought in, and shown on the Overview, the budget, Escrow and the landowners; then undone.
 
 ## In progress
 
-- Tally import, second part: expense ledgers mapped once to cost lines (cost incurred and paid for the money engine), the RERA designated account's deposits and withdrawals, landowner payments with TDS.
 
 ## Left
 

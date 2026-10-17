@@ -18,6 +18,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from lekhara.tally.book import COST_KINDS, ZERO, Book, Voucher, norm
+from lekhara.tally.ledgers import CostLineRef, LandownerRef, Money, money
 from lekhara.tally.reader import HOW_TO_EXPORT
 
 PAID_TOLERANCE = Decimal("1.00")
@@ -51,9 +52,16 @@ class Context:
     vendors: tuple[VendorRef, ...]
     known_refs: frozenset[str]
     """Bills and buyer payments already brought in, by their Tally identity."""
-    links: dict[str, str]
-    """A buyer's ledger, normalised, to a unit id, or "ignore"."""
+    links: dict
+    """A ledger, normalised, to (role, target id): ("unit", id), ("cost_line", id),
+    ("rera_account", None), ("landowner", id) or ("ignore", None). A plain string is taken as
+    a unit id, or "ignore"."""
     cost_centre: str | None = None
+    cost_lines: tuple[CostLineRef, ...] = ()
+    landowners: tuple[LandownerRef, ...] = ()
+    gst_is_cost: bool = True
+    """True when the project's GST scheme gives no input credit, so GST on purchases is cost."""
+    jda: bool = False
 
 
 @dataclass
@@ -134,6 +142,7 @@ class Plan:
     """Buyers' ledgers that could not be matched to a unit, or were set aside."""
     cost_centres: list[str]
     alerts: list[Alert]
+    money: Money = field(default_factory=Money)
 
 
 def _count(n: int, one: str, many: str) -> str:
@@ -174,8 +183,20 @@ def _in_cost_centre(v: Voucher, cost_centre: str | None) -> bool:
     return any(norm(cc) == norm(cost_centre) for e in v.entries for _, cc, _ in e.cost_centres)
 
 
+def _links(ctx: Context) -> dict[str, tuple[str, str | None]]:
+    out = {}
+    for ledger, value in ctx.links.items():
+        if isinstance(value, tuple):
+            out[ledger] = value
+        else:
+            out[ledger] = ("ignore", None) if value == "ignore" else ("unit", value)
+    return out
+
+
 def make_plan(book: Book, ctx: Context) -> Plan:
     alerts: list[Alert] = []
+    links = _links(ctx)
+    ctx = Context(**{**ctx.__dict__, "links": links})
     live = [v for v in book.vouchers if not v.cancelled and not v.optional]
     skipped = len(book.vouchers) - len(live)
     vouchers = [v for v in live if _in_cost_centre(v, ctx.cost_centre)]
@@ -189,7 +210,17 @@ def make_plan(book: Book, ctx: Context) -> Plan:
     )
 
     _file_alerts(book, ctx, vouchers, skipped, period, cost_centres, alerts)
-    bills, vendor_names, billwise_off = _bills(book, vouchers, ctx, alerts)
+    cash = money(
+        book,
+        vouchers,
+        lines=ctx.cost_lines,
+        landowners=ctx.landowners,
+        links=links,
+        gst_is_cost=ctx.gst_is_cost,
+        known_refs=ctx.known_refs,
+    )
+    owners = {norm(m.ledger) for m in cash.landowner_ledgers if m.target}
+    bills, vendor_names, billwise_off = _bills(book, vouchers, ctx, alerts, owners)
     vendors = _vendors(book, vendor_names, bills, ctx, alerts)
     if billwise_off:
         alerts.append(
@@ -205,7 +236,107 @@ def make_plan(book: Book, ctx: Context) -> Plan:
             )
         )
     receipts, buyers = _receipts(book, vouchers, ctx, alerts)
-    return Plan(period, dict(counts), vendors, bills, receipts, buyers, cost_centres, alerts)
+    _money_alerts(book, ctx, cash, alerts)
+    return Plan(period, dict(counts), vendors, bills, receipts, buyers, cost_centres, alerts, cash)
+
+
+def _money_alerts(book: Book, ctx: Context, cash: Money, alerts: list[Alert]) -> None:
+    spend = [m for m in cash.cost_ledgers if m.source != "ignored"]
+    if spend and not ctx.cost_lines:
+        alerts.append(
+            Alert(
+                "blocking",
+                "cost.no_lines",
+                "This project has no cost lines yet",
+                "Spending in Tally is counted against cost lines, so cost incurred and paid wait "
+                "until they exist.",
+                "Set up the cost lines from the standard list in one step (Overview, Cost lines "
+                "and budget), then open this import again.",
+            )
+        )
+    elif ctx.cost_lines:
+        unmapped = [m for m in spend if not m.target]
+        if unmapped:
+            alerts.append(
+                Alert(
+                    "missing",
+                    "cost.unmapped",
+                    _count(len(unmapped), "expense ledger is", "expense ledgers are")
+                    + " not matched to a cost line",
+                    f"Their spending (Rs. {cash.unmapped_spend:,.2f}) is left out of cost incurred "
+                    "until each is matched; the withdrawable amount from the RERA account depends "
+                    "on it.",
+                    "Choose a cost line for each below, or set aside ledgers that are not project "
+                    "cost.",
+                    [m.ledger for m in unmapped][:30],
+                )
+            )
+        suggested = [m for m in spend if m.source == "suggested"]
+        if suggested:
+            alerts.append(
+                Alert(
+                    "info",
+                    "cost.suggested",
+                    _count(len(suggested), "expense ledger was", "expense ledgers were")
+                    + " matched to cost lines by name",
+                    "Check the matches below; change any that are wrong.",
+                )
+            )
+    if cash.bank_ledgers and not any(m.target for m in cash.bank_ledgers):
+        alerts.append(
+            Alert(
+                "missing",
+                "rera.unknown",
+                "Which bank account is the RERA designated account?",
+                "Deposits and withdrawals in it feed the 70% check and the withdrawable amount.",
+                "Choose the account below.",
+                [m.ledger for m in cash.bank_ledgers][:20],
+            )
+        )
+    if cash.unattributed:
+        alerts.append(
+            Alert(
+                "info",
+                "paid.unattributed",
+                "Some payments to suppliers could not be counted as cost paid",
+                "These suppliers have no bills in this file to tell which cost lines the payments "
+                "belong to.",
+                "Import the period with their bills as well.",
+                cash.unattributed[:20],
+            )
+        )
+    if ctx.jda and not ctx.landowners:
+        alerts.append(
+            Alert(
+                "info",
+                "landowner.none",
+                "This joint development project has no landowners in Lekhara",
+                "Payments to landowners and the TDS on them cannot be checked until they are "
+                "added.",
+                "Add the landowners on the Units and landowners tab, then open this import again.",
+            )
+        )
+    no_pan = [
+        m.ledger for m in cash.landowner_ledgers if m.target and not book.ledger(m.ledger).pan
+    ]
+    owner_pan = {o.id: o.pan for o in ctx.landowners}
+    no_pan = [
+        n
+        for n in no_pan
+        if not owner_pan.get(next(m.target for m in cash.landowner_ledgers if m.ledger == n))
+    ]
+    if no_pan:
+        alerts.append(
+            Alert(
+                "missing",
+                "landowner.no_pan",
+                _count(len(no_pan), "landowner has", "landowners have") + " no PAN",
+                "TDS under s.194-IC is deducted against the landowner's PAN; without it the rate "
+                "is higher.",
+                "Add the PAN in the landowner's ledger in Tally or on the landowner in Lekhara.",
+                no_pan,
+            )
+        )
 
 
 def _file_alerts(book, ctx, vouchers, skipped, period, cost_centres, alerts) -> None:
@@ -306,7 +437,9 @@ def _file_alerts(book, ctx, vouchers, skipped, period, cost_centres, alerts) -> 
         )
 
 
-def _bills(book: Book, vouchers: list[Voucher], ctx: Context, alerts: list[Alert]):
+def _bills(
+    book: Book, vouchers: list[Voucher], ctx: Context, alerts: list[Alert], owners=frozenset()
+):
     bills: list[BillPlan] = []
     vendor_names: dict[str, str] = {}
     refs_by_bill: dict[str, list[tuple[str, str]]] = {}
@@ -315,7 +448,11 @@ def _bills(book: Book, vouchers: list[Voucher], ctx: Context, alerts: list[Alert
     for v in vouchers:
         if v.base_type not in ("purchase", "journal"):
             continue
-        creditors = [e for e in v.entries if book.kind(e.ledger) == "creditor" and e.amount < 0]
+        creditors = [
+            e
+            for e in v.entries
+            if book.kind(e.ledger) == "creditor" and e.amount < 0 and norm(e.ledger) not in owners
+        ]
         cost = [e for e in v.entries if book.kind(e.ledger) in COST_KINDS and e.amount > 0]
         if v.base_type == "journal" and not (creditors and cost):
             continue
@@ -536,13 +673,13 @@ def _receipts(book: Book, vouchers: list[Voucher], ctx: Context, alerts: list[Al
             share_tds = tds if i == 0 else ZERO
             ref = f"tally:{v.key}:{norm(ledger)}"
             link = ctx.links.get(norm(ledger))
-            if link == "ignore":
+            if link and link[0] != "unit":
                 unmatched.setdefault(norm(ledger), Buyer(ledger, ZERO, 0, [], ignored=True))
                 buyer = unmatched[norm(ledger)]
                 buyer.total += credited
                 buyer.count += 1
                 continue
-            unit = next((u for u in ctx.units if u.id == link), None) if link else None
+            unit = next((u for u in ctx.units if u.id == link[1]), None) if link else None
             if unit is None:
                 found = _match_unit(ledger, v, ctx.units)
                 unit = found[0] if len(found) == 1 else None

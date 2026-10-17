@@ -148,10 +148,23 @@ export async function tallyChoices(
   _previous: ActionState,
   form: FormData,
 ): Promise<ActionState> {
-  const links: Record<string, string> = {};
-  for (const [name, value] of form.entries()) {
-    if (!name.startsWith("ledger_")) continue;
-    links[String(value)] = text(form, `unit_${name.slice(7)}`);
+  const links: Record<string, string | { role: string; target?: string }> = {};
+  const entries = [...form.entries()];
+  for (const [name, value] of entries) {
+    if (name.startsWith("ledger_")) links[String(value)] = text(form, `unit_${name.slice(7)}`);
+    if (name.startsWith("costledger_")) {
+      const choice = text(form, `cost_${name.slice(11)}`);
+      links[String(value)] = choice === "ignore" ? { role: "ignore" } : choice ? { role: "cost_line", target: choice } : "";
+    }
+    if (name.startsWith("bankledger_")) {
+      links[String(value)] = text(form, "rera_account") === String(value) ? { role: "rera_account" } : "";
+    }
+    if (name.startsWith("ownerwas_")) links[String(value)] = "";
+  }
+  for (const [name, value] of entries) {
+    if (!name.startsWith("owner_")) continue;
+    const ledger = String(value);
+    if (ledger) links[ledger] = { role: "landowner", target: text(form, `ownerid_${name.slice(6)}`) };
   }
   const result = await send("PUT", `/tally/${importId}/options`, {
     cost_centre: text(form, "cost_centre") || null,
@@ -174,6 +187,68 @@ export async function undoTally(importId: string, _previous: ActionState): Promi
   if (!result.ok) return { error: result.error };
   refresh();
   return {};
+}
+
+export async function standardCostLines(projectId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send<{ added: number }>("POST", `/projects/${projectId}/cost-lines/standard`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: result.data.added ? `${result.data.added} cost lines added.` : "Every standard line is already there." };
+}
+
+const LINE_FIELDS = ["code", "name", "category", "original_budget", "revised_budget"];
+
+export async function createCostLine(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/cost-lines`, filled(form, LINE_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Cost line added." };
+}
+
+export async function updateCostLine(
+  lineId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send("PUT", `/cost-lines/${lineId}`, filled(form, LINE_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function deleteCostLine(lineId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/cost-lines/${lineId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+const LANDOWNER_FIELDS = ["name", "share_type", "share_pct", "refundable_deposit", "pan"];
+
+export async function createLandowner(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/landowners`, filled(form, LANDOWNER_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Landowner added." };
+}
+
+export async function updateLandowner(
+  ownerId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send("PUT", `/landowners/${ownerId}`, filled(form, LANDOWNER_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
 }
 
 export async function signUp(_previous: ActionState, form: FormData): Promise<ActionState> {

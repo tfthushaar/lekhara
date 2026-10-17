@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { createUnit } from "@/app/actions";
+import { createLandowner, createUnit, updateLandowner } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { UnitFields } from "@/components/unit-fields";
 import { api } from "@/lib/api";
@@ -49,8 +49,16 @@ async function UnitsView({ params }: { params: Promise<{ id: string }> }) {
           <h2>Landowners</h2>
           <p>Entitlements and payments under each joint development agreement</p>
         </div>
+        {list.can_import ? (
+          <details className="disclosure">
+            <summary>Add a landowner</summary>
+            <ActionForm action={createLandowner.bind(null, id)} label="Add the landowner" pendingLabel="Adding">
+              <LandownerFields prefix="new-lo" />
+            </ActionForm>
+          </details>
+        ) : null}
         {u.landowners.length === 0 ? (
-          <p className="empty">This project is on the developer&apos;s own land.</p>
+          <p className="empty">No landowners recorded. Add them if this project is a joint development.</p>
         ) : (
           <table className="table">
             <thead>
@@ -64,8 +72,20 @@ async function UnitsView({ params }: { params: Promise<{ id: string }> }) {
             </thead>
             <tbody>
               {u.landowners.map((o) => (
-                <tr key={o.name}>
-                  <td>{o.name}</td>
+                <tr key={o.id}>
+                  <td>
+                    {o.name}
+                    <br />
+                    <span className="small muted">{o.pan ? `PAN ${o.pan}` : "PAN not recorded"}</span>
+                    {list.can_import ? (
+                      <details className="disclosure">
+                        <summary>Change</summary>
+                        <ActionForm action={updateLandowner.bind(null, o.id)} label="Save" pendingLabel="Saving" secondary>
+                          <LandownerFields prefix={`lo-${o.id}`} owner={o} />
+                        </ActionForm>
+                      </details>
+                    ) : null}
+                  </td>
                   <td>
                     {pct(o.share_pct)} of {o.share_type === "area" ? "the built area" : "revenue"}
                   </td>
@@ -142,5 +162,41 @@ async function UnitsView({ params }: { params: Promise<{ id: string }> }) {
         </table>
       </section>
     </>
+  );
+}
+
+function LandownerFields({
+  prefix,
+  owner,
+}: {
+  prefix: string;
+  owner?: { name: string; share_type: string; share_pct: string; refundable_deposit: string; pan: string | null };
+}) {
+  return (
+    <div className="field-grid">
+      <div className="field">
+        <label htmlFor={`${prefix}-name`}>Name</label>
+        <input id={`${prefix}-name`} name="name" defaultValue={owner?.name ?? ""} required={!owner} />
+      </div>
+      <div className="field">
+        <label htmlFor={`${prefix}-type`}>Share of</label>
+        <select id={`${prefix}-type`} name="share_type" defaultValue={owner?.share_type ?? "area"}>
+          <option value="area">The built area</option>
+          <option value="revenue">Revenue</option>
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor={`${prefix}-pct`}>Share (per cent)</label>
+        <input id={`${prefix}-pct`} name="share_pct" inputMode="decimal" defaultValue={owner?.share_pct ?? ""} required={!owner} />
+      </div>
+      <div className="field">
+        <label htmlFor={`${prefix}-deposit`}>Refundable deposit (rupees)</label>
+        <input id={`${prefix}-deposit`} name="refundable_deposit" defaultValue={owner?.refundable_deposit ?? ""} />
+      </div>
+      <div className="field">
+        <label htmlFor={`${prefix}-pan`}>PAN</label>
+        <input id={`${prefix}-pan`} name="pan" defaultValue={owner?.pan ?? ""} placeholder="ABCDE1234F" />
+      </div>
+    </div>
   );
 }

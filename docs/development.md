@@ -58,7 +58,7 @@ Record types are defined once in `api/lekhara/records.py` (fields, aliases, pars
 
 ### Tally import
 
-`api/lekhara/tally/`: `reader.py` recognises a file and reads XML or JSON into one tree of nodes (and Excel, CSV or ASCII reports into rows); `book.py` turns nodes into ledgers, groups and vouchers with Tally's conventions (YYYYMMDD dates; a debit is a negative AMOUNT marked deemed positive, turned round so debits are positive); `reports.py` reads the Day Book and other reports; `plan.py` works out suppliers, bills and buyer payments and the alerts; `service.py` stores the upload, reviews, applies and undoes. Sample exports for tests are in `api/tests/tally_samples.py`; add real exports from design partners beside them. Tally files can be up to `LEKHARA_TALLY_UPLOAD_MB` (default 100).
+`api/lekhara/tally/`: `reader.py` recognises a file and reads XML or JSON into one tree of nodes (and Excel, CSV or ASCII reports into rows); `book.py` turns nodes into ledgers, groups and vouchers with Tally's conventions (YYYYMMDD dates; a debit is a negative AMOUNT marked deemed positive, turned round so debits are positive); `reports.py` reads the Day Book and other reports; `plan.py` works out suppliers, bills and buyer payments and the alerts; `ledgers.py` maps expense ledgers to cost lines, finds the RERA account and landowners, and works out cost incurred and paid, escrow movements and landowner payments; `service.py` stores the upload, reviews, applies and undoes. Sample exports for tests are in `api/tests/tally_samples.py`; add real exports from design partners beside them. Tally files can be up to `LEKHARA_TALLY_UPLOAD_MB` (default 100).
 
 ### Document vault
 
