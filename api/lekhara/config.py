@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     storage_dir: str = "./storage"
     """Where the document vault keeps files on local disk."""
     max_upload_mb: int = 20
+    tally_upload_mb: int = 100
     trial_days: int = 30
     web_url: str = "http://localhost:3000"
     """Where people open Lekhara; used in the links Lekhara emails."""

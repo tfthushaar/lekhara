@@ -22,6 +22,7 @@ from lekhara.money import ZERO
 from lekhara.rules import KARNATAKA
 from lekhara.services import ServiceError
 from lekhara.storage import LocalStorage
+from lekhara.tally import service as tally
 
 DEMO_PASSWORD = "lekhara-demo"
 
@@ -38,6 +39,11 @@ class UnitBody(BaseModel):
     buyer_email: str | None = None
     booked_on: str | None = None
     agreement_value: str | None = None
+
+
+class TallyOptions(BaseModel):
+    cost_centre: str | None = None
+    links: dict[str, str] = {}
 
 
 class MappingBody(BaseModel):
@@ -686,6 +692,81 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         batch, p = batch_for(session, me, batch_id, edit=True)
         imports.undo(session, batch, user_id=me.user_id)
         return batch_view(session, me, batch, p)
+
+    # Tally imports
+
+    def tally_for(session: Session, me: auth.Principal, import_id: str, *, edit=False):
+        row = tally.get_import(session, import_id)
+        p = services.get_project(session, row.project_id)
+        if edit:
+            auth.require_prepare(me, p)
+        else:
+            auth.require_team(me, p)
+        return row, p
+
+    def tally_view(session: Session, me: auth.Principal, row, p: Project, on: date) -> dict:
+        book, plan = tally.review(session, app.state.storage, row, on)
+        units = list(
+            session.scalars(select(Unit).where(Unit.project_id == p.id).order_by(Unit.label))
+        )
+        editable = me.can_prepare(p) and not me.views_as_sample(p)
+        return views.tally_review(
+            row, book, plan, p, units, can_edit=editable, can_undo=editable and tally.can_undo(row)
+        )
+
+    @app.post("/projects/{project_id}/tally", status_code=201)
+    def upload_tally(project_id: str, session: SessionDep, me: Me, file: UploadFile) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        limit = settings.tally_upload_mb * 1_000_000
+        data = file.file.read(limit + 1)
+        if len(data) > limit:
+            raise ServiceError(
+                f"Tally files can be up to {settings.tally_upload_mb} MB. Export a shorter period."
+            )
+        row = tally.upload(
+            session,
+            app.state.storage,
+            p,
+            filename=file.filename or "tally",
+            data=data,
+            user_id=me.user_id,
+        )
+        return {"id": row.id}
+
+    @app.get("/projects/{project_id}/tally")
+    def list_tally(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return {
+            "can_import": me.can_prepare(p) and not me.views_as_sample(p),
+            "imports": [views.tally_row(r) for r in tally.project_imports(session, p)],
+        }
+
+    @app.get("/tally/{import_id}")
+    def get_tally(import_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = tally_for(session, me, import_id)
+        return tally_view(session, me, row, p, on)
+
+    @app.put("/tally/{import_id}/options")
+    def tally_options(
+        import_id: str, body: TallyOptions, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        row, p = tally_for(session, me, import_id, edit=True)
+        tally.set_options(session, row, cost_centre=body.cost_centre, links=body.links)
+        return tally_view(session, me, row, p, on)
+
+    @app.post("/tally/{import_id}/apply")
+    def apply_tally(import_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = tally_for(session, me, import_id, edit=True)
+        tally.apply(session, app.state.storage, row, as_of=on, user_id=me.user_id)
+        return tally_view(session, me, row, p, on)
+
+    @app.post("/tally/{import_id}/undo")
+    def undo_tally(import_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = tally_for(session, me, import_id, edit=True)
+        tally.undo(session, row)
+        return tally_view(session, me, row, p, on)
 
     # Today
 

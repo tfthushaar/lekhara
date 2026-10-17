@@ -41,3 +41,4 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
 "lekhara/migrations/versions/*" = ["E501"]
+"tests/tally_samples.py" = ["E501"]

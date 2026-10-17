@@ -146,6 +146,9 @@ class Vendor(Base):
     registered: Mapped[bool] = mapped_column(Boolean)
     msme_category: Mapped[str] = mapped_column(String(16), default="none")
     written_agreement: Mapped[bool] = mapped_column(Boolean, default=True)
+    pan: Mapped[str | None] = mapped_column(String(10))
+    state: Mapped[str | None] = mapped_column(String(64))
+    udyam_number: Mapped[str | None] = mapped_column(String(32))
 
 
 class Bill(Base):
@@ -164,6 +167,9 @@ class Bill(Base):
     excluded: Mapped[bool] = mapped_column(Boolean, default=False)
     rcm_paid: Mapped[bool] = mapped_column(Boolean, default=False)
     paid_on: Mapped[date | None] = mapped_column(Date)
+    gst_amount: Mapped[Decimal | None] = mapped_column(Money)
+    source_ref: Mapped[str | None] = mapped_column(String(200), index=True)
+    """Where the bill came from, such as a Tally voucher, so it is never brought in twice."""
 
     vendor: Mapped[Vendor] = relationship()
 
@@ -199,6 +205,7 @@ class Receipt(Base):
     amount: Mapped[Decimal] = mapped_column(Money)
     received_on: Mapped[date] = mapped_column(Date)
     tds_deducted: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    source_ref: Mapped[str | None] = mapped_column(String(200), index=True)
 
 
 class Landowner(Base):
@@ -695,6 +702,47 @@ class ChangeEntry(Base):
     import_batch_id: Mapped[str | None] = mapped_column(String(64))
     user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class TallyImport(Base):
+    """A file exported from Tally: reviewed, then applied, then perhaps undone."""
+
+    __tablename__ = "tally_imports"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(300))
+    file_kind: Mapped[str] = mapped_column(String(16))
+    """xml, json, xlsx or text."""
+    source: Mapped[str] = mapped_column(String(32))
+    """xml, json, or the kind of report."""
+    storage_key: Mapped[str] = mapped_column(String(200))
+    company: Mapped[str | None] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(16), default="review")
+    """review, applied or undone."""
+    options: Mapped[str] = mapped_column(Text, default="{}")
+    result: Mapped[str | None] = mapped_column(Text)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime)
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class TallyLink(Base):
+    """A buyer's ledger in Tally matched to a unit by the builder, remembered per project."""
+
+    __tablename__ = "tally_links"
+    __table_args__ = (UniqueConstraint("project_id", "ledger"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    ledger: Mapped[str] = mapped_column(String(200))
+    """The ledger's name, lowercased with single spaces."""
+    ledger_name: Mapped[str] = mapped_column(String(200), default="")
+    unit_id: Mapped[str | None] = mapped_column(String(64))
+    ignored: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class AppendOnlyViolation(RuntimeError):

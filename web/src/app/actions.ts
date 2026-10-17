@@ -129,6 +129,53 @@ export async function undoImport(batchId: string, _previous: ActionState): Promi
   return {};
 }
 
+export async function uploadTally(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose the file exported from Tally." };
+  const body = new FormData();
+  body.append("file", file, file.name);
+  const result = await sendForm<{ id: string }>(`/projects/${projectId}/tally`, body);
+  if (!result.ok) return { error: result.error };
+  redirect(`/tally/${result.data.id}`);
+}
+
+export async function tallyChoices(
+  importId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const links: Record<string, string> = {};
+  for (const [name, value] of form.entries()) {
+    if (!name.startsWith("ledger_")) continue;
+    links[String(value)] = text(form, `unit_${name.slice(7)}`);
+  }
+  const result = await send("PUT", `/tally/${importId}/options`, {
+    cost_centre: text(form, "cost_centre") || null,
+    links,
+  });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function applyTally(importId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/tally/${importId}/apply`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function undoTally(importId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/tally/${importId}/undo`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function signUp(_previous: ActionState, form: FormData): Promise<ActionState> {
   const result = await send<{ token: string }>("POST", "/auth/signup", {
     name: text(form, "name"),

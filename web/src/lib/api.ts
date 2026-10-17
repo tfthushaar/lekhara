@@ -769,6 +769,80 @@ export type ImportList = {
   }[];
 };
 
+export type TallyAlert = {
+  level: "blocking" | "missing" | "info";
+  code: string;
+  title: string;
+  detail: string;
+  fix: string;
+  items: string[];
+};
+
+export type TallyReview = {
+  id: string;
+  filename: string;
+  status: "review" | "applied" | "undone";
+  project_id: string;
+  project_name: string;
+  created_at: string;
+  applied_at: string | null;
+  can_edit: boolean;
+  can_undo: boolean;
+  source: string;
+  source_label: string;
+  company: string | null;
+  period: { from: string | null; to: string | null };
+  found: {
+    masters: boolean;
+    totals_only: boolean;
+    groups: number;
+    ledgers: number;
+    ledger_kinds: Record<string, number>;
+    cost_centres: number;
+    stock_items: number;
+    vouchers: number;
+    voucher_kinds: Record<string, number>;
+  };
+  counts: {
+    vendors_new: number;
+    vendors_updated: number;
+    bills_new: number;
+    bills_known: number;
+    bills_paid: number;
+    receipts_new: number;
+    receipts_known: number;
+    receipts_waiting: number;
+  };
+  alerts: TallyAlert[];
+  buyers: { ledger: string; total: string; count: number; suggestions: string[]; ignored: boolean }[];
+  units: { id: string; label: string; buyer: string | null }[];
+  cost_centres: string[];
+  cost_centre: string | null;
+  vendors: { name: string; gstin: string | null; registered: boolean; msme: string | null; existing: boolean; changes: string[]; bills: number }[];
+  bills: { vendor: string; bill_no: string; bill_date: string; taxable_value: string; gst: string; paid_on: string | null; is_cement: boolean }[];
+  receipts: { ledger: string; unit: string | null; amount: string; tds: string; received_on: string }[];
+  result: {
+    vendors_added: string[];
+    vendors_changed: unknown[];
+    bills_added: string[];
+    bills_paid: string[];
+    receipts_added: string[];
+  } | null;
+};
+
+export type TallyList = {
+  can_import: boolean;
+  imports: {
+    id: string;
+    filename: string;
+    status: string;
+    company: string | null;
+    created_at: string;
+    bills: number | null;
+    receipts: number | null;
+  }[];
+};
+
 export type Rules = {
   state: string;
   version: string;
@@ -910,6 +984,8 @@ export const api = {
   unit: (id: string) => get<UnitDetail>(`/units/${id}`),
   imports: (projectId: string) => get<ImportList>(`/projects/${projectId}/imports`),
   importBatch: (id: string) => get<ImportBatch>(`/imports/${id}`),
+  tally: (id: string) => get<TallyReview>(`/tally/${id}`),
+  tallyImports: (projectId: string) => get<TallyList>(`/projects/${projectId}/tally`),
   demand: (id: string) => get<DemandLetter>(`/demands/${id}`),
   tax: (id: string) => get<Tax>(`/projects/${id}/tax`),
   units: (id: string) => get<Units>(`/projects/${id}/units`),

@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-17, with the commit "Plan the Tally import, built from scratch".
+Last updated: 2026-10-17, with the commit "Add the Tally import".
 
 ## What we are building
 
@@ -89,10 +89,18 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - A history of every change to a unit: who, when, whether typed, imported or undone, and each field before and after.
   - The unit page works for every unit, sold or not; the handover steps appear once it is sold.
   - Tested end to end: a new firm imports its sales sheet, reviews the preview, applies it, edits a unit, exports, is refused an undo after the edit, adds and deletes a unit.
+- Tally import, built from scratch (first part):
+  - Reads every kind of Tally export: XML (masters and vouchers, UTF-16 or UTF-8, including the control characters Tally writes before reserved group names), JSON from TallyPrime 7, and Excel, CSV or ASCII reports (Day Book, Ledger Vouchers, Trial Balance, lists of ledgers, and sheets with one row per ledger line). PDF, HTML, pictures and old .xls files are refused with the steps to export XML or Excel instead.
+  - Builds one book from any of them: groups, ledgers (classified by walking up to Tally's reserved groups, with builders' own groups such as Site Expenses or Work in Progress taken as project cost), cost centres, voucher types (custom ones traced to their base type), and vouchers with every ledger line as a debit or credit, bill-wise references, bank details (cheque, UTR), cost-centre splits, GST rates and stock lines, including invoice-mode purchases where the purchase ledger sits inside the stock line.
+  - Fills in suppliers from Sundry Creditors (GSTIN, registration type, PAN, state, MSME category and Udyam number, from either the older or the newer TallyPrime layout); suppliers' bills from purchases and from journals that book contractors' bills (invoice number and date, taxable value, GST, cement, and the date paid from bill-wise payments); and buyers' payments from receipts, matched to units by unit number or buyer name, with the TDS the buyer deducted.
+  - Alerts, each naming what it affects and how to fix it in Tally or Lekhara: ledger masters or vouchers missing from the file, a report with totals only, the period the vouchers cover, vouchers that do not add up, cancelled or optional vouchers left out, cost centres in use; suppliers without a GSTIN or MSME details, bills without the supplier's invoice number, bills that cannot be tied to payments because bill-wise details are off; buyers that cannot be matched to a unit (their payments wait until matched, and the choice is remembered).
+  - A review page: what the file holds, what will come in, the alerts, the builder's choices (a cost centre for this project, a unit for each unmatched buyer), a look at the suppliers, bills and payments, then bring it in. Safe to repeat: vouchers are matched on their Tally identity, so the same export twice adds nothing. Undo within 30 days.
+  - Built to Tally's documented structure and tested on sample exports in that structure; to be tested against real exports from design partners.
+  - Tested end to end: a PDF refused with steps, an XML export reviewed with its alerts, a buyer matched by hand, everything brought in and shown in collections, the same file again adding nothing, a Day Book report read with its limits named, and an undo.
 
 ## In progress
 
-- Tally import, built from scratch: reads Tally's XML, JSON and Excel or text report exports; fills in suppliers, suppliers' bills and buyer payments; alerts the builder to any required data the file lacks.
+- Tally import, second part: expense ledgers mapped once to cost lines (cost incurred and paid for the money engine), the RERA designated account's deposits and withdrawals, landowner payments with TDS.
 
 ## Left
 
@@ -103,7 +111,7 @@ In this order:
 - Self-serve start, still to do: sign-in with Google and by phone code, limits on sign-ups and resets per network address, and row-level security in Postgres as a second wall between firms when production moves to Postgres.
 - Add, edit, import and export for the remaining records that today come only from the demo data: payment plans, receipts, cost lines, budgets, commitments, bills, vendors, landowners and their payments, approvals, filings, and editing a project's own details; spreadsheet-style bulk editing; change history for each.
 - Import centre, still to do: bank statements and known CRM export formats, templates in Kannada, AI column mapping for unfamiliar sheets.
-- Tally import, next steps: expense ledgers mapped to cost lines (cost incurred and paid), the RERA designated account's deposits and withdrawals, landowner payments with TDS; tested against real exports from design partners.
+- Tally import, after that: debit notes netted off bills, sales vouchers matched to demands, testing against real exports from design partners.
 - Payment plans and buyer payments: edit the plan from templates; receipts from bank statements.
 - A full workspace export (Excel, JSON and every document) at any time.
 - Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, a completeness meter per project, engines that work with partial data and say what is missing, a sample workspace, first-run help.

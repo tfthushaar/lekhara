@@ -1267,6 +1267,131 @@ def batch_row(batch) -> dict:
     }
 
 
+# Tally imports
+
+
+def tally_review(
+    row, book, plan, project: Project, units: list, *, can_edit: bool, can_undo: bool
+) -> dict:
+    from lekhara.tally.service import SOURCE_LABEL
+
+    kinds: dict[str, int] = {}
+    for ledger in book.ledgers.values():
+        kinds[ledger.kind] = kinds.get(ledger.kind, 0) + 1
+    new_bills = [b for b in plan.bills if not b.exists]
+    new_receipts = [r for r in plan.receipts if not r.exists and r.unit_id]
+    return {
+        "id": row.id,
+        "filename": row.filename,
+        "status": row.status,
+        "project_id": project.id,
+        "project_name": project.name,
+        "created_at": row.created_at.replace(microsecond=0).isoformat(),
+        "applied_at": row.applied_at.replace(microsecond=0).isoformat() if row.applied_at else None,
+        "can_edit": can_edit and row.status == "review",
+        "can_undo": can_undo,
+        "source": book.source,
+        "source_label": SOURCE_LABEL.get(book.source, book.source),
+        "company": book.company or None,
+        "period": {"from": d(plan.period[0]), "to": d(plan.period[1])},
+        "found": {
+            "masters": book.has_masters,
+            "totals_only": book.summary_only,
+            "groups": len(book.groups),
+            "ledgers": len(book.ledgers),
+            "ledger_kinds": kinds,
+            "cost_centres": len(book.cost_centres) or len(plan.cost_centres),
+            "stock_items": book.stock_items,
+            "vouchers": len(book.vouchers),
+            "voucher_kinds": plan.counts,
+        },
+        "counts": {
+            "vendors_new": sum(1 for v in plan.vendors if not v.existing_id),
+            "vendors_updated": sum(1 for v in plan.vendors if v.existing_id and v.changes),
+            "bills_new": len(new_bills),
+            "bills_known": sum(1 for b in plan.bills if b.exists),
+            "bills_paid": sum(1 for b in new_bills if b.paid_on),
+            "receipts_new": len(new_receipts),
+            "receipts_known": sum(1 for r in plan.receipts if r.exists),
+            "receipts_waiting": sum(1 for r in plan.receipts if not r.exists and not r.unit_id),
+        },
+        "alerts": [
+            {
+                "level": a.level,
+                "code": a.code,
+                "title": a.title,
+                "detail": a.detail,
+                "fix": a.fix,
+                "items": a.items,
+            }
+            for a in sorted(
+                plan.alerts, key=lambda a: ("blocking", "missing", "info").index(a.level)
+            )
+        ],
+        "buyers": [
+            {
+                "ledger": b.ledger,
+                "total": m(b.total),
+                "count": b.count,
+                "suggestions": b.suggestions,
+                "ignored": b.ignored,
+            }
+            for b in plan.buyers
+        ],
+        "units": [{"id": u.id, "label": u.label, "buyer": u.buyer_name} for u in units],
+        "cost_centres": plan.cost_centres,
+        "cost_centre": json.loads(row.options or "{}").get("cost_centre"),
+        "vendors": [
+            {
+                "name": v.name,
+                "gstin": v.gstin,
+                "registered": v.registered,
+                "msme": v.msme_category,
+                "existing": v.existing_id is not None,
+                "changes": sorted(v.changes),
+                "bills": v.bills,
+            }
+            for v in plan.vendors[:100]
+        ],
+        "bills": [
+            {
+                "vendor": b.vendor_name,
+                "bill_no": b.bill_no,
+                "bill_date": d(b.bill_date),
+                "taxable_value": m(b.taxable_value),
+                "gst": m(b.gst),
+                "paid_on": d(b.paid_on),
+                "is_cement": b.is_cement,
+            }
+            for b in new_bills[:100]
+        ],
+        "receipts": [
+            {
+                "ledger": r.ledger,
+                "unit": r.unit_label,
+                "amount": m(r.amount),
+                "tds": m(r.tds),
+                "received_on": d(r.received_on),
+            }
+            for r in new_receipts[:100]
+        ],
+        "result": json.loads(row.result) if row.result else None,
+    }
+
+
+def tally_row(row) -> dict:
+    result = json.loads(row.result) if row.result else None
+    return {
+        "id": row.id,
+        "filename": row.filename,
+        "status": row.status,
+        "company": row.company,
+        "created_at": row.created_at.replace(microsecond=0).isoformat(),
+        "bills": len(result["bills_added"]) if result else None,
+        "receipts": len(result["receipts_added"]) if result else None,
+    }
+
+
 _MONEY_RULES = {
     "escrow.min_suggested_withdrawal",
     "krera.qpr_late_fee_per_quarter",
