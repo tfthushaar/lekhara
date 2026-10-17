@@ -1,6 +1,6 @@
 # Horus status
 
-Last updated: 2026-10-17, with the commit "Add the Karnataka rules pack and the money truth engine".
+Last updated: 2026-10-17, with the commit "Add the escrow and certification engine".
 
 ## What we are building
 
@@ -15,16 +15,17 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states.
 - Web app shell (Next.js 16) with the Horus text wordmark and the monochrome design system.
 - Karnataka rules pack v1: 35 rates, thresholds and deadlines as dated data, each with its legal basis, source quality and what to confirm it against. Horus settings are marked as settings, not law.
 - Money truth engine: cost lines, ledger stages (committed, incurred, paid, retention, advances), anticipated final cost, cost to complete, contingency, land and development totals for RERA, point-in-time positions, and alerts for overruns, low contingency and spending ahead of certified progress.
+- Escrow and certification engine: drawable amount (limited by cost incurred and paid, or by the account balance, whichever is lower), 70% deposit check, the ongoing-project deposit rule, next certificate cycle, drafts of the architect's, engineer's and CA's certificates prepared from the books, and the checks a bank or K-RERA auditor would run (amount, figures against the books, progress against cost, dates, CA independence, signatures).
 
 ## In progress
 
-- Escrow and certification engine.
+- Real-estate tax and obligations engines.
 
 ## Left
 
 ### MVP
 
-- Escrow and certification: drawable amount, deposit check, withdrawal requests, architect, engineer and CA certificates, consistency checks, sign-off, bank submission and release.
+- Escrow and certification workflow in the database and API: withdrawal requests, certificate sign-off, bank submission and release.
 - K-RERA: quarterly progress report deadlines and pack, delay interest exposure.
 - Real-estate tax: 80% registered-procurement meter, GST on development rights at completion, guidance-value check (s.43CA), TDS to landowners (s.194-IC), MSME 45-day clock, BOCW cess.
 - JDA landowner register and the developer or landowner split on every unit.
