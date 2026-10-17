@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Add bank statement import".
+Last updated: 2026-10-18, with the commit "Update status after researching automatic feeds".
 
 ## What we are building
 
@@ -13,7 +13,7 @@ Lekhara connects read-only, reads documents with AI from several providers (with
 
 Lekhara is sold as a self-serve monthly SaaS: one subscription per builder firm, covering all its projects and people, after a one-month free trial, paid through Razorpay. A builder signs up and uses it on their own data the same day, without our help. Every record can be imported from a file, fed from a connected source, or typed and edited in Lekhara, and everything can be exported at any time.
 
-Launch market: Bengaluru, then the rest of Karnataka, then other states. The full plan is v7.2 (kept outside the repository).
+Launch market: Bengaluru, then the rest of Karnataka, then other states. The full plan is v7.3 (kept outside the repository).
 
 ## Done
 
@@ -143,7 +143,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 
 ## In progress
 
-- Research: whether each source (Tally, banks, the GST portal, CRMs, email) can feed Lekhara by itself once it is linked, so builders never export and upload by hand every day.
+- Suppliers, their bills and commitments: typed in, edited, imported from a sheet and exported, like units and buyer payments, for builders who do not keep them in Tally, with a change history for each.
 
 ## Left
 
@@ -197,6 +197,7 @@ In this order:
 - Two layers: features only Lekhara has, plus standard modules done better, each able to coexist with the customer's own tools.
 - Stack: Python and FastAPI for the API, Next.js for the web, Postgres in production (SQLite for local development).
 - AI: several providers behind one gateway, chosen per task by measured accuracy, cost and residency; never a single provider.
+- Automatic feeds (researched on 2026-10-18, plan v7.3 section 7.4.2, not yet decided): Tally by an optional connector on the Tally computer, CRMs with an API such as Sell.Do, the GST portal through a GSP with a monthly OTP, and bank statements by email are possible; bank APIs need each bank as a partner; the Account Aggregator is open only to regulated entities.
 - Tally data: read from the files Tally exports, by Lekhara's own Tally import built from scratch (the founder's earlier module does not fit); no Tally API, nothing installed on the customer's machine.
 - Team: two founders through v1; a seed raise after three paying customers funds the team for v2 onwards.
 - Design: minimal, monochrome, no emojis, no symbols in the branding, text wordmark only.
