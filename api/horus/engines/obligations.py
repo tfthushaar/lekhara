@@ -62,6 +62,11 @@ class Obligation:
     amount: Decimal | None = None
     rule_key: str | None = None
     action: str | None = None
+    amount_label: str | None = None
+    """What the amount is, in plain words: 'Reverse charge', 'Bill', 'Can be drawn now'."""
+    exposure: bool = False
+    """True when the amount is money at risk (a penalty, tax or shortfall), not a bill or an
+    opportunity. Only exposures are added up as money at stake."""
 
 
 @dataclass(frozen=True)
@@ -83,6 +88,9 @@ class ProjectFacts:
     """Quarter-end dates for which the quarterly progress report has been filed."""
     audits_done: set[int] = field(default_factory=set)
     """Start years of financial years whose annual project audit is done."""
+    open_withdrawal_amount: Decimal | None = None
+    open_withdrawal_waiting_on: str | None = None
+    """Who the open withdrawal request is waiting for, for example "the CA" or "the bank"."""
 
 
 def _quarter_ends(start: date, end: date) -> list[date]:
@@ -127,9 +135,26 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
 
     # Escrow
     e = f.escrow
-    if e.suggest_withdrawal:
+    if f.open_withdrawal_waiting_on is not None:
+        add(
+            key="escrow:open",
+            amount_label="Requested",
+            exposure=False,
+            title=f"Withdrawal is waiting for {f.open_withdrawal_waiting_on}",
+            detail="A withdrawal request is under way. Follow it through to release.",
+            owed_to="Escrow bank",
+            status=ObligationStatus.OPPORTUNITY,
+            area=Area.ESCROW,
+            due_on=f.as_of,
+            amount=f.open_withdrawal_amount,
+            rule_key="escrow.withdrawal_cost_basis",
+            action="Open the request",
+        )
+    elif e.suggest_withdrawal:
         add(
             key="escrow:withdraw",
+            amount_label="Can be drawn now",
+            exposure=False,
             title="Money is waiting in the RERA account",
             detail=(
                 "Cost incurred allows a withdrawal now. Horus has prepared the three "
@@ -158,6 +183,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
     if e.deposit_shortfall > 0:
         add(
             key="escrow:deposit",
+            amount_label="To deposit",
+            exposure=True,
             title="Deposits into the RERA account are short",
             detail=(
                 "70% of buyer receipts must go into the designated account. "
@@ -186,6 +213,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
             add(
                 key=f"qpr:{qe.isoformat()}",
                 title="Quarterly progress report is late",
+                amount_label="Late fee from",
+                exposure=True,
                 detail=f"The K-RERA report for the {label} was due on {_fmt(due)}.",
                 owed_to="K-RERA",
                 status=ObligationStatus.OVERDUE,
@@ -238,6 +267,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
         if d.days_late > 0:
             add(
                 key="rera:delay",
+                amount_label="Interest so far",
+                exposure=True,
                 title="Possession is late; delay interest is building up",
                 detail=(
                     f"Possession was due on {_fmt(d.possession_due_on)}, {d.days_late} days ago. "
@@ -254,6 +285,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
         elif d.days_to_possession is not None and d.days_to_possession <= 120:
             add(
                 key="rera:possession",
+                amount_label="Per month if late",
+                exposure=False,
                 title=f"Possession is due in {d.days_to_possession} days",
                 detail=(
                     "If possession slips, delay interest owed to buyers starts at this amount "
@@ -275,6 +308,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
             add(
                 key=f"gst80:{p.fy}",
                 title="Purchases from registered suppliers are below 80% this year",
+                amount_label="Reverse charge",
+                exposure=True,
                 detail=(
                     f"{p.registered_share_pct}% of this year's inputs are from registered "
                     "suppliers. Reverse charge on the shortfall is due by "
@@ -294,6 +329,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
             add(
                 key=f"gst80:{p.fy}",
                 title="Close to the 80% registered-supplier limit",
+                amount_label="Still allowed unregistered",
+                exposure=False,
                 detail=(
                     "Only this much more can be bought from unregistered suppliers this year "
                     "before reverse charge applies."
@@ -312,6 +349,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
     if dr.applies and dr.liability > 0:
         add(
             key="gst:dr",
+            amount_label="Payable at completion",
+            exposure=True,
             title="GST on development rights falls due at completion",
             detail=(
                 f"{dr.unbooked_units} of your flats are unbooked. If they are still unbooked at "
@@ -320,7 +359,7 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
             owed_to="GST",
             status=ObligationStatus.AT_RISK,
             area=Area.TAX,
-            due_on=f.delay.possession_due_on,
+            due_on=f.delay.possession_due_on if f.delay.days_late == 0 else None,
             amount=dr.liability,
             rule_key="gst.dr.rcm_rate",
             action="See the forecast",
@@ -330,6 +369,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
     for flag in f.guidance_flags:
         add(
             key=f"s43ca:{flag.sale.unit_label}",
+            amount_label="Estimated tax",
+            exposure=True,
             title=f"Unit {flag.sale.unit_label} is sold well below guidance value",
             detail=(
                 f"The price is {flag.gap_pct}% below guidance value. The gap may be taxed as "
@@ -348,6 +389,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
     for s in f.landowner_tds:
         add(
             key=f"s194ic:{s.payment.landowner}:{s.payment.on.isoformat()}",
+            amount_label="TDS short",
+            exposure=True,
             title=f"TDS short on a payment to {s.payment.landowner}",
             detail=f"10% TDS applies to money paid under the JDA. Paid on {_fmt(s.payment.on)}.",
             owed_to="Income tax",
@@ -366,7 +409,13 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
         overdue = item.status == MsmeStatus.OVERDUE
         add(
             key=f"msme:{item.bill.vendor}:{item.bill.bill_no}",
-            title=f"{'Pay' if not overdue else 'Overdue to'} {item.bill.vendor}, an MSME supplier",
+            amount_label="Bill",
+            exposure=False,
+            title=(
+                f"Payment to {item.bill.vendor} is past the MSME limit"
+                if overdue
+                else f"Pay {item.bill.vendor} before the MSME limit"
+            ),
             detail=(
                 f"Bill {item.bill.bill_no} must be paid by {_fmt(item.due_on)} to keep the tax "
                 "deduction this year."
@@ -386,6 +435,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
     if f.cess.balance_due > 0:
         add(
             key="bocw:cess",
+            amount_label="Cess due",
+            exposure=True,
             title="Labour cess not yet paid on construction to date",
             detail="1% cess applies to the cost of construction.",
             owed_to="Labour welfare board",

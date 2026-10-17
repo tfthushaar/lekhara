@@ -75,5 +75,5 @@ class RulesPack:
     def value(self, key: str, on: date) -> Any:
         return self.get(key, on).value
 
-    def keys(self) -> list[str]:
+    def rule_keys(self) -> list[str]:
         return sorted({rule.key for rule in self.rules})
