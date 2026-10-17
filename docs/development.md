@@ -64,6 +64,10 @@ Record types are defined once in `api/lekhara/records.py` (fields, aliases, pars
 
 `api/lekhara/readiness.py` checks, per project, each kind of data the engines work from and returns one item for each: done, partial, stale (accounts older than `STALE_DAYS`, progress older than `PROGRESS_STALE_DAYS`) or missing, what it switches on, and where in the web app it comes in. When a new engine needs a new kind of data, add an item there so builders are told about it. Project details and certified progress are changed through `registers.update_project` and `registers.record_progress`, which validate and write to the change history.
 
+### Workspace export
+
+`api/lekhara/export.py` builds the ZIP behind `GET /organization/export` (owner and finance only, open when read-only): a write-only openpyxl workbook with one sheet per entry in `SHEETS`, the same rows as JSON, every vault file, and a read-me. Each sheet is a model and how its rows are picked out for the firm (`Scope`); all columns are exported except those in `LEFT_OUT`. A new table must go into `SHEETS` or into `NOT_EXPORTED` with the reason; a test fails until it does.
+
 ### Document vault
 
 Files are kept on local disk under `LEKHARA_STORAGE_DIR` (default `api/storage`, not committed), addressed by their SHA-256. Uploads are limited to `LEKHARA_MAX_UPLOAD_MB` (default 20). The demo seed writes real PDFs there, so search works on them. Only the owner and finance can share documents outside the company; the demo data room opens at `http://localhost:3000/shared/demo-sarjapur-finance-review` without signing in.

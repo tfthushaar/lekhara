@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Add project details and the set-up checklist".
+Last updated: 2026-10-18, with the commit "Add the full workspace export".
 
 ## What we are building
 
@@ -121,10 +121,17 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - Certified progress recorded from the architect's or engineer's certificate, by the team or by the project's architect or engineer: not in the future, and never lower than an earlier certificate. Demands ready to raise follow at once.
   - Every change goes into the project's change history.
   - Tested end to end: a new project's checklist, details saved, an occupancy certificate refused without its date, a field cleared, progress recorded and refused when lower, the sample project complete and read-only to another firm.
+- The full workspace export:
+  - "Download everything" in Settings: one ZIP file with everything the firm has in Lekhara, at any time, including when the workspace is read-only after the trial.
+  - An Excel workbook with a sheet for every kind of record (30 of them: projects, units, handover, the payment plan, demands, buyer payments, progress certificates, cost lines and the cost ledger, the RERA account, suppliers and their bills, landowners and their payments, withdrawals and their certificates, filings, cases with hearings, orders and payments, documents, data rooms and their visits, Tally choices, the team, certifiers and the change history), with names of projects, units, suppliers, cost lines and people in place of ids.
+  - The same records as JSON, with the ids that tie them together, for another system to read.
+  - Every document in the vault, every version, in a folder per project (archived ones apart), named by title; the Documents sheet says where each file is. A file missing from storage is named in the read-me instead of stopping the export.
+  - Only the owner and finance can download it; each download is recorded in the change history. Secrets such as data room link fingerprints are never included.
+  - Tested end to end: the owner downloads the sample firm's 520 units and 75 files; accounts is refused; a new firm's file holds only its own data.
 
 ## In progress
 
-- A full workspace export: everything a firm has in Lekhara, at any time and even when read-only, as one download (an Excel workbook with a sheet per record, the same records as JSON, and every document filed in the vault).
+- Bank statements: buyer payments and RERA account movements read from the bank's own statement export (Excel, CSV or PDF text) for the main banks builders use, matched to units and the designated account, with a preview, alerts and undo like every other import.
 
 ## Left
 
@@ -134,9 +141,8 @@ In this order:
 
 - Self-serve start, still to do: sign-in with Google and by phone code, limits on sign-ups and resets per network address, and row-level security in Postgres as a second wall between firms when production moves to Postgres.
 - Add, edit, import and export for the remaining records that today come only from the demo data or Tally: suppliers and their bills typed in, commitments, landowner payments typed in, approvals, filings; spreadsheet-style bulk editing; change history for each.
-- Import centre, still to do: bank statements and known CRM export formats, templates in Kannada, AI column mapping for unfamiliar sheets.
+- Import centre, still to do: known CRM export formats, templates in Kannada, AI column mapping for unfamiliar sheets.
 - Tally import, after that: debit notes netted off bills, sales vouchers matched to demands, testing against real exports from design partners.
-- Buyer payments and RERA account movements from bank statements.
 - Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, engines that work with partial data and say what is missing, first-run help.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
 - A forwarding address per workspace for bills, notices and statements; a background job queue; S3-compatible file storage.

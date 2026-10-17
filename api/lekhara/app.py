@@ -6,12 +6,12 @@ from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, Header, Request, Response, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from lekhara import accounts, auth, imports, registers, services, views
+from lekhara import accounts, auth, export, imports, registers, services, views
 from lekhara.config import Settings, get_settings
 from lekhara.db import make_engine, make_sessionmaker
 from lekhara.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
@@ -540,6 +540,23 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         accounts.require_manager(me, org, owner=True)
         accounts.update_org(session, org, body.model_dump(exclude_unset=True))
         return firm_view(session, me, org, on)
+
+    @app.get("/organization/export")
+    def export_workspace(session: SessionDep, me: Me, on: AsOf) -> StreamingResponse:
+        """Everything the firm has, at any time, even when the workspace is read-only."""
+        org = accounts.current_org(session, me)
+        accounts.require_manager(me, org)
+        done = export.workspace(session, app.state.storage, org, as_of=on, user_id=me.user_id)
+        ascii_name = done.filename.encode("ascii", "replace").decode().replace("?", "-")
+        return StreamingResponse(
+            done.chunks(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{ascii_name}"; '
+                f"filename*=UTF-8''{quote(done.filename)}",
+                "Cache-Control": "private, no-store",
+            },
+        )
 
     @app.post("/organization/invitations", status_code=201)
     def invite(body: NewInvitation, session: SessionDep, me: Me) -> dict:

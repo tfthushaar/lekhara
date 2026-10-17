@@ -5,10 +5,11 @@ import { fetchFile } from "@/lib/api";
 const ALLOWED = [
   /^projects\/[A-Za-z0-9_-]+\/exports\/[a-z_]+\.(xlsx|csv)$/,
   /^imports\/templates\/[a-z_]+\.(xlsx|csv)$/,
+  /^organization\/export$/,
 ];
 const PASS_ON = ["content-type", "content-disposition", "content-length"];
 
-/** Hands an export or an import template to the browser, for the signed-in person. */
+/** Hands an export, the whole-workspace export or an import template to the browser, for the signed-in person. */
 export async function GET(request: NextRequest, ctx: RouteContext<"/download/[...path]">) {
   const { path } = await ctx.params;
   const joined = path.map(decodeURIComponent).join("/");

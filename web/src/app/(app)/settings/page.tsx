@@ -57,6 +57,27 @@ async function SettingsView() {
 
       <section className="section">
         <div className="section-head">
+          <h2>Your data</h2>
+          <p>Everything your firm has in Lekhara, in one file, at any time</p>
+        </div>
+        <p className="small muted" style={{ maxWidth: 640, marginTop: 16 }}>
+          A ZIP file with an Excel workbook (a sheet for every kind of record), the same records as
+          JSON for another system, and every document in the vault, every version. It stays open
+          even if the subscription lapses.
+        </p>
+        {f.can_manage ? (
+          // A file from a route handler, not a page: a plain link, so the browser downloads it.
+          // eslint-disable-next-line @next/next/no-html-link-for-pages
+          <a href="/download/organization/export" className="button button-secondary">
+            Download everything
+          </a>
+        ) : (
+          <p className="small">The owner or finance can download it.</p>
+        )}
+      </section>
+
+      <section className="section">
+        <div className="section-head">
           <h2>Your firm</h2>
           <p>Printed on demand letters, packs and invoices</p>
         </div>
