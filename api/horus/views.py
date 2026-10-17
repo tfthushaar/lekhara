@@ -13,6 +13,13 @@ from horus.engines.escrow import (
     RequestStatus,
     can_submit,
 )
+from horus.engines.handover import (
+    BLOCKER_TEXT,
+    STAGE_LABEL,
+    STAGES,
+    HandoverPosition,
+    UnitReadiness,
+)
 from horus.engines.obligations import Obligation, ObligationStatus
 from horus.engines.tax import MsmeStatus
 from horus.models import (
@@ -23,6 +30,7 @@ from horus.models import (
     Unit,
     WithdrawalRequest,
 )
+from horus.money import ZERO
 from horus.rules import KARNATAKA, RuleNotFound, RulesPack
 from horus.services import ProjectSnapshot, RequestState
 
@@ -627,6 +635,113 @@ def demand_letter(
         "due_on": d(demand.due_on),
         "note": "Draft prepared by Horus. Your team sends it from your own address.",
     }
+
+
+# Registration and handover
+
+OC_LABEL = {
+    "none": "Not applied for",
+    "applied": "Applied for",
+    "partial": "Partial OC received",
+    "received": "Received",
+}
+EKHATA_LABEL = {"none": "Not applied", "applied": "Applied", "draft": "Draft", "final": "Final"}
+
+
+def _cost(c) -> dict:
+    return {
+        "base": m(c.base),
+        "stamp_duty": m(c.stamp_duty),
+        "cess": m(c.cess),
+        "registration_fee": m(c.registration_fee),
+        "total": m(c.total),
+    }
+
+
+def _unit_readiness(r: UnitReadiness) -> dict:
+    u = r.unit
+    return {
+        "unit_id": u.unit_id,
+        "label": u.label,
+        "buyer": u.buyer,
+        "blocker": r.blocker.value,
+        "blocker_text": BLOCKER_TEXT[r.blocker],
+        "steps": [{"stage": s.value, "label": STAGE_LABEL[s], "done": s in r.done} for s in STAGES],
+        "ekhata_status": u.ekhata_status,
+        "ekhata_label": EKHATA_LABEL.get(u.ekhata_status, u.ekhata_status),
+        "khata_type": u.khata_type,
+        "agreement_value": m(u.agreement_value),
+        "guidance_value": m(u.guidance_value),
+        "balance_due": m(u.balance_due),
+        "final_demand_raised": u.final_demand_raised,
+        "deed_drafted_on": d(u.deed_drafted_on),
+        "appointment_on": d(u.appointment_on),
+        "registered_on": d(u.registered_on),
+        "document_no": u.document_no,
+        "possession_on": d(u.possession_on),
+        "cost": _cost(r.cost),
+    }
+
+
+def handover(h: HandoverPosition, project: Project, *, can_edit: bool) -> dict:
+    return {
+        "can_edit": can_edit,
+        "oc": {
+            "status": project.oc_status,
+            "label": OC_LABEL.get(project.oc_status, project.oc_status),
+            "received_on": d(project.oc_received_on),
+            "reference": project.oc_reference,
+        },
+        "conveyance_due_on": d(h.conveyance_due_on),
+        "common_areas_conveyed_on": d(h.common_areas_conveyed_on),
+        "association_formed_on": d(project.association_formed_on),
+        "summary": {
+            "units": len(h.units),
+            "registered": h.registered,
+            "handed_over": h.handed_over,
+            "money_waiting": m(h.money_waiting),
+        },
+        "stages": [
+            {"stage": s.value, "label": STAGE_LABEL[s], "blocked": h.by_blocker[s]} for s in STAGES
+        ],
+        "units": [_unit_readiness(r) for r in h.units],
+    }
+
+
+def unit_handover(h: HandoverPosition, project: Project, unit: Unit, *, can_edit: bool) -> dict:
+    r = next(r for r in h.units if r.unit.unit_id == unit.id)
+    detail = _unit_readiness(r)
+    detail.update(
+        {
+            "project_id": project.id,
+            "project_name": project.name,
+            "can_edit": can_edit,
+            "fact_sheet": [
+                {"label": "Seller", "value": project.organization.name},
+                {"label": "Buyer", "value": unit.buyer_name or ""},
+                {
+                    "label": "Project",
+                    "value": f"{project.name}, {project.locality}, {project.city}",
+                },
+                {"label": "K-RERA registration", "value": project.krera_registration},
+                {"label": "Unit", "value": f"{unit.label}, {unit.tower}"},
+                {"label": "Carpet area", "value": f"{unit.carpet_area_sqft:,} sq ft"},
+                {"label": "Agreement value", "value": _indian(unit.agreement_value or ZERO)},
+                {"label": "Guidance value", "value": _indian(unit.guidance_value)},
+                {"label": "Booked on", "value": d(unit.booked_on) or ""},
+                {"label": "Occupancy certificate", "value": project.oc_reference or "Not received"},
+                {
+                    "label": "e-Khata",
+                    "value": f"{detail['ekhata_label']}"
+                    + (f", {r.unit.khata_type}-Khata" if r.unit.khata_type else ""),
+                },
+                {"label": "Balance due", "value": _indian(r.unit.balance_due)},
+                {"label": "Undivided share of land", "value": "To be completed by your lawyer"},
+                {"label": "Schedule of the property", "value": "To be completed by your lawyer"},
+            ],
+        }
+    )
+    return detail
 
 
 _MONEY_RULES = {

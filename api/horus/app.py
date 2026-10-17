@@ -28,6 +28,16 @@ class Login(BaseModel):
     password: str
 
 
+class HandoverUpdate(BaseModel):
+    ekhata_status: str | None = None
+    khata_type: str | None = None
+    deed_drafted_on: date | None = None
+    appointment_on: date | None = None
+    registered_on: date | None = None
+    document_no: str | None = None
+    possession_on: date | None = None
+
+
 class NewWithdrawal(BaseModel):
     amount: Decimal | None = None
 
@@ -328,6 +338,37 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             gst_rate=services.sale_gst_rate(p, on, KARNATAKA),
             tds_threshold=KARNATAKA.value("it.s194ia.threshold", on),
         )
+
+    # Registration and handover
+
+    @app.get("/projects/{project_id}/handover")
+    def project_handover(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return views.handover(services.handover_for(session, p, on), p, can_edit=me.can_prepare(p))
+
+    @app.get("/units/{unit_id}/handover")
+    def unit_handover(unit_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        unit = services.get_unit(session, unit_id)
+        p = services.get_project(session, unit.project_id)
+        auth.require_team(me, p)
+        if not unit.booked:
+            raise ServiceError("This unit is not booked.", 404)
+        h = services.handover_for(session, p, on)
+        return views.unit_handover(h, p, unit, can_edit=me.can_prepare(p))
+
+    @app.put("/units/{unit_id}/handover")
+    def update_unit_handover(
+        unit_id: str, body: HandoverUpdate, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        unit = services.get_unit(session, unit_id)
+        p = services.get_project(session, unit.project_id)
+        auth.require_prepare(me, p)
+        services.update_handover(
+            session, unit, body.model_dump(exclude_unset=True), user_id=me.user_id
+        )
+        h = services.handover_for(session, p, on)
+        return views.unit_handover(h, p, unit, can_edit=True)
 
     # Withdrawals
 

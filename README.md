@@ -26,7 +26,7 @@ Quarterly progress reports and the annual audit are prepared from your own recor
 - TDS on payments to landowners, labour cess, and payments to MSME suppliers approaching the 45-day limit.
 
 **Get every unit registered.**
-See unit by unit what stands between a buyer and registration: occupancy certificate, e-Khata, final payment, sale deed, appointment. See how much money is waiting on it.
+See unit by unit what stands between a buyer and registration: occupancy certificate, e-Khata, final payment, sale deed, appointment. See how much money is waiting on it. Each unit comes with a fact sheet for your lawyer's sale deed and an estimate of the buyer's stamp duty and fees, and Horus reminds you when the common areas are due to go to the residents' association.
 
 **Stay ahead of complaints.**
 Every K-RERA, consumer and civil case in one register, with hearings, deadlines and what each one could cost.

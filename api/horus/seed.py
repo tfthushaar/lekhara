@@ -48,6 +48,7 @@ from horus.models import (
     ProjectAccess,
     Receipt,
     Unit,
+    UnitHandover,
     User,
     Vendor,
     WithdrawalCertificate,
@@ -398,6 +399,86 @@ class Seeder:
                 )
                 total += cash
         return total
+
+    def handover(
+        self,
+        p: Project,
+        plan: list[PaymentMilestone],
+        *,
+        possession_raised: int,
+        possession_paid: int,
+        ekhata_final: int,
+        ekhata_draft: int,
+        deeds: int,
+        appointments: int,
+        registered: int,
+        handed_over: int,
+        overdue_every: int,
+        gst_rate: Decimal = Decimal("0.05"),
+    ) -> None:
+        """Puts the project's booked units at every step between OC and possession."""
+        self.s.flush()
+        final = next(m for m in plan if m.trigger == "possession")
+        units = list(
+            self.s.scalars(
+                select(Unit)
+                .where(Unit.project_id == p.id, Unit.booked.is_(True))
+                .order_by(Unit.label)
+            )
+        )
+        ready = 0
+        for i, u in enumerate(units):
+            if i < possession_raised:
+                amount = (u.agreement_value * final.share_pct / 100).quantize(Decimal("0.01"))
+                gst = (amount * gst_rate).quantize(Decimal("0.01"))
+                self.s.add(
+                    DemandRow(
+                        project_id=p.id,
+                        unit_id=u.id,
+                        milestone_id=final.id,
+                        amount=amount,
+                        gst=gst,
+                        raised_on=self.ago(15),
+                        due_on=self.today,
+                    )
+                )
+                if i < possession_paid:
+                    tds = (
+                        (amount * Decimal("0.01")).quantize(Decimal("1"))
+                        if u.agreement_value > Decimal("5000000")
+                        else Decimal("0")
+                    )
+                    self.s.add(
+                        Receipt(
+                            project_id=p.id,
+                            unit_id=u.id,
+                            amount=amount + gst - tds,
+                            received_on=self.ago(6 + i % 5),
+                            tds_deducted=tds,
+                        )
+                    )
+            if i < ekhata_final:
+                status = "final"
+            elif i < ekhata_final + ekhata_draft:
+                status = "draft"
+            else:
+                status = "applied"
+            record = UnitHandover(
+                unit_id=u.id, ekhata_status=status, khata_type="A" if status == "final" else None
+            )
+            clear = status == "final" and i < possession_paid and i % overdue_every != 0
+            if clear:
+                if ready < deeds:
+                    record.deed_drafted_on = self.ago(12)
+                if ready < appointments:
+                    record.appointment_on = self.ago(9) if ready < registered else self.ahead(4)
+                if ready < registered:
+                    record.registered_on = self.ago(9 - ready % 6)
+                    record.document_no = f"BNG-DEMO-2026-{4100 + ready:06d}"
+                if ready < handed_over:
+                    record.possession_on = self.ago(5)
+                ready += 1
+            self.s.add(record)
 
     def escrow(
         self,
@@ -824,6 +905,9 @@ def seed(session: Session, today: date) -> None:
         escrow_bank="HDFC Bank, Koramangala",
         development_rights_value=cr("42"),
         cess_paid=lakh("72.2"),
+        oc_status="received",
+        oc_received_on=sd.ago(20),
+        oc_reference="GBA/OC/DEMO/SG/2026",
     )
     session.flush()
     sd.lines(
@@ -871,6 +955,7 @@ def seed(session: Session, today: date) -> None:
         ],
     )
     sd.progress(sg, "91", "84")
+    sg_plan = sd.payment_plan(sg)
     receipts = sd.units(
         sg,
         towers=["A", "B", "C"],
@@ -879,11 +964,24 @@ def seed(session: Session, today: date) -> None:
         booked_share=Decimal("0.88"),
         price_per_sqft=8800,
         guidance_per_sqft=7200,
-        plan=sd.payment_plan(sg),
+        plan=sg_plan,
         progress_before=Decimal("84"),
         raise_up_to_pct=Decimal("90"),
         overdue_every=7,
         below_guidance=1,
+    )
+    sd.handover(
+        sg,
+        sg_plan,
+        possession_raised=60,
+        possession_paid=45,
+        ekhata_final=40,
+        ekhata_draft=30,
+        deeds=32,
+        appointments=28,
+        registered=20,
+        handed_over=16,
+        overdue_every=7,
     )
     sd.escrow(
         sg,

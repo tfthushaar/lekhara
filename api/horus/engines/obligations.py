@@ -13,6 +13,7 @@ from enum import StrEnum
 
 from horus.engines.collections import CollectionsPosition
 from horus.engines.escrow import EscrowPosition
+from horus.engines.handover import BLOCKER_TEXT, HandoverPosition, Stage
 from horus.engines.tax import (
     CessPosition,
     DelayExposure,
@@ -45,6 +46,7 @@ class Area(StrEnum):
 
     ESCROW = "escrow"
     COLLECTIONS = "collections"
+    HANDOVER = "handover"
     KRERA = "krera"
     TAX = "tax"
     UNITS = "units"
@@ -94,6 +96,7 @@ class ProjectFacts:
     open_withdrawal_waiting_on: str | None = None
     """Who the open withdrawal request is waiting for, for example "the CA" or "the bank"."""
     collections: CollectionsPosition | None = None
+    handover: HandoverPosition | None = None
 
 
 def _quarter_ends(start: date, end: date) -> list[date]:
@@ -234,6 +237,46 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
                 exposure=False,
                 rule_key="rera.buyer_late_interest_basis",
                 action="See who owes",
+            )
+
+    # Registration and handover, once the occupancy certificate is in
+    h = f.handover
+    if h is not None and h.oc_received:
+        waiting = [r for r in h.units if r.blocker not in (Stage.POSSESSION, Stage.DONE)]
+        if waiting and h.money_waiting > 0:
+            top = max(
+                (s for s in h.by_blocker if s not in (Stage.POSSESSION, Stage.DONE)),
+                key=lambda s: h.by_blocker[s],
+            )
+            add(
+                key="handover:registration",
+                title=f"{len(waiting)} units are not yet registered",
+                detail=(
+                    f"Most are held up at one step: {BLOCKER_TEXT[top].lower()} "
+                    f"({h.by_blocker[top]} units). Final payments come in at registration."
+                ),
+                owed_to="Buyers",
+                status=ObligationStatus.OPPORTUNITY,
+                area=Area.HANDOVER,
+                amount=h.money_waiting,
+                amount_label="Waiting on registration",
+                exposure=False,
+                action="Open handover",
+            )
+        if h.conveyance_due_on and h.common_areas_conveyed_on is None:
+            add(
+                key="handover:conveyance",
+                title="Convey the common areas to the association",
+                detail=(
+                    "RERA asks for conveyance within three months of the occupancy certificate, "
+                    "where no local law says otherwise. Confirm the Karnataka position."
+                ),
+                owed_to="Association",
+                status=_dated_status(h.conveyance_due_on, f.as_of, soon),
+                area=Area.HANDOVER,
+                due_on=h.conveyance_due_on,
+                rule_key="rera.s17_conveyance_months",
+                action="Open handover",
             )
 
     # Quarterly progress reports

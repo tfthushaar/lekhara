@@ -56,6 +56,12 @@ class Project(Base):
     escrow_bank: Mapped[str | None] = mapped_column(String(200))
     development_rights_value: Mapped[Decimal | None] = mapped_column(Money)
     cess_paid: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    oc_status: Mapped[str] = mapped_column(String(16), default="none", server_default="none")
+    """none, applied, partial or received."""
+    oc_received_on: Mapped[date | None] = mapped_column(Date)
+    oc_reference: Mapped[str | None] = mapped_column(String(200))
+    association_formed_on: Mapped[date | None] = mapped_column(Date)
+    common_areas_conveyed_on: Mapped[date | None] = mapped_column(Date)
 
     organization: Mapped[Organization] = relationship(back_populates="projects")
     cost_lines: Mapped[list["CostLineRow"]] = relationship(
@@ -301,6 +307,28 @@ class DemandRow(Base):
     certified_progress_pct: Mapped[Decimal | None] = mapped_column(Percent)
     """The certified progress that triggered the demand, if a stage triggered it."""
     created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
+# Registration and handover
+
+
+class UnitHandover(Base):
+    """Where one unit stands on the way from booking to a registered, handed-over home."""
+
+    __tablename__ = "unit_handovers"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    unit_id: Mapped[str] = mapped_column(ForeignKey("units.id"), unique=True, index=True)
+    ekhata_status: Mapped[str] = mapped_column(String(16), default="none")
+    """none, applied, draft or final."""
+    khata_type: Mapped[str | None] = mapped_column(String(1))
+    """A or B."""
+    deed_drafted_on: Mapped[date | None] = mapped_column(Date)
+    appointment_on: Mapped[date | None] = mapped_column(Date)
+    registered_on: Mapped[date | None] = mapped_column(Date)
+    document_no: Mapped[str | None] = mapped_column(String(64))
+    possession_on: Mapped[date | None] = mapped_column(Date)
+    updated_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
 
 
 # People and access

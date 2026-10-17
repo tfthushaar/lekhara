@@ -59,6 +59,33 @@ export async function raiseDemands(
   return {};
 }
 
+const HANDOVER_FIELDS = [
+  "ekhata_status",
+  "khata_type",
+  "deed_drafted_on",
+  "appointment_on",
+  "registered_on",
+  "document_no",
+  "possession_on",
+];
+
+export async function updateHandover(
+  unitId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const body: Record<string, string> = {};
+  for (const field of HANDOVER_FIELDS) {
+    const value = text(form, field);
+    if (value) body[field] = value;
+  }
+  if (Object.keys(body).length === 0) return { error: "Fill in the details first." };
+  const result = await send("PUT", `/units/${unitId}/handover`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function updateFigure(
   requestId: string,
   role: string,

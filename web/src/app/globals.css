@@ -459,6 +459,10 @@ h3 {
   color: var(--ink-3);
 }
 
+.steps-8 {
+  grid-template-columns: repeat(8, 1fr);
+}
+
 .step-done {
   border-top-color: var(--ink);
   color: var(--ink);
@@ -505,7 +509,8 @@ h3 {
   color: var(--ink-2);
 }
 
-.field input {
+.field input,
+.field select {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--line-2);
@@ -514,7 +519,8 @@ h3 {
   color: var(--ink);
 }
 
-.field input:focus {
+.field input:focus,
+.field select:focus {
   border-color: var(--ink);
   outline: none;
 }
@@ -634,6 +640,12 @@ h3 {
 
 .disclosure[open] summary {
   margin-bottom: 12px;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  column-gap: 20px;
 }
 
 .inline-form {
@@ -774,7 +786,8 @@ h3 {
     border-left: none;
     border-top: 1px solid var(--line);
   }
-  .steps {
+  .steps,
+  .steps-8 {
     grid-template-columns: repeat(3, 1fr);
   }
   .topbar-inner {

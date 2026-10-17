@@ -37,6 +37,7 @@ from horus.engines.escrow import (
     escrow_position,
     request_status,
 )
+from horus.engines.handover import HandoverPosition, UnitHandoverIn, handover_position
 from horus.engines.money import Category, CostLine, Entry, EntryKind, ProjectPosition, ReraHead
 from horus.engines.money import project_position as money_position
 from horus.engines.obligations import Obligation, ProjectFacts, project_obligations
@@ -78,6 +79,7 @@ from horus.models import (
     Project,
     Receipt,
     Unit,
+    UnitHandover,
     WithdrawalCertificate,
     WithdrawalRequest,
 )
@@ -108,6 +110,7 @@ class ProjectSnapshot:
     obligations: list[Obligation]
     open_request: WithdrawalRequest | None
     collections: CollectionsPosition
+    handover: HandoverPosition
 
 
 def organization(session: Session) -> Organization:
@@ -315,6 +318,7 @@ def snapshot(
         )
     )
     collections = collections_for(session, project, as_of, rules)
+    handover = handover_for(session, project, as_of, collections, rules)
     request = open_request(session, project)
     waiting_on = None
     if request is not None:
@@ -339,6 +343,7 @@ def snapshot(
         open_withdrawal_amount=request.amount if request else None,
         open_withdrawal_waiting_on=waiting_on,
         collections=collections,
+        handover=handover,
     )
     return ProjectSnapshot(
         project=project,
@@ -355,6 +360,7 @@ def snapshot(
         obligations=project_obligations(facts, rules=rules),
         open_request=request,
         collections=collections,
+        handover=handover,
     )
 
 
@@ -440,7 +446,7 @@ def collections_for(
         deposits=deposits,
         certified_progress_pct=progress.completion_pct if progress else None,
         certified_on=progress.as_of if progress else None,
-        possession_given=False,
+        possession_given=oc_received(project, as_of),
         gst_rate_on_sale=sale_gst_rate(project, as_of, rules),
         as_of=as_of,
         rules=rules,
@@ -492,6 +498,123 @@ def get_demand(session: Session, demand_id: str) -> DemandRow:
     if demand is None:
         raise ServiceError("Demand not found.", 404)
     return demand
+
+
+# Registration and handover
+
+
+def oc_received(project: Project, as_of: date) -> bool:
+    return (
+        project.oc_status in ("partial", "received")
+        and project.oc_received_on is not None
+        and project.oc_received_on <= as_of
+    )
+
+
+def handover_for(
+    session: Session,
+    project: Project,
+    as_of: date,
+    collections: CollectionsPosition | None = None,
+    rules: RulesPack = KARNATAKA,
+) -> HandoverPosition:
+    collections = collections or collections_for(session, project, as_of, rules)
+    rate = sale_gst_rate(project, as_of, rules)
+    possession = next(
+        (m.id for m in _milestones(session, project) if m.trigger == Trigger.POSSESSION.value),
+        None,
+    )
+    final_raised = {
+        d.unit_id
+        for d in session.scalars(
+            select(DemandRow).where(
+                DemandRow.project_id == project.id,
+                DemandRow.milestone_id == possession,
+                DemandRow.raised_on <= as_of,
+            )
+        )
+    }
+    records = {
+        h.unit_id: h
+        for h in session.scalars(
+            select(UnitHandover).join(Unit).where(Unit.project_id == project.id)
+        )
+    }
+    units = {u.id: u for u in session.scalars(select(Unit).where(Unit.project_id == project.id))}
+    inputs = []
+    for account in collections.accounts:
+        unit = units[account.unit.id]
+        record = records.get(unit.id)
+        total_value = unit.agreement_value + unit.agreement_value * rate
+        balance = max(total_value - account.received - account.tds, ZERO).quantize(Decimal("0.01"))
+        inputs.append(
+            UnitHandoverIn(
+                unit_id=unit.id,
+                label=unit.label,
+                buyer=unit.buyer_name,
+                agreement_value=unit.agreement_value,
+                guidance_value=unit.guidance_value,
+                ekhata_status=record.ekhata_status if record else "none",
+                khata_type=record.khata_type if record else None,
+                final_demand_raised=unit.id in final_raised,
+                balance_due=balance,
+                deed_drafted_on=record.deed_drafted_on if record else None,
+                appointment_on=record.appointment_on if record else None,
+                registered_on=record.registered_on if record else None,
+                document_no=record.document_no if record else None,
+                possession_on=record.possession_on if record else None,
+            )
+        )
+    return handover_position(
+        inputs,
+        oc_received_on=project.oc_received_on if oc_received(project, as_of) else None,
+        common_areas_conveyed_on=project.common_areas_conveyed_on,
+        on=as_of,
+        rules=rules,
+    )
+
+
+HANDOVER_FIELDS = {
+    "ekhata_status",
+    "khata_type",
+    "deed_drafted_on",
+    "appointment_on",
+    "registered_on",
+    "document_no",
+    "possession_on",
+}
+
+
+def get_unit(session: Session, unit_id: str) -> Unit:
+    unit = session.get(Unit, unit_id)
+    if unit is None:
+        raise ServiceError("Unit not found.", 404)
+    return unit
+
+
+def update_handover(
+    session: Session, unit: Unit, fields: dict, *, user_id: str | None = None
+) -> UnitHandover:
+    if not unit.booked:
+        raise ServiceError("Only a booked unit can be registered.")
+    unknown = set(fields) - HANDOVER_FIELDS
+    if unknown:
+        raise ServiceError(f"Unknown field: {sorted(unknown)[0]}.")
+    if fields.get("ekhata_status") not in (None, "none", "applied", "draft", "final"):
+        raise ServiceError("The e-Khata status must be none, applied, draft or final.")
+    if fields.get("khata_type") not in (None, "A", "B"):
+        raise ServiceError("The khata type must be A or B.")
+    record = session.scalars(select(UnitHandover).where(UnitHandover.unit_id == unit.id)).first()
+    if record is None:
+        record = UnitHandover(unit_id=unit.id)
+        session.add(record)
+    if fields.get("registered_on") and not (fields.get("document_no") or record.document_no):
+        raise ServiceError("Enter the registered document number with the registration date.")
+    for key, value in fields.items():
+        setattr(record, key, value)
+    record.updated_by_user_id = user_id
+    session.commit()
+    return record
 
 
 # Withdrawal workflow

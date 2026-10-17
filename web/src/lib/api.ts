@@ -6,7 +6,7 @@ import { SESSION_COOKIE } from "@/lib/session-cookie";
 const BASE = process.env.HORUS_API_URL ?? "http://localhost:8000";
 
 export type Status = "overdue" | "due_soon" | "at_risk" | "opportunity" | "upcoming" | "done";
-export type Area = "escrow" | "collections" | "krera" | "tax" | "units";
+export type Area = "escrow" | "collections" | "handover" | "krera" | "tax" | "units";
 
 export type Obligation = {
   key: string;
@@ -387,6 +387,46 @@ export type DemandLetter = {
   note: string;
 };
 
+export type UnitReadiness = {
+  unit_id: string;
+  label: string;
+  buyer: string | null;
+  blocker: string;
+  blocker_text: string;
+  steps: { stage: string; label: string; done: boolean }[];
+  ekhata_status: "none" | "applied" | "draft" | "final";
+  ekhata_label: string;
+  khata_type: string | null;
+  agreement_value: string;
+  guidance_value: string;
+  balance_due: string;
+  final_demand_raised: boolean;
+  deed_drafted_on: string | null;
+  appointment_on: string | null;
+  registered_on: string | null;
+  document_no: string | null;
+  possession_on: string | null;
+  cost: { base: string; stamp_duty: string; cess: string; registration_fee: string; total: string };
+};
+
+export type Handover = {
+  can_edit: boolean;
+  oc: { status: string; label: string; received_on: string | null; reference: string | null };
+  conveyance_due_on: string | null;
+  common_areas_conveyed_on: string | null;
+  association_formed_on: string | null;
+  summary: { units: number; registered: number; handed_over: number; money_waiting: string };
+  stages: { stage: string; label: string; blocked: number }[];
+  units: UnitReadiness[];
+};
+
+export type UnitHandover = UnitReadiness & {
+  project_id: string;
+  project_name: string;
+  can_edit: boolean;
+  fact_sheet: { label: string; value: string }[];
+};
+
 export type Rules = {
   state: string;
   version: string;
@@ -464,6 +504,8 @@ export const api = {
   money: (id: string) => get<{ summary: MoneySummary; lines: MoneyLine[] }>(`/projects/${id}/money`),
   escrow: (id: string) => get<Escrow>(`/projects/${id}/escrow`),
   collections: (id: string) => get<Collections>(`/projects/${id}/collections`),
+  handover: (id: string) => get<Handover>(`/projects/${id}/handover`),
+  unitHandover: (unitId: string) => get<UnitHandover>(`/units/${unitId}/handover`),
   demand: (id: string) => get<DemandLetter>(`/demands/${id}`),
   tax: (id: string) => get<Tax>(`/projects/${id}/tax`),
   units: (id: string) => get<Units>(`/projects/${id}/units`),
@@ -479,6 +521,8 @@ export function areaHref(o: Obligation): string {
       return `${base}/escrow`;
     case "collections":
       return `${base}/collections`;
+    case "handover":
+      return `${base}/handover`;
     case "tax":
       return `${base}/tax`;
     case "units":
