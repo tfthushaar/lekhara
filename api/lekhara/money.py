@@ -25,3 +25,14 @@ def percent(part: Decimal, whole: Decimal) -> Decimal:
     if whole == 0:
         return ZERO.quantize(_PAISE)
     return (Decimal(part) * HUNDRED / Decimal(whole)).quantize(_PAISE, rounding=ROUND_HALF_UP)
+
+
+def inr(amount: Decimal) -> str:
+    """An amount the way builders say it: ₹25,000, ₹12.35 lakh, ₹1.5 crore."""
+    sign = "-" if amount < 0 else ""
+    a = abs(Decimal(amount))
+    if a >= 10_000_000:
+        return f"{sign}₹{(a / 10_000_000).quantize(_PAISE).normalize():f} crore"
+    if a >= 100_000:
+        return f"{sign}₹{(a / 100_000).quantize(_PAISE).normalize():f} lakh"
+    return f"{sign}₹{a.quantize(Decimal(1), rounding=ROUND_HALF_UP):,}"

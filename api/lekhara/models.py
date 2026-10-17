@@ -752,6 +752,67 @@ class TallyLink(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class BankAccount(Base):
+    """A bank account whose statements come into a project, and what it is: the RERA
+    designated account, or the account buyers pay into. Chosen once, then recognised."""
+
+    __tablename__ = "bank_accounts"
+    __table_args__ = (UniqueConstraint("project_id", "number"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    number: Mapped[str] = mapped_column(String(32))
+    """The account number as the statement prints it, digits and any masking."""
+    bank: Mapped[str | None] = mapped_column(String(100))
+    role: Mapped[str] = mapped_column(String(16))
+    """rera (the designated account) or collections (where buyers pay)."""
+    buyers_pay_here: Mapped[bool] = mapped_column(Boolean, default=False)
+    """For the RERA account: buyers pay straight into it, so its credits are their payments."""
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class BankStatement(Base):
+    """A statement exported from net banking: reviewed, then applied, then perhaps undone."""
+
+    __tablename__ = "bank_statements"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(300))
+    storage_key: Mapped[str] = mapped_column(String(200))
+    bank: Mapped[str | None] = mapped_column(String(100))
+    account_number: Mapped[str | None] = mapped_column(String(32))
+    period_from: Mapped[date | None] = mapped_column(Date)
+    period_to: Mapped[date | None] = mapped_column(Date)
+    lines: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(16), default="review")
+    """review, applied or undone."""
+    options: Mapped[str] = mapped_column(Text, default="{}")
+    result: Mapped[str | None] = mapped_column(Text)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime)
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class BankPayer(Base):
+    """Who a payer on a bank statement is, chosen by the builder once and remembered: a
+    buyer's unit, or not a buyer at all."""
+
+    __tablename__ = "bank_payers"
+    __table_args__ = (UniqueConstraint("project_id", "payer"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    payer: Mapped[str] = mapped_column(String(200))
+    """The payer's name, lowercased with single spaces."""
+    payer_name: Mapped[str] = mapped_column(String(200), default="")
+    unit_id: Mapped[str | None] = mapped_column(ForeignKey("units.id"))
+    """None when the payer is not a buyer."""
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class AppendOnlyViolation(RuntimeError):
     pass
 

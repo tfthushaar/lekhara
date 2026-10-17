@@ -12,6 +12,7 @@ from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from lekhara import accounts, auth, export, imports, registers, services, views
+from lekhara.bank import service as bank
 from lekhara.config import Settings, get_settings
 from lekhara.db import make_engine, make_sessionmaker
 from lekhara.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
@@ -33,6 +34,7 @@ from lekhara.rules import KARNATAKA
 from lekhara.services import ServiceError
 from lekhara.storage import LocalStorage
 from lekhara.tally import service as tally
+from lekhara.tally.plan import UnitRef
 
 DEMO_PASSWORD = "lekhara-demo"
 
@@ -81,6 +83,12 @@ class ProgressBody(BaseModel):
     as_of: str | None = None
     completion_pct: str | None = None
     certified_by: str | None = None
+
+
+class StatementOptions(BaseModel):
+    role: str | None = None
+    buyers_pay_here: bool | None = None
+    lines: dict[str, str | None] | None = None
 
 
 class PlanBody(BaseModel):
@@ -1040,6 +1048,88 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         row, p = tally_for(session, me, import_id, edit=True)
         tally.undo(session, row)
         return tally_view(session, me, row, p, on)
+
+    # Bank statements
+
+    def statement_for(session: Session, me: auth.Principal, statement_id: str, *, edit=False):
+        row = bank.get_statement(session, statement_id)
+        p = services.get_project(session, row.project_id)
+        if edit:
+            auth.require_prepare(me, p)
+        else:
+            auth.require_team(me, p)
+        return row, p
+
+    def statement_view(session: Session, me: auth.Principal, row, p: Project, on: date) -> dict:
+        statement, plan = bank.review(session, app.state.storage, row, on)
+        units = list(
+            session.scalars(
+                select(Unit).where(Unit.project_id == p.id, Unit.booked).order_by(Unit.label)
+            )
+        )
+        refs = [UnitRef(u.id, u.label, u.buyer_name) for u in units]
+        editable = me.can_prepare(p) and not me.views_as_sample(p)
+        return views.bank_review(
+            row, statement, plan, p, refs, can_edit=editable, can_undo=bank.can_undo(row)
+        )
+
+    @app.post("/projects/{project_id}/bank-statements", status_code=201)
+    def upload_statement(project_id: str, session: SessionDep, me: Me, file: UploadFile) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        limit = settings.max_upload_mb * 1_000_000
+        data = file.file.read(limit + 1)
+        if len(data) > limit:
+            raise ServiceError(
+                f"Statements can be up to {settings.max_upload_mb} MB. Download a shorter period."
+            )
+        row = bank.upload(
+            session,
+            app.state.storage,
+            p,
+            filename=file.filename or "statement",
+            data=data,
+            user_id=me.user_id,
+        )
+        return {"id": row.id}
+
+    @app.get("/projects/{project_id}/bank-statements")
+    def list_statements(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return {
+            "can_import": me.can_prepare(p) and not me.views_as_sample(p),
+            "statements": [
+                views.bank_statement_row(r) for r in bank.project_statements(session, p)
+            ],
+        }
+
+    @app.get("/bank-statements/{statement_id}")
+    def get_statement(statement_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = statement_for(session, me, statement_id)
+        return statement_view(session, me, row, p, on)
+
+    @app.put("/bank-statements/{statement_id}/options")
+    def statement_options(
+        statement_id: str, body: StatementOptions, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        row, p = statement_for(session, me, statement_id, edit=True)
+        bank.set_options(
+            session, app.state.storage, row, body.model_dump(exclude_unset=True), as_of=on
+        )
+        return statement_view(session, me, row, p, on)
+
+    @app.post("/bank-statements/{statement_id}/apply")
+    def apply_statement(statement_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = statement_for(session, me, statement_id, edit=True)
+        bank.apply(session, app.state.storage, row, as_of=on, user_id=me.user_id)
+        return statement_view(session, me, row, p, on)
+
+    @app.post("/bank-statements/{statement_id}/undo")
+    def undo_statement(statement_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = statement_for(session, me, statement_id, edit=True)
+        bank.undo(session, row)
+        return statement_view(session, me, row, p, on)
 
     # Today
 

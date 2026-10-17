@@ -25,6 +25,8 @@ from sqlalchemy.orm import Session
 
 from lekhara.db import Money, Percent
 from lekhara.models import (
+    BankAccount,
+    BankPayer,
     Bill,
     ChangeEntry,
     ChecklistWaiver,
@@ -76,6 +78,7 @@ NOT_EXPORTED = {
     "import_mappings": "remembered column choices",
     "tally_imports": "uploaded Tally files, already in the records they made",
     "document_pages": "text read from each document, which is in the files",
+    "bank_statements": "uploaded bank statements, already in the records they made",
 }
 """Tables left out of the export, and why."""
 
@@ -166,6 +169,8 @@ SHEETS = [
     ),
     Sheet("Data room visits", DataRoomVisit, lambda s: DataRoomVisit.room_id.in_(s.rooms)),
     Sheet("Tally choices", TallyLink, lambda s: TallyLink.project_id.in_(s.projects)),
+    Sheet("Bank accounts", BankAccount, lambda s: BankAccount.project_id.in_(s.projects)),
+    Sheet("Bank payers", BankPayer, lambda s: BankPayer.project_id.in_(s.projects)),
     Sheet("Team", Membership, lambda s: Membership.organization_id == s.org),
     Sheet("Certifiers", ProjectAccess, lambda s: ProjectAccess.project_id.in_(s.projects)),
     Sheet("Change history", ChangeEntry, lambda s: ChangeEntry.organization_id == s.org),

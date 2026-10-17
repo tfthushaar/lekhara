@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { startImport, uploadTally } from "@/app/actions";
+import { startImport, uploadStatement, uploadTally } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { api } from "@/lib/api";
+import { day } from "@/lib/format";
 
 export default function ImportPage({ params }: PageProps<"/projects/[id]/import">) {
   return (
@@ -21,7 +22,11 @@ const STATUS: Record<string, string> = {
 
 async function ImportView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [list, tallyList] = await Promise.all([api.imports(id), api.tallyImports(id)]);
+  const [list, tallyList, bankList] = await Promise.all([
+    api.imports(id),
+    api.tallyImports(id),
+    api.bankStatements(id),
+  ]);
 
   return (
     <>
@@ -84,6 +89,70 @@ async function ImportView({ params }: { params: Promise<{ id: string }> }) {
                   <td className="right num">{t.receipts ?? ""}</td>
                   <td className="right">
                     <Link href={`/tally/${t.id}`} className="link-action">
+                      Open
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </section>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>From your bank</h2>
+          <p>Buyers&apos; payments and the RERA account, from the statement your net banking gives you</p>
+        </div>
+        <ol className="calc" style={{ marginTop: 12, maxWidth: 760, paddingLeft: 0 }}>
+          <li>
+            <span>
+              1. In net banking, open the statement of the account buyers pay into, or of the RERA designated
+              account.
+            </span>
+          </li>
+          <li>
+            <span>2. Choose the dates and download it as Excel or CSV, not PDF. Any bank&apos;s layout works.</span>
+          </li>
+          <li>
+            <span>
+              3. Upload it here. Lekhara matches each buyer&apos;s payment to their unit, asks about the rest once,
+              and leaves out anything already brought in from Tally or an earlier statement.
+            </span>
+          </li>
+        </ol>
+        {bankList.can_import ? (
+          <div style={{ maxWidth: 560, marginTop: 20 }}>
+            <ActionForm action={uploadStatement.bind(null, id)} label="Read the statement" pendingLabel="Reading the statement">
+              <div className="field">
+                <label htmlFor="bank-file">Statement from net banking</label>
+                <input id="bank-file" name="file" type="file" accept=".xls,.xlsx,.csv,.txt,.htm,.html" required />
+              </div>
+            </ActionForm>
+          </div>
+        ) : null}
+        {bankList.statements.length > 0 ? (
+          <table className="table" style={{ marginTop: 20 }}>
+            <thead>
+              <tr>
+                <th>Statement</th>
+                <th>Account</th>
+                <th>Period</th>
+                <th>State</th>
+                <th className="right">Transactions</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {bankList.statements.map((b) => (
+                <tr key={b.id}>
+                  <td>{b.filename}</td>
+                  <td>{[b.bank, b.account].filter(Boolean).join(", ")}</td>
+                  <td className="nowrap">{b.period_from ? `${day(b.period_from)} to ${day(b.period_to ?? b.period_from)}` : ""}</td>
+                  <td>{STATUS[b.status === "review" ? "preview" : b.status] ?? b.status}</td>
+                  <td className="right num">{b.lines}</td>
+                  <td className="right">
+                    <Link href={`/bank/${b.id}`} className="link-action">
                       Open
                     </Link>
                   </td>

@@ -189,6 +189,65 @@ export async function undoTally(importId: string, _previous: ActionState): Promi
   return {};
 }
 
+export async function uploadStatement(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose the statement downloaded from net banking." };
+  const body = new FormData();
+  body.append("file", file, file.name);
+  const result = await sendForm<{ id: string }>(`/projects/${projectId}/bank-statements`, body);
+  if (!result.ok) return { error: result.error };
+  redirect(`/bank/${result.data.id}`);
+}
+
+export async function statementAccount(
+  statementId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const role = text(form, "role");
+  if (!role) return { error: "Choose which account this is." };
+  const result = await send("PUT", `/bank-statements/${statementId}/options`, {
+    role,
+    buyers_pay_here: role === "rera" && form.get("buyers_pay_here") === "yes",
+  });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function statementChoices(
+  statementId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const lines: Record<string, string | null> = {};
+  for (const [name, value] of form.entries()) {
+    if (name.startsWith("line_")) lines[String(value)] = text(form, `choice_${name.slice(5)}`) || null;
+  }
+  const result = await send("PUT", `/bank-statements/${statementId}/options`, { lines });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function applyStatement(statementId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/bank-statements/${statementId}/apply`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function undoStatement(statementId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/bank-statements/${statementId}/undo`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function standardCostLines(projectId: string, _previous: ActionState): Promise<ActionState> {
   const result = await send<{ added: number }>("POST", `/projects/${projectId}/cost-lines/standard`);
   if (!result.ok) return { error: result.error };

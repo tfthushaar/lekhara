@@ -26,6 +26,8 @@ class TxnKind(StrEnum):
     DEPOSIT = "deposit"
     WITHDRAWAL = "withdrawal"
     INTEREST = "interest"
+    CHARGES = "charges"
+    """Bank charges: they lower the balance but are not withdrawals for the project."""
 
 
 @dataclass(frozen=True)
@@ -78,7 +80,8 @@ def escrow_position(
     interest = sum((t.amount for t in txns if t.kind == TxnKind.INTEREST), ZERO)
     withdrawals = [t for t in txns if t.kind == TxnKind.WITHDRAWAL]
     withdrawn = sum((t.amount for t in withdrawals), ZERO)
-    balance = deposits + interest - withdrawn
+    charges = sum((t.amount for t in txns if t.kind == TxnKind.CHARGES), ZERO)
+    balance = deposits + interest - withdrawn - charges
 
     cost_basis = rules.value("escrow.withdrawal_cost_basis", as_of)
     if cost_basis == "incurred_and_paid":

@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Add the full workspace export".
+Last updated: 2026-10-18, with the commit "Add bank statement import".
 
 ## What we are building
 
@@ -129,9 +129,21 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - Only the owner and finance can download it; each download is recorded in the change history. Secrets such as data room link fingerprints are never included.
   - Tested end to end: the owner downloads the sample firm's 520 units and 75 files; accounts is refused; a new firm's file holds only its own data.
 
+- Bank statements:
+  - Upload the statement net banking gives you, as Excel (XLSX, or the older XLS most Indian banks still give), CSV, text, or the web page some banks save as "Excel". Lekhara finds the table of transactions under the title rows whichever bank it came from (HDFC, SBI, ICICI, Axis, Kotak, Canara, Bank of Baroda, Union Bank, Karnataka Bank, Federal and others), with withdrawal and deposit columns or one amount column marked Dr or Cr, dates in any common form, amounts as 1,23,456.00 or 5,000.00 Cr, narrations that run onto a second row, and statements listed newest first. PDFs are refused with the steps to download Excel instead.
+  - Reads the bank, the account number, the period and the opening balance from above the table, and checks that each line's running balance follows from the one before (a jump means transactions are missing from the download).
+  - Asks once which account it is: the account buyers pay into, or the RERA designated account (optionally one that buyers pay straight into). Lekhara remembers it by the account number for the next statements.
+  - Collection account: each credit is matched to a sold unit from the narration (the unit number, or the buyer's name, including on home-loan disbursements that name the borrower), from the builder's earlier choice for the same payer, or from the buyer's ledger in Tally. The payer's name is read from NEFT, RTGS, IMPS, UPI and transfer narrations, passing over the firm's own name. Payments that cannot be matched wait for a choice (a unit, not a buyer's payment, or leave out), which is remembered for the payer. Interest and money going out are left out.
+  - RERA account: deposits, withdrawals, interest and bank charges (charges lower the balance but are not counted as withdrawals). Feeds the 70% deposit check and the withdrawable amount. Lekhara compares the statement's opening balance with its own balance for the account the day before and says if earlier movements are missing.
+  - A bounced cheque or returned transfer is paired with the original and both are left out.
+  - Never twice: each line has a fingerprint that is the same in any download covering it, so overlapping statements, or the same statement in another layout, add nothing again; money already brought in from Tally or typed in (the same amount within three days) is recognised too.
+  - A review page with what needs attention, every buyer payment and how it was matched, and every transaction with what Lekhara does with it; then bring it in, and undo within 30 days (buyer payments removed, RERA account movements reversed).
+  - Built to the layouts banks print and tested on sample statements in those layouts; to be tested against real statements from design partners.
+  - Tested end to end: a PDF refused with steps, an HDFC collection account statement read and matched (by name, by unit number, a home-loan disbursement, a bounced cheque), a payer placed by hand, payments on the unit, the same account in ICICI's layout adding nothing, an SBI RERA account statement shown in escrow and the set-up checklist, and an undo.
+
 ## In progress
 
-- Bank statements: buyer payments and RERA account movements read from the bank's own statement export (Excel, CSV or PDF text) for the main banks builders use, matched to units and the designated account, with a preview, alerts and undo like every other import.
+- Research: whether each source (Tally, banks, the GST portal, CRMs, email) can feed Lekhara by itself once it is linked, so builders never export and upload by hand every day.
 
 ## Left
 

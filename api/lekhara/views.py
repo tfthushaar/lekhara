@@ -1684,3 +1684,103 @@ def rules(pack: RulesPack, on: date) -> dict:
             }
         )
     return {"state": pack.state, "version": pack.version, "rules": items}
+
+
+# Bank statements
+
+BANK_OUTCOME = {
+    "buyer_payment": "Buyer payment",
+    "deposit": "Deposit",
+    "withdrawal": "Withdrawal",
+    "interest": "Interest",
+    "charges": "Bank charges",
+    "not_buyer": "Not a buyer",
+    "returned": "Came back",
+    "needs_unit": "Choose the unit",
+    "exists": "Already in",
+    "left_out": "Left out",
+    "waiting": "Waiting",
+}
+
+
+def _masked(number: str | None) -> str | None:
+    if not number:
+        return None
+    digits = "".join(c for c in number if c.isdigit())
+    return f"ending {digits[-4:]}" if len(digits) >= 4 else number
+
+
+def bank_statement_row(row) -> dict:
+    return {
+        "id": row.id,
+        "filename": row.filename,
+        "bank": row.bank,
+        "account": _masked(row.account_number),
+        "period_from": d(row.period_from),
+        "period_to": d(row.period_to),
+        "lines": row.lines,
+        "status": row.status,
+        "created_at": row.created_at.replace(microsecond=0).isoformat(),
+    }
+
+
+def bank_review(
+    row, statement, plan, project: Project, units: list, *, can_edit: bool, can_undo: bool
+) -> dict:
+    from lekhara.bank.service import options
+
+    opts = options(row)
+    labels = {u.id: u.label for u in units}
+    return {
+        **bank_statement_row(row),
+        "project_id": project.id,
+        "project_name": project.name,
+        "applied_at": row.applied_at.replace(microsecond=0).isoformat() if row.applied_at else None,
+        "role": opts.get("role"),
+        "buyers_pay_here": bool(opts.get("buyers_pay_here")),
+        "can_edit": can_edit and row.status == "review",
+        "can_apply": can_edit and row.status == "review" and bool(opts.get("role")),
+        "can_undo": can_edit and can_undo,
+        "opening": m(statement.opening),
+        "closing": m(statement.closing),
+        "reversed_order": statement.reversed_order,
+        "columns": statement.columns,
+        "counts": plan.counts,
+        "totals": {k: m(v) for k, v in plan.totals.items()},
+        "alerts": [
+            {
+                "level": a.level,
+                "code": a.code,
+                "title": a.title,
+                "detail": a.detail,
+                "fix": a.fix,
+                "items": a.items,
+            }
+            for a in plan.alerts
+        ],
+        "lines": [
+            {
+                "key": p.key,
+                "on": d(p.on),
+                "narration": p.narration,
+                "reference": p.reference,
+                "channel": p.channel,
+                "payer": p.payer,
+                "debit": m(p.debit) if p.debit else None,
+                "credit": m(p.credit) if p.credit else None,
+                "balance": m(p.balance),
+                "outcome": p.outcome,
+                "outcome_label": BANK_OUTCOME.get(p.outcome, p.outcome),
+                "note": p.note,
+                "unit_id": p.unit_id,
+                "unit_label": labels.get(p.unit_id),
+                "how": p.how,
+                "candidates": [{"id": c, "label": labels.get(c, c)} for c in p.candidates],
+                "loan": p.loan,
+                "buyer_line": p.buyer_line,
+                "choice": opts.get("lines", {}).get(p.key),
+            }
+            for p in plan.lines
+        ],
+        "units": [{"id": u.id, "label": u.label, "buyer": u.buyer} for u in units],
+    }

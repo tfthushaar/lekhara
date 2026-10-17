@@ -780,6 +780,62 @@ export type ImportList = {
   }[];
 };
 
+export type BankStatementRow = {
+  id: string;
+  filename: string;
+  bank: string | null;
+  account: string | null;
+  period_from: string | null;
+  period_to: string | null;
+  lines: number;
+  status: "review" | "applied" | "undone";
+  created_at: string;
+};
+
+export type BankStatementList = { can_import: boolean; statements: BankStatementRow[] };
+
+export type BankLine = {
+  key: string;
+  on: string;
+  narration: string;
+  reference: string | null;
+  channel: string | null;
+  payer: string | null;
+  debit: string | null;
+  credit: string | null;
+  balance: string | null;
+  outcome: string;
+  outcome_label: string;
+  note: string;
+  unit_id: string | null;
+  unit_label: string | null;
+  how: string | null;
+  candidates: { id: string; label: string }[];
+  loan: boolean;
+  buyer_line: boolean;
+  choice: string | null;
+};
+
+export type BankReview = BankStatementRow & {
+  project_id: string;
+  project_name: string;
+  applied_at: string | null;
+  role: "rera" | "collections" | null;
+  buyers_pay_here: boolean;
+  can_edit: boolean;
+  can_apply: boolean;
+  can_undo: boolean;
+  opening: string | null;
+  closing: string | null;
+  reversed_order: boolean;
+  columns: Record<string, string>;
+  counts: Record<string, number>;
+  totals: Record<string, string>;
+  alerts: TallyAlert[];
+  lines: BankLine[];
+  units: { id: string; label: string; buyer: string | null }[];
+};
+
 export type TallyAlert = {
   level: "blocking" | "missing" | "info";
   code: string;
@@ -1089,6 +1145,8 @@ export const api = {
   imports: (projectId: string) => get<ImportList>(`/projects/${projectId}/imports`),
   importBatch: (id: string) => get<ImportBatch>(`/imports/${id}`),
   tally: (id: string) => get<TallyReview>(`/tally/${id}`),
+  bankStatement: (id: string) => get<BankReview>(`/bank-statements/${id}`),
+  bankStatements: (projectId: string) => get<BankStatementList>(`/projects/${projectId}/bank-statements`),
   costLines: (projectId: string) => get<CostLines>(`/projects/${projectId}/cost-lines`),
   paymentPlan: (projectId: string) => get<PaymentPlan>(`/projects/${projectId}/payment-plan`),
   setup: (projectId: string) => get<Setup>(`/projects/${projectId}/setup`),
