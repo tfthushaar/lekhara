@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     """Fixes the date Horus treats as today. For demos and tests only."""
     auto_migrate: bool = True
     """Bring the database schema up to date when the API starts."""
+    demo: bool = False
+    """Show the demo accounts on the sign-in screen. Never set in production."""
 
     def as_of(self) -> date:
         return self.today or date.today()

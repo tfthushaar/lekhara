@@ -38,7 +38,7 @@ async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
           <p className="hero-value">{inr(e.drawable_now)}</p>
           <p className="stat-note">{e.limited_by_text}</p>
 
-          {!open && drawable > 0 ? (
+          {e.can_start ? (
             <div style={{ marginTop: 24 }}>
               <ActionForm
                 action={startWithdrawal.bind(null, id)}
@@ -51,7 +51,7 @@ async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
               </p>
             </div>
           ) : null}
-          {!open && drawable <= 0 ? (
+          {!open && drawable <= 0 && e.can_start ? (
             <p className="muted" style={{ marginTop: 24 }}>
               Nothing can be drawn until more cost is incurred or more is deposited.
             </p>

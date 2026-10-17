@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from horus.engines.escrow import (
@@ -111,6 +111,20 @@ def projects(session: Session) -> list[Project]:
             select(Project).where(Project.organization_id == org.id).order_by(Project.name)
         )
     )
+
+
+def visible_projects(
+    session: Session, organization_ids: set[str], project_ids: set[str]
+) -> list[Project]:
+    """Projects of the person's own organisations, plus projects they certify."""
+    if not organization_ids and not project_ids:
+        return []
+    clauses = []
+    if organization_ids:
+        clauses.append(Project.organization_id.in_(organization_ids))
+    if project_ids:
+        clauses.append(Project.id.in_(project_ids))
+    return list(session.scalars(select(Project).where(or_(*clauses)).order_by(Project.name)))
 
 
 def get_project(session: Session, project_id: str) -> Project:
@@ -425,7 +439,12 @@ def get_request(session: Session, request_id: str) -> WithdrawalRequest:
 
 
 def create_withdrawal(
-    session: Session, project: Project, amount: Decimal | None, as_of: date
+    session: Session,
+    project: Project,
+    amount: Decimal | None,
+    as_of: date,
+    *,
+    user_id: str | None = None,
 ) -> WithdrawalRequest:
     if open_request(session, project) is not None:
         raise ServiceError("A withdrawal for this project is already under way.", 409)
@@ -437,7 +456,9 @@ def create_withdrawal(
         raise ServiceError("The amount is more than can be withdrawn now.")
 
     drafts = draft_certificates(snap.escrow, snap.money)
-    request = WithdrawalRequest(project_id=project.id, amount=amount, created_on=as_of)
+    request = WithdrawalRequest(
+        project_id=project.id, amount=amount, created_on=as_of, created_by_user_id=user_id
+    )
     for role in ROLE_ORDER:
         draft = drafts[role]
         if role == CertifierRole.CA:
@@ -495,26 +516,35 @@ def sign_certificate(
     role: CertifierRole,
     *,
     signer_name: str,
-    signer_firm: str,
+    signer_firm: str | None,
     issued_on: date,
+    user_id: str | None = None,
 ) -> None:
     _require_editable(request)
-    if not signer_name.strip() or not signer_firm.strip():
-        raise ServiceError("Enter the signer's name and firm.")
+    if not signer_name.strip():
+        raise ServiceError("The signer's name is missing.")
+    if not signer_firm or not signer_firm.strip():
+        raise ServiceError("Add your firm's name to your profile before signing.")
     row = _certificate(request, role)
+    if row.signed:
+        raise ServiceError("This certificate is already signed.", 409)
     row.signed = True
     row.signer_name = signer_name.strip()
     row.signer_firm = signer_firm.strip()
     row.issued_on = issued_on
+    row.signed_by_user_id = user_id
     session.commit()
 
 
-def submit_request(session: Session, request: WithdrawalRequest, as_of: date) -> None:
+def submit_request(
+    session: Session, request: WithdrawalRequest, as_of: date, *, user_id: str | None = None
+) -> None:
     _require_editable(request)
     state = request_state(session, request, as_of)
     if not can_submit(state.checks):
         raise ServiceError("Every check must pass and all three certificates must be signed.")
     request.submitted_on = as_of
+    request.submitted_by_user_id = user_id
     session.commit()
 
 
@@ -525,6 +555,7 @@ def release_request(
     amount: Decimal | None,
     bank_reference: str | None,
     released_on: date,
+    user_id: str | None = None,
 ) -> None:
     if request.submitted_on is None or not request.is_open:
         raise ServiceError("Only a submitted request can be released.", 409)
@@ -534,6 +565,7 @@ def release_request(
     request.released_on = released_on
     request.released_amount = released
     request.bank_reference = bank_reference
+    request.released_by_user_id = user_id
     session.add(
         EscrowTxn(
             project_id=request.project_id,

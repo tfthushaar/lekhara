@@ -9,22 +9,17 @@ from horus.models import AppendOnlyViolation, LedgerEntry
 WF = "whitefield-residences"
 HB = "hebbal-heights"
 SG = "sarjapur-greens"
-SIGNERS = {
-    "architect": ("A. Kulkarni", "Studio Kaveri Architects"),
-    "engineer": ("R. Hegde", "Sound Structures Consultants"),
-    "ca": ("S. Menon", "Menon and Associates"),
-}
 
 
 def keys_for(items, project_id):
     return {i["key"]: i for i in items if i["project_id"] == project_id}
 
 
-def test_today_lists_what_needs_attention(client) -> None:
-    body = client.get("/today").json()
+def test_today_lists_what_needs_attention(owner) -> None:
+    body = owner.get("/today").json()
     assert body["organization"] == "Demo Builders"
     assert body["summary"]["projects"] == 3
-    drawable = sum(D(p["drawable_now"]) for p in client.get("/projects").json())
+    drawable = sum(D(p["drawable_now"]) for p in owner.get("/projects").json())
     assert D(body["summary"]["drawable_now"]) == drawable
     assert D(body["summary"]["at_stake"]) > 0
 
@@ -49,33 +44,33 @@ def test_today_lists_what_needs_attention(client) -> None:
     assert any(k.startswith("s194ic:") for k in sg)
 
 
-def test_only_exposures_count_as_at_stake(client) -> None:
-    body = client.get("/today").json()
+def test_only_exposures_count_as_at_stake(owner) -> None:
+    body = owner.get("/today").json()
     exposures = sum(D(i["amount"]) for i in body["items"] if i["exposure"] and i["amount"])
     assert D(body["summary"]["at_stake"]) == exposures
     bills = [i for i in body["items"] if i["amount_label"] == "Bill"]
     assert bills and not any(i["exposure"] for i in bills)
 
 
-def test_project_detail_and_alerts(client) -> None:
-    hb = client.get(f"/projects/{HB}").json()
+def test_project_detail_and_alerts(owner) -> None:
+    hb = owner.get(f"/projects/{HB}").json()
     assert hb["land_structure"] == "Own land"
     assert "cost_ahead_of_progress" in [a["code"] for a in hb["money"]["alerts"]]
 
-    sg = client.get(f"/projects/{SG}").json()
+    sg = owner.get(f"/projects/{SG}").json()
     assert "overrun_beyond_contingency" in [a["code"] for a in sg["money"]["alerts"]]
     assert sg["open_request_id"]
 
 
-def test_money_lines(client) -> None:
-    body = client.get(f"/projects/{WF}/money").json()
+def test_money_lines(owner) -> None:
+    body = owner.get(f"/projects/{WF}/money").json()
     assert [line["code"] for line in body["lines"]][:3] == ["LAND", "APPR", "CIVIL"]
     mep = next(line for line in body["lines"] if line["code"] == "MEP")
     assert D(mep["overrun"]) == D("12000000")
 
 
-def test_escrow_explains_the_drawable_amount(client) -> None:
-    body = client.get(f"/projects/{WF}/escrow").json()
+def test_escrow_explains_the_drawable_amount(owner) -> None:
+    body = owner.get(f"/projects/{WF}/escrow").json()
     assert D(body["drawable_now"]) == D("64000000")
     assert body["limited_by"] == "balance"
     assert len(body["steps"]) == 7
@@ -83,56 +78,58 @@ def test_escrow_explains_the_drawable_amount(client) -> None:
     assert D(body["deposits"]["shortfall"]) == 0
 
 
-def test_withdrawal_from_request_to_release(client) -> None:
-    created = client.post(f"/projects/{WF}/withdrawals", json={})
+def test_withdrawal_from_request_to_release(accounts, architect, engineer, ca, cfo) -> None:
+    created = accounts.post(f"/projects/{WF}/withdrawals", json={})
     assert created.status_code == 201
     r = created.json()
     assert D(r["amount"]) == D("64000000")
     assert r["status"] == "awaiting_signatures"
     assert r["waiting_on"] == "the architect"
     assert [s["status"] for s in r["steps"]] == ["done", "current", "todo", "todo", "todo", "todo"]
-    assert client.post(f"/projects/{WF}/withdrawals", json={}).status_code == 409
-    assert client.post(f"/withdrawals/{r['id']}/submit").status_code == 400
+    assert accounts.post(f"/projects/{WF}/withdrawals", json={}).status_code == 409
+    assert accounts.post(f"/withdrawals/{r['id']}/submit").status_code == 400
 
-    for role, (name, firm) in SIGNERS.items():
-        response = client.post(
-            f"/withdrawals/{r['id']}/certificates/{role}/sign",
-            json={"signer_name": name, "signer_firm": firm},
-        )
+    for certifier, role, firm in (
+        (architect, "architect", "Studio Kaveri Architects"),
+        (engineer, "engineer", "Sound Structures Consultants"),
+        (ca, "ca", "Menon and Associates"),
+    ):
+        view = certifier.get(f"/withdrawals/{r['id']}").json()
+        assert view["permissions"]["sign_roles"] == [role]
+        response = certifier.post(f"/withdrawals/{r['id']}/certificates/{role}/sign", json={})
         assert response.status_code == 200, response.text
-    r = client.get(f"/withdrawals/{r['id']}").json()
+        signed = next(c for c in response.json()["certificates"] if c["role"] == role)
+        assert signed["signer_firm"] == firm
+
+    r = accounts.get(f"/withdrawals/{r['id']}").json()
     assert r["status"] == "ready"
-    assert r["can_submit"]
+    assert r["permissions"]["can_submit"]
     assert r["waiting_on"] == "submission to the bank"
 
-    r = client.post(f"/withdrawals/{r['id']}/submit").json()
+    r = accounts.post(f"/withdrawals/{r['id']}/submit").json()
     assert r["status"] == "submitted"
     assert r["waiting_on"] == "the bank"
+    assert not r["permissions"]["can_release"]  # accounts cannot record a release
+    assert accounts.post(f"/withdrawals/{r['id']}/release", json={}).status_code == 403
 
-    r = client.post(f"/withdrawals/{r['id']}/release", json={"bank_reference": "CNB-4471"}).json()
+    r = cfo.post(f"/withdrawals/{r['id']}/release", json={"bank_reference": "CNB-4471"}).json()
     assert r["status"] == "released"
-    assert D(client.get(f"/projects/{WF}/escrow").json()["drawable_now"]) == 0
+    assert D(cfo.get(f"/projects/{WF}/escrow").json()["drawable_now"]) == 0
 
 
-def test_certificate_that_disagrees_blocks_submission(client) -> None:
-    request_id = client.get(f"/projects/{SG}").json()["open_request_id"]
-    r = client.get(f"/withdrawals/{request_id}").json()
+def test_certificate_that_disagrees_blocks_submission(owner, ca, accounts) -> None:
+    request_id = owner.get(f"/projects/{SG}").json()["open_request_id"]
+    r = ca.get(f"/withdrawals/{request_id}").json()
     assert r["waiting_on"] == "the CA"
     ca_cost = next(
         f for f in r["certificates"][2]["figures"] if f["field"] == "total_cost_incurred"
     )
     inflated = str(D(ca_cost["books"]) * D("1.05"))
-    assert (
-        client.put(
-            f"/withdrawals/{request_id}/certificates/ca", json={"total_cost_incurred": inflated}
-        ).status_code
-        == 200
+    response = ca.put(
+        f"/withdrawals/{request_id}/certificates/ca", json={"total_cost_incurred": inflated}
     )
-    name, firm = SIGNERS["ca"]
-    r = client.post(
-        f"/withdrawals/{request_id}/certificates/ca/sign",
-        json={"signer_name": name, "signer_firm": firm},
-    ).json()
+    assert response.status_code == 200
+    r = ca.post(f"/withdrawals/{request_id}/certificates/ca/sign", json={}).json()
     checks = {c["code"]: c["status"] for c in r["checks"]}
     assert checks["ca_matches_books"] == "fail"
     ca_figures = {f["field"]: f for f in r["certificates"][2]["figures"]}
@@ -140,35 +137,35 @@ def test_certificate_that_disagrees_blocks_submission(client) -> None:
     assert ca_figures["withdrawable_amount"]["matches_books"]
     assert not r["can_submit"]
     assert r["waiting_on"] == "corrected figures"
-    assert client.post(f"/withdrawals/{request_id}/submit").status_code == 400
+    assert accounts.post(f"/withdrawals/{request_id}/submit").status_code == 400
 
 
-def test_signed_certificate_cannot_be_edited(client) -> None:
-    request_id = client.get(f"/projects/{SG}").json()["open_request_id"]
-    response = client.put(
+def test_signed_certificate_cannot_be_edited(owner, architect) -> None:
+    request_id = owner.get(f"/projects/{SG}").json()["open_request_id"]
+    response = architect.put(
         f"/withdrawals/{request_id}/certificates/architect", json={"completion_pct": "95"}
     )
     assert response.status_code == 409
 
 
-def test_tax_view(client) -> None:
-    hb = client.get(f"/projects/{HB}/tax").json()
+def test_tax_view(owner) -> None:
+    hb = owner.get(f"/projects/{HB}/tax").json()
     assert D(hb["procurement"]["shortfall"]) > 0
     assert [m["status"] for m in hb["msme"]].count("overdue") == 1
 
-    wf = client.get(f"/projects/{WF}/tax").json()
+    wf = owner.get(f"/projects/{WF}/tax").json()
     assert wf["development_rights"]["applies"]
     assert wf["development_rights"]["capped"]
     assert D(wf["development_rights"]["saving_per_unit_sold"]) > 0
     assert len(wf["guidance"]) == 2
 
-    sg = client.get(f"/projects/{SG}/tax").json()
+    sg = owner.get(f"/projects/{SG}/tax").json()
     assert len(sg["landowner_tds"]) == 1
     assert sg["delay"]["days_late"] == 64
 
 
-def test_units_view(client) -> None:
-    body = client.get(f"/projects/{WF}/units").json()
+def test_units_view(owner) -> None:
+    body = owner.get(f"/projects/{WF}/units").json()
     assert body["summary"] == {
         "total": 240,
         "developer": 132,
@@ -192,8 +189,8 @@ def test_rules_are_published_with_their_basis(client) -> None:
     assert rules["escrow.cycle_days"]["display"] == "90 days"
 
 
-def test_unknown_project_is_404(client) -> None:
-    response = client.get("/projects/nowhere")
+def test_unknown_project_is_404(owner) -> None:
+    response = owner.get("/projects/nowhere")
     assert response.status_code == 404
     assert response.json() == {"detail": "Project not found."}
 

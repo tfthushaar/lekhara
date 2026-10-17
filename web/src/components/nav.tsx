@@ -46,18 +46,22 @@ export function Nav() {
 }
 
 const TABS = [
-  { segment: "", label: "Overview" },
-  { segment: "/escrow", label: "Escrow" },
-  { segment: "/tax", label: "Tax and statutory" },
-  { segment: "/units", label: "Units and landowners" },
+  { segment: "", label: "Overview", team: false },
+  { segment: "/escrow", label: "Escrow", team: false },
+  { segment: "/tax", label: "Tax and statutory", team: true },
+  { segment: "/units", label: "Units and landowners", team: true },
 ];
 
-export function ProjectTabs({ projectId }: { projectId: string }) {
+function tabsFor(team: boolean) {
+  return TABS.filter((tab) => team || !tab.team);
+}
+
+export function ProjectTabs({ projectId, team }: { projectId: string; team: boolean }) {
   const pathname = usePathname();
   const base = `/projects/${projectId}`;
   return (
     <nav className="tabs" aria-label="Project">
-      {TABS.map((tab) => {
+      {tabsFor(team).map((tab) => {
         const href = `${base}${tab.segment}`;
         return (
           <Link key={href} href={href} aria-current={pathname === href ? "page" : undefined}>
@@ -69,11 +73,11 @@ export function ProjectTabs({ projectId }: { projectId: string }) {
   );
 }
 
-export function PlainProjectTabs({ projectId }: { projectId: string }) {
+export function PlainProjectTabs({ projectId, team }: { projectId: string; team: boolean }) {
   const base = `/projects/${projectId}`;
   return (
     <nav className="tabs" aria-label="Project">
-      {TABS.map((tab) => (
+      {tabsFor(team).map((tab) => (
         <Link key={tab.segment} href={`${base}${tab.segment}`}>
           {tab.label}
         </Link>

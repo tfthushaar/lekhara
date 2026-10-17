@@ -8,7 +8,17 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, event, func
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    event,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from horus.db import Base, Money, Percent
@@ -224,6 +234,9 @@ class WithdrawalRequest(Base):
     bank_reference: Mapped[str | None] = mapped_column(String(200))
     rejected_on: Mapped[date | None] = mapped_column(Date)
     rejection_reason: Mapped[str | None] = mapped_column(String(500))
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    submitted_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    released_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
 
     certificates: Mapped[list["WithdrawalCertificate"]] = relationship(
         back_populates="request", cascade="all, delete-orphan"
@@ -248,8 +261,69 @@ class WithdrawalCertificate(Base):
     development_cost_incurred: Mapped[Decimal | None] = mapped_column(Money)
     total_cost_incurred: Mapped[Decimal | None] = mapped_column(Money)
     withdrawable_amount: Mapped[Decimal | None] = mapped_column(Money)
+    signed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
 
     request: Mapped[WithdrawalRequest] = relationship(back_populates="certificates")
+
+
+# People and access
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    name: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(200))
+    firm: Mapped[str | None] = mapped_column(String(200))
+    """The certifier's firm, printed on every certificate they sign."""
+    phone: Mapped[str | None] = mapped_column(String(32))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    memberships: Mapped[list["Membership"]] = relationship(back_populates="user")
+    project_access: Mapped[list["ProjectAccess"]] = relationship(back_populates="user")
+
+
+class Membership(Base):
+    """A member of the developer's own team: owner, finance, accounts or viewer."""
+
+    __tablename__ = "memberships"
+    __table_args__ = (UniqueConstraint("user_id", "organization_id"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    role: Mapped[str] = mapped_column(String(16))
+
+    user: Mapped[User] = relationship(back_populates="memberships")
+
+
+class ProjectAccess(Base):
+    """An outside person's access to one project: today the architect, engineer or CA."""
+
+    __tablename__ = "project_access"
+    __table_args__ = (UniqueConstraint("user_id", "project_id", "role"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    role: Mapped[str] = mapped_column(String(16))
+
+    user: Mapped[User] = relationship(back_populates="project_access")
+
+
+class UserSession(Base):
+    """A signed-in session. Only a hash of the token is stored."""
+
+    __tablename__ = "sessions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
 
 
 class AppendOnlyViolation(RuntimeError):

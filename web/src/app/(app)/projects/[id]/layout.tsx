@@ -49,8 +49,8 @@ async function ProjectHeader({ params }: { params: Promise<{ id: string }> }) {
           </div>
         ) : null}
       </div>
-      <Suspense fallback={<PlainProjectTabs projectId={id} />}>
-        <ProjectTabs projectId={id} />
+      <Suspense fallback={<PlainProjectTabs projectId={id} team={p.access.team} />}>
+        <ProjectTabs projectId={id} team={p.access.team} />
       </Suspense>
     </>
   );

@@ -20,10 +20,12 @@ import random
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
+from functools import lru_cache
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from horus.auth import hash_password
 from horus.config import get_settings
 from horus.db import Base, make_engine, make_sessionmaker
 from horus.engines.tax import financial_year
@@ -36,11 +38,14 @@ from horus.models import (
     Landowner,
     LandownerPaymentRow,
     LedgerEntry,
+    Membership,
     Organization,
     ProgressCertificate,
     Project,
+    ProjectAccess,
     Receipt,
     Unit,
+    User,
     Vendor,
     WithdrawalCertificate,
     WithdrawalRequest,
@@ -56,6 +61,78 @@ def cr(x: str) -> Decimal:
 
 def lakh(x: str) -> Decimal:
     return (Decimal(x) * LAKH).quantize(Decimal("0.01"))
+
+
+DEMO_PASSWORD = "horus-demo"
+
+
+@dataclass(frozen=True)
+class DemoAccount:
+    email: str
+    name: str
+    label: str
+    org_role: str | None = None
+    certifier_role: str | None = None
+    firm: str | None = None
+
+
+DEMO_ACCOUNTS = (
+    DemoAccount("promoter@demo.horus", "Ravi Kumar", "Owner (promoter)", org_role="owner"),
+    DemoAccount("cfo@demo.horus", "Meera Rao", "Finance (CFO)", org_role="finance"),
+    DemoAccount("accounts@demo.horus", "Prakash N", "Accounts", org_role="accounts"),
+    DemoAccount(
+        "architect@demo.horus",
+        "A. Kulkarni",
+        "Architect",
+        certifier_role="architect",
+        firm="Studio Kaveri Architects",
+    ),
+    DemoAccount(
+        "engineer@demo.horus",
+        "R. Hegde",
+        "Engineer",
+        certifier_role="engineer",
+        firm="Sound Structures Consultants",
+    ),
+    DemoAccount(
+        "ca@demo.horus",
+        "S. Menon",
+        "Chartered accountant",
+        certifier_role="ca",
+        firm="Menon and Associates",
+    ),
+)
+
+
+@lru_cache
+def _demo_password_hash() -> str:
+    # One hash for every demo account keeps seeding fast; real accounts each get their own salt.
+    return hash_password(DEMO_PASSWORD)
+
+
+def seed_people(session: Session, org: Organization, projects: list[Project]) -> dict[str, User]:
+    users: dict[str, User] = {}
+    for account in DEMO_ACCOUNTS:
+        user = User(
+            name=account.name,
+            email=account.email,
+            password_hash=_demo_password_hash(),
+            firm=account.firm,
+        )
+        session.add(user)
+        session.flush()
+        users[account.email] = user
+        if account.org_role:
+            session.add(Membership(user_id=user.id, organization_id=org.id, role=account.org_role))
+        if account.certifier_role:
+            for project in projects:
+                session.add(
+                    ProjectAccess(
+                        user_id=user.id, project_id=project.id, role=account.certifier_role
+                    )
+                )
+    session.flush()
+    return users
 
 
 @dataclass
@@ -509,17 +586,15 @@ def seed(session: Session, today: date) -> None:
         released_amount=last,
         bank_reference="Last withdrawal",
     )
-    for role, firm in (
-        ("architect", "Studio Kaveri Architects"),
-        ("engineer", "Sound Structures Consultants"),
-        ("ca", "Menon and Associates"),
-    ):
+    for account in DEMO_ACCOUNTS:
+        if not account.certifier_role:
+            continue
         released.certificates.append(
             WithdrawalCertificate(
-                role=role,
+                role=account.certifier_role,
                 signed=True,
-                signer_name="Signed",
-                signer_firm=firm,
+                signer_name=account.name,
+                signer_firm=account.firm,
                 issued_on=sd.ago(92),
             )
         )
@@ -741,27 +816,28 @@ def seed(session: Session, today: date) -> None:
     )
     sd.filings(sg, skip_latest_due_qpr=False, audit_done=False)
 
-    # An open withdrawal on Sarjapur Greens, waiting for the CA.
+    # The people: the developer's team and the three certifiers on every project.
     session.flush()
+    users = seed_people(session, sd.org, [wf, hb, sg])
+    by_role = {a.certifier_role: a for a in DEMO_ACCOUNTS if a.certifier_role}
+    for row in released.certificates:
+        row.signed_by_user_id = users[by_role[row.role].email].id
+
+    # An open withdrawal on Sarjapur Greens: architect and engineer have signed; the CA has not.
     from horus import services
 
-    request = services.create_withdrawal(session, sg, None, today)
+    request = services.create_withdrawal(
+        session, sg, None, today, user_id=users["accounts@demo.horus"].id
+    )
     request.created_on = sd.ago(3)
     for row in request.certificates:
-        if row.role == "architect":
-            row.signed, row.signer_name, row.signer_firm = (
-                True,
-                "A. Kulkarni",
-                "Studio Kaveri Architects",
-            )
-            row.issued_on = sd.ago(2)
-        elif row.role == "engineer":
-            row.signed, row.signer_name, row.signer_firm = (
-                True,
-                "R. Hegde",
-                "Sound Structures Consultants",
-            )
-            row.issued_on = sd.ago(1)
+        if row.role in ("architect", "engineer"):
+            account = by_role[row.role]
+            row.signed = True
+            row.signer_name = account.name
+            row.signer_firm = account.firm
+            row.signed_by_user_id = users[account.email].id
+            row.issued_on = sd.ago(2 if row.role == "architect" else 1)
     session.commit()
 
 

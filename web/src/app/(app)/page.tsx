@@ -49,6 +49,34 @@ export default function TodayPage() {
 
 async function TodayView() {
   const today = await api.today();
+  if (today.kind === "certifier") {
+    return (
+      <>
+        <p className="muted small" style={{ marginBottom: 16 }}>
+          {today.organization}, certifying {plural(today.summary.projects, "project")}, as of{" "}
+          {day(today.as_of)}
+        </p>
+        <div className="stats">
+          <div className="stat">
+            <p className="stat-label">Waiting for your signature</p>
+            <p className="stat-value">{today.summary.waiting}</p>
+            <p className="stat-note">Figures are prepared from each developer&apos;s books</p>
+          </div>
+        </div>
+        <section className="section">
+          <div className="section-head">
+            <h2>To review and sign</h2>
+            <p>Check each figure against the books, change it if you need to, then sign</p>
+          </div>
+          <ObligationRows
+            items={today.items}
+            today={today.as_of}
+            empty="Nothing is waiting for your signature."
+          />
+        </section>
+      </>
+    );
+  }
   const { summary } = today;
   const pick = (statuses: Status[]): Obligation[] =>
     today.items.filter((o) => statuses.includes(o.status));

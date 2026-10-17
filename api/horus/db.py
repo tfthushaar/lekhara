@@ -2,15 +2,24 @@
 
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Engine, Integer, StaticPool, create_engine, event
+from sqlalchemy import BigInteger, Engine, Integer, MetaData, StaticPool, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.types import TypeDecorator
 
 from horus.money import from_paise, to_paise
 
+# Every constraint gets a predictable name, so migrations can alter or drop it on any database.
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_N_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
 
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 class Money(TypeDecorator):

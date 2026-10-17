@@ -1,4 +1,7 @@
-import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { notFound, redirect } from "next/navigation";
+
+import { SESSION_COOKIE } from "@/lib/session-cookie";
 
 const BASE = process.env.HORUS_API_URL ?? "http://localhost:8000";
 
@@ -20,15 +23,37 @@ export type Obligation = {
   exposure: boolean;
   rule_key: string | null;
   action: string | null;
+  link: string | null;
 };
 
 export type Counts = Record<Status, number>;
 
-export type Today = {
-  as_of: string;
-  organization: string;
-  summary: { drawable_now: string; at_stake: string; due_this_week: number; projects: number };
-  items: Obligation[];
+export type Today =
+  | {
+      kind: "team";
+      as_of: string;
+      organization: string;
+      summary: { drawable_now: string; at_stake: string; due_this_week: number; projects: number };
+      items: Obligation[];
+    }
+  | {
+      kind: "certifier";
+      as_of: string;
+      organization: string;
+      summary: { waiting: number; projects: number };
+      items: Obligation[];
+    };
+
+export type Me = {
+  user: { id: string; name: string; email: string; firm: string | null };
+  role_label: string;
+  kind: "team" | "certifier";
+  organizations: string[];
+};
+
+export type DemoAccounts = {
+  password: string;
+  accounts: { email: string; name: string; label: string }[];
 };
 
 export type ProjectCard = {
@@ -82,6 +107,7 @@ export type ProjectDetail = {
   open_request_id: string | null;
   obligations: Obligation[];
   counts: Counts;
+  access: { team: boolean; certifies: string[] };
 };
 
 export type MoneyLine = {
@@ -125,6 +151,7 @@ export type Escrow = {
   last_withdrawal_on: string | null;
   next_cycle_due_on: string | null;
   open_request_id: string | null;
+  can_start: boolean;
   requests: RequestSummary[];
 };
 
@@ -173,6 +200,12 @@ export type Withdrawal = {
   status: RequestStatus;
   waiting_on: string | null;
   can_submit: boolean;
+  permissions: {
+    edit_roles: string[];
+    sign_roles: string[];
+    can_submit: boolean;
+    can_release: boolean;
+  };
   drawable_now: string;
   steps: { name: string; status: "done" | "current" | "todo" }[];
   certificates: CertificateView[];
@@ -293,9 +326,18 @@ export type Rules = {
   }[];
 };
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, { cache: "no-store" });
-  if (response.status === 404) notFound();
+  const response = await fetch(`${BASE}${path}`, {
+    cache: "no-store",
+    headers: await authHeaders(),
+  });
+  if (response.status === 401) redirect("/login");
+  if (response.status === 404 || response.status === 403) notFound();
   if (!response.ok) throw new Error(`Horus API ${response.status} on ${path}`);
   return response.json() as Promise<T>;
 }
@@ -309,11 +351,13 @@ export async function send<T>(
 ): Promise<SendResult<T>> {
   const response = await fetch(`${BASE}${path}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(body),
     cache: "no-store",
   });
+  if (response.status === 204) return { ok: true, data: undefined as T };
   if (response.ok) return { ok: true, data: (await response.json()) as T };
+  if (response.status === 401) return { ok: false, error: "Your session has ended. Sign in again." };
   try {
     const problem = await response.json();
     const detail = problem?.detail;
@@ -326,7 +370,18 @@ export async function send<T>(
   }
 }
 
+/** The demo accounts, when the API runs in demo mode. Public; no session needed. */
+export async function demoAccounts(): Promise<DemoAccounts | null> {
+  try {
+    const response = await fetch(`${BASE}/auth/demo`, { cache: "no-store" });
+    return response.ok ? ((await response.json()) as DemoAccounts) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const api = {
+  me: () => get<Me>("/auth/me"),
   today: () => get<Today>("/today"),
   projects: () => get<ProjectCard[]>("/projects"),
   project: (id: string) => get<ProjectDetail>(`/projects/${id}`),
@@ -339,6 +394,7 @@ export const api = {
 };
 
 export function areaHref(o: Obligation): string {
+  if (o.link) return o.link;
   const base = `/projects/${o.project_id}`;
   switch (o.area) {
     case "escrow":

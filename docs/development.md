@@ -33,6 +33,19 @@ python -m venv .venv
 
 The demo data is a fictional developer with three Bengaluru projects, dated relative to today. Set `HORUS_TODAY=2026-10-17` to pin the date.
 
+Sign-in is required for everything except `/health` and `/rules`. Run the API with `HORUS_DEMO=1` to list the demo accounts on the sign-in screen; every demo account uses the password `horus-demo`:
+
+| Email | Role |
+|---|---|
+| promoter@demo.horus | Owner |
+| cfo@demo.horus | Finance |
+| accounts@demo.horus | Accounts |
+| architect@demo.horus | Architect on every project |
+| engineer@demo.horus | Engineer on every project |
+| ca@demo.horus | Chartered accountant on every project |
+
+Who may do what: the owner, finance and accounts start withdrawals and send them to the bank; only the owner and finance record a release or rejection; each certifier changes and signs only their own certificate, and sees only the projects they certify (escrow and money, not tax or units).
+
 Main endpoints: `/today`, `/projects`, `/projects/{id}` (with `/money`, `/escrow`, `/tax`, `/units`), `/withdrawals/{id}` (with `/certificates/{role}`, `/certificates/{role}/sign`, `/submit`, `/release`, `/reject`) and `/rules`. Interactive docs are at `/docs` while the server runs.
 
 The API uses a local SQLite file unless `HORUS_DATABASE_URL` is set. For Postgres:

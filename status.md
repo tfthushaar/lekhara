@@ -1,6 +1,6 @@
 # Horus status
 
-Last updated: 2026-10-17, with the commit "Add database migrations".
+Last updated: 2026-10-17, with the commit "Add sign-in, roles and certifier seats".
 
 ## What we are building
 
@@ -29,16 +29,22 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - JDA basics: every unit is marked as the developer's or the landowner's; landowners carry their share, deposit and payments, with the TDS check.
 - Web app: Today, Projects, a project's Overview, Escrow, Tax and statutory, and Units and landowners tabs, the Withdrawal request and Rules. Every form works without JavaScript.
 - Database migrations (Alembic, inside the package). The API brings the schema up to date on start; the demo seed builds the schema through migrations; a test fails if the migrated schema and the models ever disagree.
+- Sign-in, organisations, roles and certifier seats:
+  - Email and password sign-in (scrypt-hashed passwords, hashed session tokens, 14-day sessions, sign-out, throttling of repeated failed attempts).
+  - The developer's team: owner, finance, accounts, viewer. Owner, finance and accounts start withdrawals and send them to the bank; only owner and finance record what the bank did.
+  - Certifier seats: the architect, engineer and CA see only the projects they certify, change and sign only their own certificate (signed under their own name and firm), and get a Today list of certificates waiting for them.
+  - Every withdrawal records who started, signed, sent and released it.
+  - Web: a sign-in page (with one-click demo accounts in demo mode), a user menu with sign-out, screens and buttons that follow each person's permissions. Tested end to end with six separate people.
 
 ## In progress
 
-- Sign-in, organisations, roles and certifier seats.
+- Collections: payment plans, demand letters raised when a stage is certified, receipt matching and the 70/30 split check.
 
 ## Left
 
 ### v1: pilot-ready (two founders)
 
-- Sign-in, organisations, roles and certifier seats, so each certifier signs from their own access.
+- Inviting people and managing access from the web (accounts are created in the database today), password reset, sign-in by WhatsApp code.
 - Integration of the founder's existing Tally file import module (details to come).
 - Mailbox connector (read-only), Excel and CRM imports.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.

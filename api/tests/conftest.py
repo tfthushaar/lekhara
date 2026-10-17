@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from horus.app import create_app
 from horus.config import Settings
 from horus.db import Base, make_engine, make_sessionmaker
-from horus.seed import seed
+from horus.seed import DEMO_PASSWORD, seed
 
 TODAY = date(2026, 10, 17)
 
@@ -21,8 +21,52 @@ def engine():
 
 
 @pytest.fixture
-def client(engine) -> TestClient:
-    app = create_app(
-        Settings(database_url="sqlite://", today=TODAY, auto_migrate=False), engine=engine
+def app(engine):
+    return create_app(
+        Settings(database_url="sqlite://", today=TODAY, auto_migrate=False, demo=True),
+        engine=engine,
     )
+
+
+@pytest.fixture
+def client(app) -> TestClient:
+    """Not signed in."""
     return TestClient(app)
+
+
+def signed_in(app, email: str) -> TestClient:
+    client = TestClient(app)
+    response = client.post("/auth/login", json={"email": email, "password": DEMO_PASSWORD})
+    assert response.status_code == 200, response.text
+    client.headers["Authorization"] = f"Bearer {response.json()['token']}"
+    return client
+
+
+@pytest.fixture
+def owner(app) -> TestClient:
+    return signed_in(app, "promoter@demo.horus")
+
+
+@pytest.fixture
+def cfo(app) -> TestClient:
+    return signed_in(app, "cfo@demo.horus")
+
+
+@pytest.fixture
+def accounts(app) -> TestClient:
+    return signed_in(app, "accounts@demo.horus")
+
+
+@pytest.fixture
+def architect(app) -> TestClient:
+    return signed_in(app, "architect@demo.horus")
+
+
+@pytest.fixture
+def engineer(app) -> TestClient:
+    return signed_in(app, "engineer@demo.horus")
+
+
+@pytest.fixture
+def ca(app) -> TestClient:
+    return signed_in(app, "ca@demo.horus")

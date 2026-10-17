@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 758864553429
+Revision ID: a3d2a9b047ce
 Revises:
-Create Date: 2026-10-17 19:11:44.151288
+Create Date: 2026-10-17 19:18:32.795633
 """
 
 from collections.abc import Sequence
@@ -12,7 +12,7 @@ from alembic import op
 
 import horus.db
 
-revision: str = "758864553429"
+revision: str = "a3d2a9b047ce"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -24,8 +24,53 @@ def upgrade() -> None:
         "organizations",
         sa.Column("id", sa.String(length=64), nullable=False),
         sa.Column("name", sa.String(length=200), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_organizations")),
     )
+    op.create_table(
+        "users",
+        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("name", sa.String(length=200), nullable=False),
+        sa.Column("email", sa.String(length=320), nullable=False),
+        sa.Column("password_hash", sa.String(length=200), nullable=False),
+        sa.Column("firm", sa.String(length=200), nullable=True),
+        sa.Column("phone", sa.String(length=32), nullable=True),
+        sa.Column("is_active", sa.Boolean(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(),
+            server_default=sa.text("(CURRENT_TIMESTAMP)"),
+            nullable=False,
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_users")),
+    )
+    with op.batch_alter_table("users", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_users_email"), ["email"], unique=True)
+
+    op.create_table(
+        "memberships",
+        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("user_id", sa.String(length=64), nullable=False),
+        sa.Column("organization_id", sa.String(length=64), nullable=False),
+        sa.Column("role", sa.String(length=16), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["organization_id"],
+            ["organizations.id"],
+            name=op.f("fk_memberships_organization_id_organizations"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name=op.f("fk_memberships_user_id_users")
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_memberships")),
+        sa.UniqueConstraint(
+            "user_id", "organization_id", name=op.f("uq_memberships_user_id_organization_id")
+        ),
+    )
+    with op.batch_alter_table("memberships", schema=None) as batch_op:
+        batch_op.create_index(
+            batch_op.f("ix_memberships_organization_id"), ["organization_id"], unique=False
+        )
+        batch_op.create_index(batch_op.f("ix_memberships_user_id"), ["user_id"], unique=False)
+
     op.create_table(
         "projects",
         sa.Column("id", sa.String(length=64), nullable=False),
@@ -46,9 +91,24 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],
+            name=op.f("fk_projects_organization_id_organizations"),
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_projects")),
     )
+    op.create_table(
+        "sessions",
+        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("user_id", sa.String(length=64), nullable=False),
+        sa.Column("token_hash", sa.String(length=64), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name=op.f("fk_sessions_user_id_users")),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_sessions")),
+    )
+    with op.batch_alter_table("sessions", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_sessions_token_hash"), ["token_hash"], unique=True)
+        batch_op.create_index(batch_op.f("ix_sessions_user_id"), ["user_id"], unique=False)
+
     op.create_table(
         "vendors",
         sa.Column("id", sa.String(length=64), nullable=False),
@@ -61,8 +121,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],
+            name=op.f("fk_vendors_organization_id_organizations"),
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_vendors")),
     )
     op.create_table(
         "bills",
@@ -78,14 +139,12 @@ def upgrade() -> None:
         sa.Column("rcm_paid", sa.Boolean(), nullable=False),
         sa.Column("paid_on", sa.Date(), nullable=True),
         sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
+            ["project_id"], ["projects.id"], name=op.f("fk_bills_project_id_projects")
         ),
         sa.ForeignKeyConstraint(
-            ["vendor_id"],
-            ["vendors.id"],
+            ["vendor_id"], ["vendors.id"], name=op.f("fk_bills_vendor_id_vendors")
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_bills")),
     )
     with op.batch_alter_table("bills", schema=None) as batch_op:
         batch_op.create_index(batch_op.f("ix_bills_project_id"), ["project_id"], unique=False)
@@ -102,10 +161,9 @@ def upgrade() -> None:
         sa.Column("revised_budget", horus.db.Money(), nullable=False),
         sa.Column("position", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
+            ["project_id"], ["projects.id"], name=op.f("fk_cost_lines_project_id_projects")
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_cost_lines")),
     )
     with op.batch_alter_table("cost_lines", schema=None) as batch_op:
         batch_op.create_index(batch_op.f("ix_cost_lines_project_id"), ["project_id"], unique=False)
@@ -119,10 +177,9 @@ def upgrade() -> None:
         sa.Column("txn_date", sa.Date(), nullable=False),
         sa.Column("reference", sa.String(length=200), nullable=True),
         sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
+            ["project_id"], ["projects.id"], name=op.f("fk_escrow_transactions_project_id_projects")
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_escrow_transactions")),
     )
     with op.batch_alter_table("escrow_transactions", schema=None) as batch_op:
         batch_op.create_index(
@@ -138,10 +195,9 @@ def upgrade() -> None:
         sa.Column("filed_on", sa.Date(), nullable=False),
         sa.Column("reference", sa.String(length=200), nullable=True),
         sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
+            ["project_id"], ["projects.id"], name=op.f("fk_filings_project_id_projects")
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_filings")),
     )
     with op.batch_alter_table("filings", schema=None) as batch_op:
         batch_op.create_index(batch_op.f("ix_filings_project_id"), ["project_id"], unique=False)
@@ -155,10 +211,9 @@ def upgrade() -> None:
         sa.Column("share_pct", horus.db.Percent(), nullable=False),
         sa.Column("refundable_deposit", horus.db.Money(), nullable=False),
         sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
+            ["project_id"], ["projects.id"], name=op.f("fk_landowners_project_id_projects")
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_landowners")),
     )
     with op.batch_alter_table("landowners", schema=None) as batch_op:
         batch_op.create_index(batch_op.f("ix_landowners_project_id"), ["project_id"], unique=False)
@@ -173,13 +228,37 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["project_id"],
             ["projects.id"],
+            name=op.f("fk_progress_certificates_project_id_projects"),
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_progress_certificates")),
     )
     with op.batch_alter_table("progress_certificates", schema=None) as batch_op:
         batch_op.create_index(
             batch_op.f("ix_progress_certificates_project_id"), ["project_id"], unique=False
         )
+
+    op.create_table(
+        "project_access",
+        sa.Column("id", sa.String(length=64), nullable=False),
+        sa.Column("user_id", sa.String(length=64), nullable=False),
+        sa.Column("project_id", sa.String(length=64), nullable=False),
+        sa.Column("role", sa.String(length=16), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["project_id"], ["projects.id"], name=op.f("fk_project_access_project_id_projects")
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name=op.f("fk_project_access_user_id_users")
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_project_access")),
+        sa.UniqueConstraint(
+            "user_id", "project_id", "role", name=op.f("uq_project_access_user_id_project_id_role")
+        ),
+    )
+    with op.batch_alter_table("project_access", schema=None) as batch_op:
+        batch_op.create_index(
+            batch_op.f("ix_project_access_project_id"), ["project_id"], unique=False
+        )
+        batch_op.create_index(batch_op.f("ix_project_access_user_id"), ["user_id"], unique=False)
 
     op.create_table(
         "units",
@@ -196,10 +275,9 @@ def upgrade() -> None:
         sa.Column("buyer_name", sa.String(length=200), nullable=True),
         sa.Column("booked_on", sa.Date(), nullable=True),
         sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
+            ["project_id"], ["projects.id"], name=op.f("fk_units_project_id_projects")
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_units")),
     )
     with op.batch_alter_table("units", schema=None) as batch_op:
         batch_op.create_index(batch_op.f("ix_units_project_id"), ["project_id"], unique=False)
@@ -216,11 +294,28 @@ def upgrade() -> None:
         sa.Column("bank_reference", sa.String(length=200), nullable=True),
         sa.Column("rejected_on", sa.Date(), nullable=True),
         sa.Column("rejection_reason", sa.String(length=500), nullable=True),
+        sa.Column("created_by_user_id", sa.String(length=64), nullable=True),
+        sa.Column("submitted_by_user_id", sa.String(length=64), nullable=True),
+        sa.Column("released_by_user_id", sa.String(length=64), nullable=True),
         sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
+            ["created_by_user_id"],
+            ["users.id"],
+            name=op.f("fk_withdrawal_requests_created_by_user_id_users"),
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(
+            ["project_id"], ["projects.id"], name=op.f("fk_withdrawal_requests_project_id_projects")
+        ),
+        sa.ForeignKeyConstraint(
+            ["released_by_user_id"],
+            ["users.id"],
+            name=op.f("fk_withdrawal_requests_released_by_user_id_users"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["submitted_by_user_id"],
+            ["users.id"],
+            name=op.f("fk_withdrawal_requests_submitted_by_user_id_users"),
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_withdrawal_requests")),
     )
     with op.batch_alter_table("withdrawal_requests", schema=None) as batch_op:
         batch_op.create_index(
@@ -239,8 +334,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["landowner_id"],
             ["landowners.id"],
+            name=op.f("fk_landowner_payments_landowner_id_landowners"),
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_landowner_payments")),
     )
     with op.batch_alter_table("landowner_payments", schema=None) as batch_op:
         batch_op.create_index(
@@ -265,12 +361,12 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["cost_line_id"],
             ["cost_lines.id"],
+            name=op.f("fk_ledger_entries_cost_line_id_cost_lines"),
         ),
         sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
+            ["project_id"], ["projects.id"], name=op.f("fk_ledger_entries_project_id_projects")
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_ledger_entries")),
     )
     with op.batch_alter_table("ledger_entries", schema=None) as batch_op:
         batch_op.create_index(
@@ -286,14 +382,10 @@ def upgrade() -> None:
         sa.Column("received_on", sa.Date(), nullable=False),
         sa.Column("tds_deducted", horus.db.Money(), nullable=False),
         sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
+            ["project_id"], ["projects.id"], name=op.f("fk_receipts_project_id_projects")
         ),
-        sa.ForeignKeyConstraint(
-            ["unit_id"],
-            ["units.id"],
-        ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(["unit_id"], ["units.id"], name=op.f("fk_receipts_unit_id_units")),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_receipts")),
     )
     with op.batch_alter_table("receipts", schema=None) as batch_op:
         batch_op.create_index(batch_op.f("ix_receipts_project_id"), ["project_id"], unique=False)
@@ -311,11 +403,18 @@ def upgrade() -> None:
         sa.Column("development_cost_incurred", horus.db.Money(), nullable=True),
         sa.Column("total_cost_incurred", horus.db.Money(), nullable=True),
         sa.Column("withdrawable_amount", horus.db.Money(), nullable=True),
+        sa.Column("signed_by_user_id", sa.String(length=64), nullable=True),
         sa.ForeignKeyConstraint(
             ["request_id"],
             ["withdrawal_requests.id"],
+            name=op.f("fk_withdrawal_certificates_request_id_withdrawal_requests"),
         ),
-        sa.PrimaryKeyConstraint("id"),
+        sa.ForeignKeyConstraint(
+            ["signed_by_user_id"],
+            ["users.id"],
+            name=op.f("fk_withdrawal_certificates_signed_by_user_id_users"),
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_withdrawal_certificates")),
     )
     with op.batch_alter_table("withdrawal_certificates", schema=None) as batch_op:
         batch_op.create_index(
@@ -351,6 +450,11 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f("ix_units_project_id"))
 
     op.drop_table("units")
+    with op.batch_alter_table("project_access", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_project_access_user_id"))
+        batch_op.drop_index(batch_op.f("ix_project_access_project_id"))
+
+    op.drop_table("project_access")
     with op.batch_alter_table("progress_certificates", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_progress_certificates_project_id"))
 
@@ -376,6 +480,20 @@ def downgrade() -> None:
 
     op.drop_table("bills")
     op.drop_table("vendors")
+    with op.batch_alter_table("sessions", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_sessions_user_id"))
+        batch_op.drop_index(batch_op.f("ix_sessions_token_hash"))
+
+    op.drop_table("sessions")
     op.drop_table("projects")
+    with op.batch_alter_table("memberships", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_memberships_user_id"))
+        batch_op.drop_index(batch_op.f("ix_memberships_organization_id"))
+
+    op.drop_table("memberships")
+    with op.batch_alter_table("users", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_users_email"))
+
+    op.drop_table("users")
     op.drop_table("organizations")
     # ### end Alembic commands ###

@@ -654,6 +654,72 @@ h3 {
   padding-left: 10px;
 }
 
+
+/* Sign in */
+
+.login {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 72px 24px 96px;
+}
+
+.login-wordmark {
+  display: block;
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-card {
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  padding: 28px;
+}
+
+.login-card + .login-card {
+  margin-top: 24px;
+}
+
+.login-card .button {
+  width: 100%;
+}
+
+.demo-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.demo-form .button {
+  width: auto;
+}
+
+.demo-form .form-error {
+  max-width: 180px;
+}
+
+/* User menu */
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.link-button {
+  font: inherit;
+  font-size: 13px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 @media (max-width: 720px) {
   .table {
     display: block;
@@ -680,5 +746,8 @@ h3 {
   }
   .org {
     display: none;
+  }
+  .user-menu {
+    gap: 8px;
   }
 }

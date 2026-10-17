@@ -10,7 +10,14 @@ import {
   updateFigure,
 } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
-import { type CertificateView, type CheckView, type Figure, type Withdrawal, api } from "@/lib/api";
+import {
+  type CertificateView,
+  type CheckView,
+  type Figure,
+  type Me,
+  type Withdrawal,
+  api,
+} from "@/lib/api";
 import { day, inr, inrFull, pct } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Withdrawal" };
@@ -56,8 +63,7 @@ function differs(f: Figure): boolean {
 
 async function WithdrawalView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const w = await api.withdrawal(id);
-  const editable = w.status === "awaiting_signatures" || w.status === "ready";
+  const [w, me] = await Promise.all([api.withdrawal(id), api.me()]);
   const failing = w.checks.some((c) => c.status === "fail");
 
   return (
@@ -91,19 +97,19 @@ async function WithdrawalView({ params }: { params: Promise<{ id: string }> }) {
       <section>
         <div className="section-head">
           <h2>Certificates</h2>
-          <p>Prepared by Horus from your books. Each certifier reviews, changes if needed, and signs.</p>
+          <p>Prepared by Horus from the books. Each certifier reviews, changes if needed, and signs.</p>
         </div>
         <div className="grid-3">
           {w.certificates.map((c) => (
-            <CertificateCard key={c.role} w={w} c={c} editable={editable} />
+            <CertificateCard
+              key={c.role}
+              w={w}
+              c={c}
+              me={me}
+              mine={w.permissions.sign_roles.includes(c.role)}
+            />
           ))}
         </div>
-        {editable ? (
-          <p className="muted small" style={{ marginTop: 12 }}>
-            Certifier seats are not switched on yet, so you can sign for each certifier here to try
-            the flow. In use, each one signs from their own seat with their digital signature.
-          </p>
-        ) : null}
       </section>
 
       <section className="section">
@@ -142,11 +148,13 @@ async function WithdrawalView({ params }: { params: Promise<{ id: string }> }) {
 function CertificateCard({
   w,
   c,
-  editable,
+  me,
+  mine,
 }: {
   w: Withdrawal;
   c: CertificateView;
-  editable: boolean;
+  me: Me;
+  mine: boolean;
 }) {
   return (
     <div className={c.signed ? "card card-done" : "card"}>
@@ -163,7 +171,7 @@ function CertificateCard({
           <p className="stat-label">{f.label}</p>
           <p className="figure-value">{figureValue(f)}</p>
           <p className={differs(f) ? "small strong" : "small muted"}>
-            {differs(f) ? "Differs from your books: " : "Your books: "}
+            {differs(f) ? "Differs from the books: " : "The books: "}
             {f.kind === "percent" ? pct(f.books) : inr(f.books)}
           </p>
         </div>
@@ -173,7 +181,7 @@ function CertificateCard({
         <p className="small" style={{ marginTop: 16 }}>
           Signed by {c.signer_name}, {c.signer_firm}, on {day(c.issued_on)}.
         </p>
-      ) : editable ? (
+      ) : mine ? (
         <>
           <details className="disclosure">
             <summary>Change a figure</summary>
@@ -205,23 +213,19 @@ function CertificateCard({
           </details>
           <ActionForm
             action={signCertificate.bind(null, w.id, c.role)}
-            label={`Sign as ${c.label.toLowerCase()}`}
+            label="Sign this certificate"
             pendingLabel="Signing"
             className="sign-form"
           >
-            <div className="field">
-              <label htmlFor={`${c.role}-name`}>Name</label>
-              <input id={`${c.role}-name`} name="signer_name" autoComplete="name" required />
-            </div>
-            <div className="field">
-              <label htmlFor={`${c.role}-firm`}>Firm</label>
-              <input id={`${c.role}-firm`} name="signer_firm" autoComplete="organization" required />
-            </div>
+            <p className="small muted" style={{ marginBottom: 12 }}>
+              Signs as {me.user.name}
+              {me.user.firm ? `, ${me.user.firm}` : ""}, dated today.
+            </p>
           </ActionForm>
         </>
       ) : (
         <p className="small muted" style={{ marginTop: 16 }}>
-          Not signed.
+          Waiting for the project&apos;s {c.label.toLowerCase()}.
         </p>
       )}
     </div>
@@ -238,6 +242,9 @@ function NextStep({ w, failing }: { w: Withdrawal; failing: boolean }) {
       </p>
     );
   }
+  if (w.status === "ready" && !w.permissions.can_submit) {
+    return <p>All three certificates are signed. The developer&apos;s team sends the pack to the bank.</p>;
+  }
   if (w.status === "ready") {
     return (
       <>
@@ -251,6 +258,14 @@ function NextStep({ w, failing }: { w: Withdrawal; failing: boolean }) {
           pendingLabel="Saving"
         />
       </>
+    );
+  }
+  if (w.status === "submitted" && !w.permissions.can_release) {
+    return (
+      <p>
+        With {w.escrow_bank ?? "the bank"}. The owner or finance records the release when the money
+        arrives.
+      </p>
     );
   }
   if (w.status === "submitted") {

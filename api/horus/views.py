@@ -57,6 +57,7 @@ def obligation(o: Obligation) -> dict:
         "action": o.action,
         "amount_label": o.amount_label,
         "exposure": o.exposure,
+        "link": None,
     }
 
 
@@ -171,7 +172,7 @@ def _request_summary(request: WithdrawalRequest, status: RequestStatus, waiting_
     }
 
 
-def escrow(s: ProjectSnapshot, requests: list[RequestState]) -> dict:
+def escrow(s: ProjectSnapshot, requests: list[RequestState], *, can_start: bool = False) -> dict:
     e = s.escrow
     basis_label = (
         "Cost incurred and paid so far"
@@ -214,6 +215,7 @@ def escrow(s: ProjectSnapshot, requests: list[RequestState]) -> dict:
         "last_withdrawal_on": d(e.last_withdrawal_on),
         "next_cycle_due_on": d(e.next_cycle_due_on),
         "open_request_id": s.open_request.id if s.open_request else None,
+        "can_start": can_start and s.open_request is None and e.drawable_now > 0,
         "requests": [_request_summary(r.request, r.status, r.waiting_on) for r in requests],
     }
 
@@ -243,7 +245,10 @@ def _steps(state: RequestState) -> list[dict]:
     return steps
 
 
-def request(state: RequestState) -> dict:
+NO_PERMISSIONS = {"edit_roles": [], "sign_roles": [], "can_submit": False, "can_release": False}
+
+
+def request(state: RequestState, permissions: dict | None = None) -> dict:
     r = state.request
     snap = state.snapshot
     certificates = []
@@ -327,6 +332,7 @@ def request(state: RequestState) -> dict:
         "rejection_reason": r.rejection_reason,
         "status": state.status.value,
         "waiting_on": state.waiting_on,
+        "permissions": permissions or NO_PERMISSIONS,
         "can_submit": state.status == RequestStatus.READY and can_submit(state.checks),
         "drawable_now": m(snap.escrow.drawable_now),
         "steps": _steps(state),
