@@ -1,6 +1,6 @@
 # Horus
 
-Horus keeps a real estate project's outside obligations in order — to K-RERA, the escrow bank, the tax department, landowners and lenders — so nothing is missed, nothing is late, and no money is left locked up or lost.
+Horus runs everything outside your ERP: what your projects owe K-RERA, the escrow bank, the tax department, landowners, buyers and lenders, and what they owe you. If you don't run an ERP or CRM, Horus gives you the rest of the system too, in one place, on WhatsApp, in Kannada or English.
 
 Built for builders in Karnataka. Starting in Bengaluru.
 
@@ -8,48 +8,83 @@ Built for builders in Karnataka. Starting in Bengaluru.
 
 ## Who it is for
 
-Promoters, CFOs, heads of projects and accounts teams at real estate developers in Karnataka, and the architects, engineers and chartered accountants who certify their projects.
+- **Developers:** promoters, CFOs, heads of projects and accounts teams, from one project to many. Plotted layouts as well as apartments.
+- **The people who work with them:** the architects, engineers and chartered accountants who certify projects; the banks and lenders who fund them; landowners in joint development.
 
-## What Horus does for you
+## What only Horus does
 
 **Know how much you can withdraw from your RERA account today.**
-Horus works out how much your costs entitle you to draw from the designated account. It prepares the architect's, engineer's and CA's certificates, checks that their figures agree before anything goes to the bank, and follows the request until the money is released.
+Horus works out what your costs entitle you to draw from the designated account. It prepares the architect's, engineer's and CA's certificates, checks that their figures agree before anything goes to the bank, and follows the request until the money is released.
 
 **Never miss a K-RERA deadline.**
-Quarterly progress reports are prepared from your own records. Horus shows what is due, when, and what a late filing can cost. If possession is running behind the committed date, Horus shows the delay interest building up, month by month.
+Quarterly progress reports and the annual audit are prepared from your own records. If possession runs late, Horus shows the delay interest building up, month by month.
 
-**See tax exposure before it becomes a bill.**
-- The 80% registered-supplier test for residential GST, tracked through the year, with the amount you can still buy from unregistered suppliers before reverse charge applies.
-- GST on development rights for flats still unsold at completion on JDA projects, and how much each sale before completion saves.
+**See tax traps before they become bills.**
+- The 80% registered-supplier test for residential GST, tracked through the year.
+- GST on development rights for flats still unsold at completion on JDA projects, and what each sale before then saves.
 - Sales priced more than 10% below guidance value.
-- TDS on payments to landowners, BOCW labour cess, and payments to MSME suppliers approaching the 45-day limit.
+- TDS on payments to landowners, labour cess, and payments to MSME suppliers approaching the 45-day limit.
+
+**Get every unit registered.**
+See unit by unit what stands between a buyer and registration: occupancy certificate, e-Khata, final payment, sale deed, appointment. See how much money is waiting on it.
+
+**Stay ahead of complaints.**
+Every K-RERA, consumer and civil case in one register, with hearings, deadlines and what each one could cost.
+
+**Collect from buyers' banks faster.**
+Track every home-loan disbursement by bank and milestone, and send each bank the documents it asks for.
+
+**Plotted layouts, done right.**
+Which plots are released, which are mortgaged, what work unlocks the next release, and a stop on selling plots that are not yet free.
+
+**Guarantees, insurance and approval conditions.**
+Bank guarantees, insurance cover and the conditions attached to every approval, with renewals and deadlines that are never missed.
 
 **Keep landowners' shares straight.**
-Every unit is marked as yours or the landowner's. Entitlements, payments and TDS under each joint development agreement are kept in one place.
+Every unit is marked as yours or the landowner's, with entitlements, payments and TDS under each joint development agreement.
 
-**Your real numbers, without typing them in.**
-Horus keeps cost incurred, estimated cost to complete and anticipated final cost for every project up to date, from the documents and systems you already use.
+**Decide on new land with Indian numbers.**
+Compare an outright purchase with a joint development, premium FAR with TDR, with GST and the RERA escrow built in.
 
-**Ten minutes a day.**
-Horus tells you what needs you today, in order of what matters most. Everything else is prepared and waiting for the right person to sign.
+## Everything else, in one place
+
+If you already use other tools, keep them. Horus reads from them instead. If you don't, Horus has:
+
+- **Sales and bookings:** live inventory, cost sheets and bookings, with a warning before any discount creates a tax problem.
+- **Collections:** demand letters that go out when your architect certifies a stage, and payments matched to each buyer.
+- **Channel partners:** commissions paid only to K-RERA-registered agents.
+- **Agreements:** generated from your data, e-stamped and e-signed.
+- **A buyer portal:** payments, documents, certified progress and registration readiness, on WhatsApp.
+- **Payables on WhatsApp:** approve bills with the budget, contract and tax position in front of you.
+- **Contractor bills, purchase prices and an approvals tracker.**
+- **Site progress from ordinary site photos.**
+- **Snags, defects and the five-year defect liability.**
+- **Notices, title documents, a document vault and board packs.**
 
 ## How it works
 
-1. **Connect once.** Horus connects read-only to the places your project's records already live: your accounts mailbox, Tally, your ERP, bank statements and your sales register.
-2. **Horus reads.** Agreements, approvals, bills, certificates and payments are read and organised for you. Nobody has to key anything in.
-3. **Horus prepares.** Filings, certificates and packs are ready before they are due, with every figure traced back to the document it came from.
-4. **People sign.** Your architect, engineer and CA review and sign inside Horus. Nothing is filed or submitted without the responsible person.
+1. **Connect once.** Your accounts mailbox, your Tally data (from the files Tally already exports, with no plug-in to install), your ERP or CRM if you have one, and your bank statements.
+2. **Horus reads.** Agreements, approvals, bills, certificates and payments are read for you, including documents in Kannada. Nobody keys anything in.
+3. **Horus prepares.** Filings, certificates, letters and packs are ready before they are due, with every figure traced to the document it came from.
+4. **People sign.** Your architect, engineer and CA review and sign from their own Horus access. Nothing is filed, signed or paid without the responsible person.
 
-## What Horus does not do
+## Ten minutes a day
 
-- It does not replace Tally, your ERP or your sales CRM. It works alongside them and never changes them.
-- It never files, signs or submits anything on its own.
-- It does not message your buyers or your contractors' site teams.
+Horus tells you what needs you today, in order of what matters most. Approve what is ready, read the Monday briefing, and ask anything by voice in Kannada, Hindi or English.
 
 ## Your data
 
-Horus reads your systems; it does not write to them. Each person sees only what they need: your CA sees what they certify, a landowner sees only their own share. Every number can be traced to its source document.
+- **Read-only.** Horus reads your systems and never changes them.
+- **Each person sees only what they need.** Your CA sees what they certify; a lender sees only what you share; a landowner sees only their own share.
+- **Your choice of AI.** You can keep all AI processing inside India.
+- **Traceable.** Every number leads back to its source document.
+
+## What Horus does not do
+
+- It does not replace your accounting. Tally stays.
+- It never files, signs, submits or pays anything on its own.
+- It does not run your site: no labour attendance or site diaries.
 
 ## Availability
 
-Horus is in development and opening to its first builders in Bengaluru, with other cities in Karnataka to follow.
+Horus is in development. The escrow and certification flow, K-RERA deadlines, the real-estate tax checks and the daily view work today. The rest is being built and will open to our first builders in Bengaluru as each part is ready, with other cities in Karnataka to follow.
