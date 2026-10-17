@@ -15,7 +15,7 @@
   --radius: 2px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
-  --width: 1120px;
+  --gutter: 40px;
 }
 
 *,
@@ -91,9 +91,7 @@ h3 {
 }
 
 .topbar-inner {
-  max-width: var(--width);
-  margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 var(--gutter);
   height: 56px;
   display: flex;
   align-items: center;
@@ -133,9 +131,7 @@ h3 {
 }
 
 .main {
-  max-width: var(--width);
-  margin: 0 auto;
-  padding: 40px 24px 96px;
+  padding: 40px var(--gutter) 96px;
 }
 
 /* Page heading */
@@ -857,6 +853,9 @@ h3 {
 }
 
 @media (max-width: 720px) {
+  :root {
+    --gutter: 16px;
+  }
   .table {
     display: block;
     overflow-x: auto;

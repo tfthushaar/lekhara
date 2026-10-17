@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-17, with the commit "Rename the product to Lekhara".
+Last updated: 2026-10-17, with the commit "Use the full width of the window".
 
 ## What we are building
 
@@ -27,7 +27,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - HTTP API: Today, projects, money, escrow, tax, units and the rules pack; the full withdrawal workflow with its checks enforced.
 - Demo data: a fictional developer with three Bengaluru projects, dated relative to today.
 - JDA basics: every unit is marked as the developer's or the landowner's; landowners carry their share, deposit and payments, with the TDS check.
-- Web app: Today, Projects, a project's Overview, Escrow, Collections, Handover, Disputes, Documents, Tax and statutory, and Units and landowners tabs, the Withdrawal request, a unit's handover page, a case page, a document page, a data room page, the shared data room page for outsiders, demand letters and Rules. Every form works without JavaScript.
+- Web app: Today, Projects, a project's Overview, Escrow, Collections, Handover, Disputes, Documents, Tax and statutory, and Units and landowners tabs, the Withdrawal request, a unit's handover page, a case page, a document page, a data room page, the shared data room page for outsiders, demand letters and Rules. Every form works without JavaScript. Pages use the full width of the window, with a 40px margin (16px on phones); paragraphs and label-and-figure lists keep a reading width.
 - Database migrations (Alembic, inside the package). The API brings the schema up to date on start; the demo seed builds the schema through migrations; a test fails if the migrated schema and the models ever disagree.
 - Sign-in, organisations, roles and certifier seats:
   - Email and password sign-in (scrypt-hashed passwords, hashed session tokens, 14-day sessions, sign-out, throttling of repeated failed attempts).
