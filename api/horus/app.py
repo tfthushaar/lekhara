@@ -1,9 +1,11 @@
+import re
 from collections.abc import Iterator
 from datetime import date
 from decimal import Decimal
 from typing import Annotated
+from urllib.parse import quote
 
-from fastapi import Depends, FastAPI, Header, Request, Response
+from fastapi import Depends, FastAPI, Form, Header, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import Engine, select
@@ -19,6 +21,7 @@ from horus.models import Organization, PaymentMilestone, Project, Unit
 from horus.money import ZERO
 from horus.rules import KARNATAKA
 from horus.services import ServiceError
+from horus.storage import LocalStorage
 
 DEMO_PASSWORD = "horus-demo"
 
@@ -77,6 +80,34 @@ class NewPayment(BaseModel):
     paid_on: date
     amount: Decimal
     reference: str | None = None
+
+
+class DocumentUpdate(BaseModel):
+    title: str | None = None
+    category: str | None = None
+    document_date: date | None = None
+    expires_on: date | None = None
+    reference: str | None = None
+    notes: str | None = None
+    requirement: str | None = None
+
+
+class Waiver(BaseModel):
+    reason: str | None = None
+
+
+class NewRoom(BaseModel):
+    name: str
+    audience: str | None = None
+    expires_on: date | None = None
+    document_ids: list[str] = []
+
+
+class RoomUpdate(BaseModel):
+    name: str | None = None
+    audience: str | None = None
+    expires_on: date | None = None
+    document_ids: list[str] | None = None
 
 
 class HandoverUpdate(BaseModel):
@@ -150,6 +181,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     app = FastAPI(title="Horus API", version="0.1.0")
     app.state.settings = settings
     app.state.session_factory = session_factory
+    app.state.storage = LocalStorage(settings.storage_dir)
 
     def get_session() -> Iterator[Session]:
         with session_factory() as session:
@@ -487,6 +519,266 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         row, p = case_for(session, me, case_id, edit=True)
         services.add_payment(session, row, p, body.model_dump(), as_of=on, user_id=me.user_id)
         return case_view(session, me, row, p, on)
+
+    # Document vault
+
+    def notice_days(on: date) -> int:
+        return KARNATAKA.value("documents.expiry_notice_days", on)
+
+    def disposition(filename: str, inline: bool) -> str:
+        plain = re.sub(r"[^A-Za-z0-9._ -]", "_", filename) or "document"
+        kind = "inline" if inline else "attachment"
+        return f"{kind}; filename=\"{plain}\"; filename*=UTF-8''{quote(filename)}"
+
+    def file_response(doc, data: bytes, inline: bool) -> Response:
+        inline = inline and (
+            doc.content_type == "application/pdf" or doc.content_type.startswith("image/")
+        )
+        return Response(
+            content=data,
+            media_type=doc.content_type,
+            headers={
+                "Content-Disposition": disposition(doc.filename, inline),
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "private, no-store",
+            },
+        )
+
+    def form_date(value: str | None, label: str) -> date | None:
+        if not value:
+            return None
+        try:
+            return date.fromisoformat(value)
+        except ValueError:
+            raise ServiceError(f"{label} is not a date.") from None
+
+    @app.get("/projects/{project_id}/documents")
+    def project_documents(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        rooms = services.project_rooms(session, p)
+        counts = [(r, len(services.room_documents(session, r))) for r in rooms]
+        return views.documents(
+            services.documents_for(session, p, on),
+            counts,
+            as_of=on,
+            can_edit=me.can_prepare(p),
+            can_share=me.can_release(p),
+        )
+
+    @app.get("/projects/{project_id}/documents/search")
+    def search_documents(project_id: str, q: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        hits = services.search_documents(session, p, q)
+        return views.search_results(hits, q, as_of=on, notice_days=notice_days(on))
+
+    @app.post("/projects/{project_id}/documents", status_code=201)
+    def upload_document(
+        project_id: str,
+        session: SessionDep,
+        me: Me,
+        on: AsOf,
+        file: UploadFile,
+        category: Annotated[str | None, Form()] = None,
+        title: Annotated[str | None, Form()] = None,
+        document_date: Annotated[str | None, Form()] = None,
+        expires_on: Annotated[str | None, Form()] = None,
+        reference: Annotated[str | None, Form()] = None,
+        notes: Annotated[str | None, Form()] = None,
+        requirement: Annotated[str | None, Form()] = None,
+        link_type: Annotated[str | None, Form()] = None,
+        link_id: Annotated[str | None, Form()] = None,
+        replaces: Annotated[str | None, Form()] = None,
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        limit = settings.max_upload_mb * 1_000_000
+        data = file.file.read(limit + 1)
+        doc = services.store_document(
+            session,
+            app.state.storage,
+            p,
+            data=data,
+            filename=file.filename or "document",
+            fields={
+                "category": category,
+                "title": title,
+                "document_date": form_date(document_date, "The document date"),
+                "expires_on": form_date(expires_on, "The expiry date"),
+                "reference": reference,
+                "notes": notes,
+                "requirement": requirement,
+                "link_type": link_type,
+                "link_id": link_id,
+                "replaces": replaces,
+            },
+            max_bytes=limit,
+            user_id=me.user_id,
+        )
+        return {"id": doc.id}
+
+    @app.get("/documents")
+    def documents_for_record(
+        link_type: str, link_id: str, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        p = services.project_for_record(session, link_type, link_id)
+        auth.require_team(me, p)
+        docs = services.linked_documents(session, p, link_type, link_id)
+        return {
+            "project_id": p.id,
+            "can_edit": me.can_prepare(p),
+            "documents": [views.doc_row(d, as_of=on, notice_days=notice_days(on)) for d in docs],
+            "categories": views._category_choices(),
+        }
+
+    def document_view(session: Session, me: auth.Principal, doc, on: date) -> dict:
+        p = services.get_project(session, doc.project_id)
+        rooms = [
+            r
+            for r in services.project_rooms(session, p)
+            if any(e.family_id == doc.family_id for e in r.entries)
+        ]
+        return views.document_detail(
+            doc,
+            services.document_versions(session, doc),
+            p,
+            record=services.record_label(session, doc.link_type, doc.link_id),
+            rooms=rooms,
+            as_of=on,
+            notice_days=notice_days(on),
+            can_edit=me.can_prepare(p),
+        )
+
+    def document_for(session: Session, me: auth.Principal, document_id: str, *, edit=False):
+        doc = services.get_document(session, document_id)
+        p = services.get_project(session, doc.project_id)
+        if edit:
+            auth.require_prepare(me, p)
+        else:
+            auth.require_team(me, p)
+        return doc
+
+    @app.get("/documents/{document_id}")
+    def get_document(document_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        return document_view(session, me, document_for(session, me, document_id), on)
+
+    @app.put("/documents/{document_id}")
+    def update_document(
+        document_id: str, body: DocumentUpdate, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        doc = document_for(session, me, document_id, edit=True)
+        services.update_document(session, doc, body.model_dump(exclude_unset=True))
+        return document_view(session, me, doc, on)
+
+    @app.post("/documents/{document_id}/archive")
+    def archive_document(document_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        doc = document_for(session, me, document_id, edit=True)
+        services.archive_document(session, doc, on)
+        return {"project_id": doc.project_id}
+
+    @app.get("/documents/{document_id}/file")
+    def document_file(
+        document_id: str, session: SessionDep, me: Me, inline: bool = False
+    ) -> Response:
+        doc = document_for(session, me, document_id)
+        return file_response(doc, services.read_file(app.state.storage, doc), inline)
+
+    @app.post("/projects/{project_id}/checklist/{requirement}/waive")
+    def waive_requirement(
+        project_id: str, requirement: str, body: Waiver, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        services.waive_requirement(
+            session, p, requirement, body.reason, as_of=on, user_id=me.user_id
+        )
+        return {"ok": True}
+
+    @app.post("/projects/{project_id}/checklist/{requirement}/restore")
+    def restore_requirement(project_id: str, requirement: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        services.restore_requirement(session, p, requirement)
+        return {"ok": True}
+
+    # Data rooms
+
+    def room_view(session: Session, me: auth.Principal, room, on: date) -> dict:
+        p = services.get_project(session, room.project_id)
+        docs = services.room_documents(session, room)
+        inside = {d.id for d in docs}
+        available = [d for d in services.current_documents(session, p) if d.id not in inside]
+        return views.room_detail(
+            room,
+            docs,
+            available,
+            p,
+            as_of=on,
+            notice_days=notice_days(on),
+            can_share=me.can_release(p),
+        )
+
+    def room_for(session: Session, me: auth.Principal, room_id: str, *, share=False):
+        room = services.get_room(session, room_id)
+        p = services.get_project(session, room.project_id)
+        if share:
+            auth.require_share(me, p)
+        else:
+            auth.require_team(me, p)
+        return room
+
+    @app.post("/projects/{project_id}/rooms", status_code=201)
+    def create_room(project_id: str, body: NewRoom, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_share(me, p)
+        room, token = services.create_room(
+            session, p, body.model_dump(), as_of=on, user_id=me.user_id
+        )
+        return {"id": room.id, "token": token}
+
+    @app.get("/rooms/{room_id}")
+    def get_room(room_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        return room_view(session, me, room_for(session, me, room_id), on)
+
+    @app.put("/rooms/{room_id}")
+    def update_room(room_id: str, body: RoomUpdate, session: SessionDep, me: Me, on: AsOf) -> dict:
+        room = room_for(session, me, room_id, share=True)
+        services.update_room(session, room, body.model_dump(exclude_unset=True), as_of=on)
+        return room_view(session, me, room, on)
+
+    @app.post("/rooms/{room_id}/link")
+    def new_room_link(room_id: str, session: SessionDep, me: Me) -> dict:
+        room = room_for(session, me, room_id, share=True)
+        return {"token": services.new_room_link(session, room)}
+
+    @app.post("/rooms/{room_id}/revoke")
+    def revoke_room(room_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        room = room_for(session, me, room_id, share=True)
+        services.revoke_room(session, room, on)
+        return room_view(session, me, room, on)
+
+    # Shared links: no sign-in; the token in the link is the permission.
+
+    @app.get("/shared/{token}")
+    def shared_room(token: str, session: SessionDep, on: AsOf) -> dict:
+        room = services.open_room(session, token, on)
+        p = services.get_project(session, room.project_id)
+        view = views.shared_room(room, services.room_documents(session, room), p)
+        services.log_visit(session, room, "open")
+        return view
+
+    @app.get("/shared/{token}/documents/{document_id}/file")
+    def shared_file(
+        token: str, document_id: str, session: SessionDep, on: AsOf, inline: bool = False
+    ) -> Response:
+        room = services.open_room(session, token, on)
+        doc = next((d for d in services.room_documents(session, room) if d.id == document_id), None)
+        if doc is None:
+            raise ServiceError("Document not found.", 404)
+        data = services.read_file(app.state.storage, doc)
+        services.log_visit(session, room, "download", doc.id)
+        return file_response(doc, data, inline)
 
     # Withdrawals
 

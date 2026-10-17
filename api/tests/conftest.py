@@ -21,9 +21,15 @@ def engine():
 
 
 @pytest.fixture
-def app(engine):
+def app(engine, tmp_path):
     return create_app(
-        Settings(database_url="sqlite://", today=TODAY, auto_migrate=False, demo=True),
+        Settings(
+            database_url="sqlite://",
+            today=TODAY,
+            auto_migrate=False,
+            demo=True,
+            storage_dir=str(tmp_path / "files"),
+        ),
         engine=engine,
     )
 

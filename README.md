@@ -59,7 +59,8 @@ If you already use other tools, keep them. Horus reads from them instead. If you
 - **Contractor bills, purchase prices and an approvals tracker.**
 - **Site progress from ordinary site photos.**
 - **Snags, defects and the five-year defect liability.**
-- **Notices, title documents, a document vault and board packs.**
+- **A document vault:** every paper filed against its project, unit, case or approval, and searchable to the page it is on. A checklist of what banks and K-RERA ask for, reminders before approvals and policies lapse, and data rooms for lenders that close on the date you choose, with every visit recorded.
+- **Notices, title documents and board packs.**
 
 ## How it works
 

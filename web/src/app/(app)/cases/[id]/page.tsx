@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { addHearing, addOrder, addPayment, updateCase } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { LinkedDocuments } from "@/components/documents";
 import { type CaseDetail, type CaseOrder, api } from "@/lib/api";
 import { day, inr, inrFull } from "@/lib/format";
 
@@ -283,6 +284,15 @@ async function CaseView({ params }: { params: Promise<{ id: string }> }) {
           </details>
         ) : null}
       </section>
+
+      <Suspense fallback={null}>
+        <LinkedDocuments
+          linkType="case"
+          linkId={c.id}
+          category="order"
+          hint="The complaint, your reply, orders and settlement terms"
+        />
+      </Suspense>
 
       <section className="section">
         <div className="section-head">

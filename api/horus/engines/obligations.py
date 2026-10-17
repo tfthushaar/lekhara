@@ -19,6 +19,8 @@ from horus.engines.disputes import (
     DisputesPosition,
     Forum,
 )
+from horus.engines.documents import OWED_TO as DOCUMENT_OWED_TO
+from horus.engines.documents import Expiring
 from horus.engines.escrow import EscrowPosition
 from horus.engines.handover import BLOCKER_TEXT, HandoverPosition, Stage
 from horus.engines.tax import (
@@ -55,6 +57,7 @@ class Area(StrEnum):
     COLLECTIONS = "collections"
     HANDOVER = "handover"
     DISPUTES = "disputes"
+    DOCUMENTS = "documents"
     KRERA = "krera"
     TAX = "tax"
     UNITS = "units"
@@ -108,6 +111,7 @@ class ProjectFacts:
     collections: CollectionsPosition | None = None
     handover: HandoverPosition | None = None
     disputes: DisputesPosition | None = None
+    expiring_documents: list[Expiring] = field(default_factory=list)
 
 
 def _quarter_ends(start: date, end: date) -> list[date]:
@@ -406,6 +410,22 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
                     action="Open the case",
                     ref=c.case_id,
                 )
+
+    # Documents about to lapse
+    for e in f.expiring_documents:
+        add(
+            key=f"doc:{e.document_id}:expiry",
+            title=f"{e.title} has expired" if e.expired else f"{e.title} is about to expire",
+            detail=(
+                f"It runs out on {_fmt(e.expires_on)}. Renew it and add the new copy to the vault."
+            ),
+            owed_to=DOCUMENT_OWED_TO.get(e.category, "Your records"),
+            status=_dated_status(e.expires_on, f.as_of, soon),
+            area=Area.DOCUMENTS,
+            due_on=e.expires_on,
+            action="Open the document",
+            ref=e.document_id,
+        )
 
     # Quarterly progress reports
     late_fee = None

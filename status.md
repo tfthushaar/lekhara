@@ -1,6 +1,6 @@
 # Horus status
 
-Last updated: 2026-10-17, with the commit "Add the disputes and orders desk".
+Last updated: 2026-10-17, with the commit "Add the document vault and data rooms".
 
 ## What we are building
 
@@ -18,7 +18,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - Repository set up: customer-facing README, developer guide, CI for API and web.
 - API skeleton (Python, FastAPI) with a health check and tests.
 - Web app shell (Next.js 16) with the Horus text wordmark and the monochrome design system.
-- Karnataka rules pack v1: 51 rates, thresholds and deadlines as dated data, each with its legal basis, source quality and what to confirm it against. Horus settings are marked as settings, not law.
+- Karnataka rules pack v1: 53 rates, thresholds and deadlines as dated data, each with its legal basis, source quality and what to confirm it against. Horus settings are marked as settings, not law.
 - Money truth engine: cost lines, ledger stages (committed, incurred, paid, retention, advances), anticipated final cost, cost to complete, contingency, land and development totals for RERA, point-in-time positions, and alerts for overruns, low contingency and spending ahead of certified progress.
 - Escrow and certification engine: drawable amount (limited by cost incurred and paid, or by the account balance, whichever is lower), 70% deposit check, the ongoing-project deposit rule, next certificate cycle, drafts of the architect's, engineer's and CA's certificates prepared from the books, and the checks a bank or K-RERA auditor would run.
 - Real-estate tax engine: the 80% registered-supplier meter, GST on development rights at completion, the s.43CA guidance-value check, s.194-IC landowner TDS, the MSME 45-day clock, BOCW labour cess and delay interest owed to buyers.
@@ -27,7 +27,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - HTTP API: Today, projects, money, escrow, tax, units and the rules pack; the full withdrawal workflow with its checks enforced.
 - Demo data: a fictional developer with three Bengaluru projects, dated relative to today.
 - JDA basics: every unit is marked as the developer's or the landowner's; landowners carry their share, deposit and payments, with the TDS check.
-- Web app: Today, Projects, a project's Overview, Escrow, Collections, Handover, Disputes, Tax and statutory, and Units and landowners tabs, the Withdrawal request, a unit's handover page, a case page, demand letters and Rules. Every form works without JavaScript.
+- Web app: Today, Projects, a project's Overview, Escrow, Collections, Handover, Disputes, Documents, Tax and statutory, and Units and landowners tabs, the Withdrawal request, a unit's handover page, a case page, a document page, a data room page, the shared data room page for outsiders, demand letters and Rules. Every form works without JavaScript.
 - Database migrations (Alembic, inside the package). The API brings the schema up to date on start; the demo seed builds the schema through migrations; a test fails if the migrated schema and the models ever disagree.
 - Sign-in, organisations, roles and certifier seats:
   - Email and password sign-in (scrypt-hashed passwords, hashed session tokens, 14-day sessions, sign-out, throttling of repeated failed attempts).
@@ -56,10 +56,19 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - Patterns: how many complaints came after the promised possession date, how many booked units have a case, and cases by relief and forum.
   - On Today: replies due, hearings in the next 30 days, orders to pay (past their date shown as overdue, with the K-RERA recovery warning), the last day to appeal and settlements to pay. Each opens its case.
   - Tested end to end: a new case recorded against a unit and taken through a hearing, an order and payment; a settlement agreed on another; certifiers kept out.
+- Document vault and data rooms (the second "also in Horus, done better" module):
+  - Upload PDFs, Word and Excel files, photos and text files up to 20 MB, each filed against the project and, where it belongs, a unit, a case or a withdrawal. The file type is checked against its contents; the same file is never stored twice.
+  - Versions: a new version replaces the old one everywhere it counts, and every version is kept. Archiving keeps the file but takes it out of the checklist, search and data rooms.
+  - Search with citations: the text of every PDF page is read on upload, and a search shows each match with the words around it and the page it is on.
+  - A checklist of what banks, K-RERA and buyers ask for (K-RERA registration, title, encumbrance, JDA, plan sanction, commencement, environmental clearance, fire NOC, designated account letter, insurance, occupancy certificate), each with why it matters; items can be marked not needed, with a reason. Per-record checks for registered sale deeds, final e-Khata, order copies and the signed certificates behind each released withdrawal.
+  - Expiry: approvals and policies show on Today 60 days before they lapse, and as overdue once they have.
+  - Data rooms: the owner or finance shares chosen documents with a lender or investor through a link that closes on a chosen date (up to 90 days), can be replaced or closed at any time, and is shown only once (Horus keeps only a fingerprint of it). Outsiders open it without signing in; every opening and download is recorded.
+  - Documents sections on each case and unit page. Demo files are generated as real PDFs so search works on them.
+  - Tested end to end: a missing title deed filed from the checklist and found by searching its text, a new version of a fire NOC, a data room made, opened and downloaded from by an outsider, then closed; certifiers kept out.
 
 ## In progress
 
-- Document vault.
+- Bank withdrawal pack (PDF); quarterly progress report and annual audit packs.
 
 ## Left
 
@@ -72,7 +81,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - Collections, next steps: importing receipts from the bank statement and the CRM, reminders through the team's own WhatsApp or email.
 - Registration and handover, next steps: recording the occupancy certificate and the conveyance from the web, possession letters, the association handover checklist.
 - Disputes, next steps: reading complaints and orders with AI (with the AI gateway), reply outlines for the lawyer, cancelling the unit when a refund is paid.
-- Document vault.
+- Document vault, next steps: reading scans and filing documents by themselves (with the AI gateway), documents arriving from the mailbox, an optional name and email gate for data room visitors, storage in an S3-compatible store for production.
 - Bank withdrawal pack (PDF); quarterly progress report and annual audit packs.
 - Form errors shown without JavaScript too (today the browser's own checks catch most cases; the server's message appears once the page has loaded its scripts).
 

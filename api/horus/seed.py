@@ -19,7 +19,7 @@ Run: python -m horus.seed   (resets the database first)
 import random
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from functools import lru_cache
 
@@ -29,11 +29,14 @@ from sqlalchemy.orm import Session
 from horus.auth import hash_password
 from horus.config import get_settings
 from horus.db import Base, make_engine, make_sessionmaker
+from horus.engines.documents import REQUIREMENTS
 from horus.engines.tax import financial_year
 from horus.migrate import upgrade
 from horus.models import (
     Bill,
+    ChecklistWaiver,
     CostLineRow,
+    DataRoomVisit,
     DemandRow,
     DisputeCase,
     DisputeHearing,
@@ -58,6 +61,8 @@ from horus.models import (
     WithdrawalCertificate,
     WithdrawalRequest,
 )
+from horus.pdf import write_pdf
+from horus.storage import LocalStorage, Storage
 
 CR = Decimal("10000000")
 LAKH = Decimal("100000")
@@ -680,7 +685,7 @@ class Seeder:
             )
 
 
-def seed(session: Session, today: date) -> None:
+def seed(session: Session, today: date, storage: Storage | None = None) -> None:
     sd = Seeder(session, today)
 
     # Whitefield Residences: JDA area share, 45% to the landowner.
@@ -1243,21 +1248,280 @@ def seed(session: Session, today: date) -> None:
         user_id=clerk,
     )
     session.commit()
+    if storage is not None:
+        seed_documents(session, storage, today, users)
 
 
-def reset_and_seed(database_url: str, today: date) -> None:
+DEMO_ROOM_TOKEN = "demo-sarjapur-finance-review"
+"""Opens the demo data room at /shared/demo-sarjapur-finance-review."""
+
+
+def _slug(title: str) -> str:
+    return "-".join("".join(c if c.isalnum() else " " for c in title.lower()).split())
+
+
+def seed_documents(session: Session, storage: Storage, today: date, users: dict[str, User]):
+    """Each project's papers in the vault: most present, some missing, some about to lapse."""
+    from horus import services
+
+    uploader = users["accounts@demo.horus"].id
+
+    def ago(n: int) -> date:
+        return today - timedelta(days=n)
+
+    def ahead(n: int) -> date:
+        return today + timedelta(days=n)
+
+    def add(p: Project, title: str, lines: list[str], **fields):
+        data = write_pdf([[p.name, "", title, "", *lines]], title=title)
+        return services.store_document(
+            session,
+            storage,
+            p,
+            data=data,
+            filename=f"{_slug(title)}.pdf",
+            fields={"title": title, **fields},
+            max_bytes=20_000_000,
+            user_id=uploader,
+        )
+
+    def papers(p: Project, *, skip: set[str], expiry: dict[str, date]) -> dict[str, str]:
+        texts = {
+            "krera_registration": [
+                "Karnataka Real Estate Regulatory Authority",
+                f"Registration number {p.krera_registration}",
+                f"Promoter: {p.spv_name}",
+                "Granted under section 5 of the Real Estate (Regulation and Development) "
+                "Act, 2016.",
+            ],
+            "title_deed": [
+                "Sale deed in favour of the landowners, with the mother deed.",
+                "Schedule: land in survey numbers 41/2 and 42/1 (demo).",
+                "The chain of title for thirty years is attached.",
+            ],
+            "encumbrance": [
+                "Form 15. Encumbrance certificate for thirteen years.",
+                "No encumbrance found in the period searched.",
+            ],
+            "jda": [
+                "Joint development agreement between the landowners and the developer.",
+                "The developer bears the cost of construction and approvals.",
+                "Registered at the office of the sub-registrar.",
+            ],
+            "plan_sanction": [
+                "Building plan sanction (demo).",
+                "Sanction number LP/DEMO/2024.",
+                "The sanction is valid for five years from the date of issue.",
+            ],
+            "commencement": [
+                "Commencement certificate.",
+                "Construction may begin as per the sanctioned plan.",
+            ],
+            "environmental": [
+                "State Environment Impact Assessment Authority, Karnataka.",
+                "Environmental clearance for a residential project.",
+                "Built-up area 32,000 square metres.",
+            ],
+            "fire_noc": [
+                "Karnataka State Fire and Emergency Services.",
+                "No objection certificate for a high-rise residential building.",
+                "Valid for two years from the date of issue.",
+            ],
+            "escrow_letter": [
+                "Letter from the bank confirming the designated account.",
+                "Account: RERA designated collection account (demo).",
+                "70% of the amounts realised from allottees will be deposited here.",
+            ],
+            "insurance": [
+                "Contractor's all-risk insurance policy.",
+                "Sum insured: Rs. 180 crore (demo).",
+                "Period of insurance: twelve months.",
+            ],
+            "oc": [
+                "Occupancy certificate.",
+                f"Reference {p.oc_reference}.",
+                "Issued on completion of the building as per the sanctioned plan.",
+            ],
+        }
+        ids = {}
+        for key, lines in texts.items():
+            if key in skip:
+                continue
+            doc = add(
+                p,
+                REQUIREMENTS[key].title,
+                lines,
+                requirement=key,
+                document_date={"krera_registration": p.registered_on, "oc": p.oc_received_on}.get(
+                    key, ago(400)
+                ),
+                expires_on=expiry.get(key),
+                reference=p.krera_registration if key == "krera_registration" else None,
+            )
+            ids[key] = doc.id
+        return ids
+
+    wf = session.get(Project, "whitefield-residences")
+    hb = session.get(Project, "hebbal-heights")
+    sg = session.get(Project, "sarjapur-greens")
+
+    # Whitefield: no encumbrance certificate yet; the insurance renews next month.
+    old_policy = add(
+        wf,
+        "Contractor's all-risk insurance",
+        ["Contractor's all-risk insurance policy.", "Period of insurance: twelve months."],
+        requirement="insurance",
+        document_date=ago(360),
+        expires_on=ago(310),
+    )
+    papers(
+        wf,
+        skip={"encumbrance", "environmental", "oc", "insurance"},
+        expiry={"plan_sanction": ahead(400), "fire_noc": ahead(300)},
+    )
+    add(
+        wf,
+        "Contractor's all-risk insurance",
+        ["Contractor's all-risk insurance policy, renewed.", "Period of insurance: twelve months."],
+        replaces=old_policy.id,
+        document_date=ago(310),
+        expires_on=ahead(50),
+    )
+    released = session.scalars(
+        select(WithdrawalRequest).where(
+            WithdrawalRequest.project_id == wf.id, WithdrawalRequest.released_on.is_not(None)
+        )
+    ).first()
+    if released is not None:
+        add(
+            wf,
+            "Signed certificates as sent to the bank",
+            ["Form 1 (architect), Form 2 (engineer) and Form 3 (CA), signed."],
+            category="certificate",
+            link_type="withdrawal",
+            link_id=released.id,
+            document_date=released.submitted_on or released.created_on,
+        )
+
+    # Hebbal: the title deed is missing; the fire NOC runs out soon; no environmental clearance
+    # is needed at this size.
+    papers(
+        hb,
+        skip={"title_deed", "environmental", "jda", "oc"},
+        expiry={"plan_sanction": ahead(700), "fire_noc": ahead(25), "insurance": ahead(200)},
+    )
+    session.add(
+        ChecklistWaiver(
+            project_id=hb.id,
+            requirement="environmental",
+            reason="Built-up area is about 18,400 square metres, under the 20,000 threshold.",
+            waived_on=ago(300),
+            waived_by_user_id=uploader,
+        )
+    )
+
+    # Sarjapur: everything, including the OC; the insurance has lapsed.
+    sg_ids = papers(
+        sg,
+        skip=set(),
+        expiry={"plan_sanction": ahead(250), "fire_noc": ahead(500), "insurance": ago(5)},
+    )
+    units = {u.id: u for u in session.scalars(select(Unit).where(Unit.project_id == sg.id))}
+    records = sorted(
+        session.scalars(select(UnitHandover).where(UnitHandover.unit_id.in_(units))),
+        key=lambda h: units[h.unit_id].label,
+    )
+    for h in [r for r in records if r.registered_on][:14]:
+        label = units[h.unit_id].label
+        add(
+            sg,
+            f"Sale deed, unit {label}",
+            [f"Sale deed for unit {label}, registered as document {h.document_no}."],
+            category="sale_deed",
+            link_type="unit",
+            link_id=h.unit_id,
+            reference=h.document_no,
+            document_date=h.registered_on,
+        )
+    for h in [r for r in records if r.ekhata_status == "final"][:32]:
+        label = units[h.unit_id].label
+        add(
+            sg,
+            f"e-Khata, unit {label}",
+            [f"Final e-Khata for unit {label}.", f"Khata type: {h.khata_type or 'A'}."],
+            category="ekhata",
+            link_type="unit",
+            link_id=h.unit_id,
+            reference=f"KHATA/DEMO/{label}",
+            document_date=ago(30),
+        )
+    refund = session.scalars(
+        select(DisputeCase).where(DisputeCase.case_number == "CMP/DEMO/0377/2026")
+    ).first()
+    if refund is not None:
+        add(
+            sg,
+            "K-RERA order, CMP/DEMO/0377/2026",
+            [
+                f"Complaint by {refund.complainant}.",
+                "The promoter shall refund the amount paid by the complainant with interest at "
+                "SBI MCLR plus 2% from the date of each payment until it is refunded.",
+                "The refund shall be made within sixty days of this order.",
+            ],
+            category="order",
+            link_type="case",
+            link_id=refund.id,
+            document_date=ago(25),
+        )
+
+    # A data room for a lender, opened twice.
+    room, _ = services.create_room(
+        session,
+        sg,
+        {
+            "name": "Construction finance review",
+            "audience": "Demo Capital, construction finance team",
+            "expires_on": ahead(21),
+            "document_ids": [
+                sg_ids[k]
+                for k in ("krera_registration", "title_deed", "jda", "plan_sanction", "oc")
+            ],
+        },
+        as_of=today,
+        user_id=users["promoter@demo.horus"].id,
+    )
+    room.token_hash = services._token_hash(DEMO_ROOM_TOKEN)
+    room.created_on = ago(6)
+    start = datetime.combine(ago(5), datetime.min.time())
+    session.add_all(
+        [
+            DataRoomVisit(room_id=room.id, action="open", at=start + timedelta(hours=10)),
+            DataRoomVisit(
+                room_id=room.id,
+                action="download",
+                document_id=sg_ids["title_deed"],
+                at=start + timedelta(hours=10, minutes=4),
+            ),
+            DataRoomVisit(room_id=room.id, action="open", at=start + timedelta(days=3, hours=16)),
+        ]
+    )
+    session.commit()
+
+
+def reset_and_seed(database_url: str, today: date, storage_dir: str | None = None) -> None:
     engine = make_engine(database_url)
     Base.metadata.drop_all(engine)
     with engine.begin() as connection:
         connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
     upgrade(engine)
+    storage = LocalStorage(storage_dir) if storage_dir else None
     with make_sessionmaker(engine)() as session:
-        seed(session, today)
+        seed(session, today, storage)
 
 
 def main() -> None:
     settings = get_settings()
-    reset_and_seed(settings.database_url, settings.as_of())
+    reset_and_seed(settings.database_url, settings.as_of(), settings.storage_dir)
     print(f"Demo data loaded into {settings.database_url} for {settings.as_of().isoformat()}.")
 
 

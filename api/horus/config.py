@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     """Bring the database schema up to date when the API starts."""
     demo: bool = False
     """Show the demo accounts on the sign-in screen. Never set in production."""
+    storage_dir: str = "./storage"
+    """Where the document vault keeps files on local disk."""
+    max_upload_mb: int = 20
 
     def as_of(self) -> date:
         return self.today or date.today()

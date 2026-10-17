@@ -15,5 +15,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|_next/static|_next/image|favicon.ico).*)"],
+  // Shared data rooms are opened by people outside the company, without signing in.
+  matcher: ["/((?!login|shared|_next/static|_next/image|favicon.ico).*)"],
 };

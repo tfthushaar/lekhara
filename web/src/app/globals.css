@@ -768,6 +768,80 @@ h3 {
   margin-bottom: 24px;
 }
 
+/* Document vault */
+
+.field input[type="file"] {
+  padding: 6px;
+}
+
+.preview {
+  width: 100%;
+  height: 640px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+}
+
+.hit-match {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.chip {
+  font-size: 13px;
+  padding: 4px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--ink-2);
+}
+
+.chip-on {
+  border-color: var(--ink);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.share-link {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  margin: 8px 0 4px;
+}
+
+.checks {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.checks label {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 14px;
+}
+
+.shared-head {
+  border-bottom: 1px solid var(--line);
+  padding: 20px 0;
+  margin-bottom: 32px;
+}
+
 @media print {
   .topbar,
   .no-print {

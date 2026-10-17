@@ -4,7 +4,7 @@ Ledger entries and escrow account transactions are append-only: a correction is
 a new reversing row, never an edit or a delete.
 """
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -15,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     event,
     func,
@@ -406,6 +407,113 @@ class DisputePayment(Base):
     recorded_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
 
 
+# Document vault
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+class Document(Base):
+    """One version of a document. Versions of the same document share a family id."""
+
+    __tablename__ = "documents"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    family_id: Mapped[str] = mapped_column(String(64), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    category: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(300))
+    filename: Mapped[str] = mapped_column(String(300))
+    content_type: Mapped[str] = mapped_column(String(100))
+    size: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    storage_key: Mapped[str] = mapped_column(String(200))
+    document_date: Mapped[date | None] = mapped_column(Date)
+    expires_on: Mapped[date | None] = mapped_column(Date)
+    reference: Mapped[str | None] = mapped_column(String(200))
+    """The number on the document: an approval, policy or registration number."""
+    notes: Mapped[str | None] = mapped_column(String(2000))
+    requirement: Mapped[str | None] = mapped_column(String(64))
+    """The checklist item this document answers, if any."""
+    link_type: Mapped[str | None] = mapped_column(String(16))
+    link_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    pages: Mapped[int] = mapped_column(Integer, default=0)
+    text_status: Mapped[str] = mapped_column(String(16), default="no_text")
+    """text, no_text or unreadable."""
+    archived_on: Mapped[date | None] = mapped_column(Date)
+    uploaded_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class DocumentPage(Base):
+    """The text of one page, for search with page citations."""
+
+    __tablename__ = "document_pages"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), index=True)
+    page_no: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+
+
+class ChecklistWaiver(Base):
+    """A checklist item the project does not need, and why."""
+
+    __tablename__ = "checklist_waivers"
+    __table_args__ = (UniqueConstraint("project_id", "requirement"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    requirement: Mapped[str] = mapped_column(String(64))
+    reason: Mapped[str] = mapped_column(String(500))
+    waived_on: Mapped[date] = mapped_column(Date)
+    waived_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
+class DataRoom(Base):
+    """Documents shared outside the company through a link that expires. Only a hash of the
+    link's token is stored."""
+
+    __tablename__ = "data_rooms"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    audience: Mapped[str | None] = mapped_column(String(200))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_on: Mapped[date] = mapped_column(Date)
+    expires_on: Mapped[date] = mapped_column(Date)
+    revoked_on: Mapped[date | None] = mapped_column(Date)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+    entries: Mapped[list["DataRoomDocument"]] = relationship(cascade="all, delete-orphan")
+    visits: Mapped[list["DataRoomVisit"]] = relationship(order_by="DataRoomVisit.at.desc()")
+
+
+class DataRoomDocument(Base):
+    __tablename__ = "data_room_documents"
+    __table_args__ = (UniqueConstraint("room_id", "family_id"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    room_id: Mapped[str] = mapped_column(ForeignKey("data_rooms.id"), index=True)
+    family_id: Mapped[str] = mapped_column(String(64))
+    """The room shows the latest version of the document."""
+
+
+class DataRoomVisit(Base):
+    __tablename__ = "data_room_visits"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    room_id: Mapped[str] = mapped_column(ForeignKey("data_rooms.id"), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    action: Mapped[str] = mapped_column(String(16))
+    """open or download."""
+    document_id: Mapped[str | None] = mapped_column(String(64))
+
+
 # People and access
 
 
@@ -476,6 +584,6 @@ def _forbid(_mapper, _connection, target) -> None:
     )
 
 
-for _model in (LedgerEntry, EscrowTxn, DisputePayment):
+for _model in (LedgerEntry, EscrowTxn, DisputePayment, DataRoomVisit):
     event.listen(_model, "before_update", _forbid)
     event.listen(_model, "before_delete", _forbid)

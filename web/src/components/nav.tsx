@@ -51,6 +51,7 @@ const TABS = [
   { segment: "/collections", label: "Collections", team: true },
   { segment: "/handover", label: "Handover", team: true },
   { segment: "/disputes", label: "Disputes", team: true },
+  { segment: "/documents", label: "Documents", team: true },
   { segment: "/tax", label: "Tax and statutory", team: true },
   { segment: "/units", label: "Units and landowners", team: true },
 ];

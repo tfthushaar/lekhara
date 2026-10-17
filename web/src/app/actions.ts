@@ -4,7 +4,7 @@ import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { send } from "@/lib/api";
+import { send, sendForm } from "@/lib/api";
 import { SESSION_COOKIE, SESSION_DAYS } from "@/lib/session-cookie";
 
 export type ActionState = { error?: string };
@@ -190,6 +190,122 @@ export async function addPayment(
   if (!result.ok) return { error: result.error };
   refresh();
   return {};
+}
+
+const UPLOAD_FIELDS = [
+  "category",
+  "title",
+  "document_date",
+  "expires_on",
+  "reference",
+  "notes",
+  "requirement",
+  "link_type",
+  "link_id",
+  "replaces",
+];
+
+export async function uploadDocument(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file first." };
+  const body = new FormData();
+  body.append("file", file, file.name);
+  for (const [name, value] of Object.entries(filled(form, UPLOAD_FIELDS))) body.append(name, value);
+  const result = await sendForm<{ id: string }>(`/projects/${projectId}/documents`, body);
+  if (!result.ok) return { error: result.error };
+  if (text(form, "then") === "open") redirect(`/documents/${result.data.id}`);
+  refresh();
+  return {};
+}
+
+export async function updateDocument(
+  documentId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const body = filled(form, ["title", "category", "document_date", "expires_on", "reference", "notes", "requirement"]);
+  const result = await send("PUT", `/documents/${documentId}`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function archiveDocument(
+  documentId: string,
+  _previous: ActionState,
+): Promise<ActionState> {
+  const result = await send<{ project_id: string }>("POST", `/documents/${documentId}/archive`);
+  if (!result.ok) return { error: result.error };
+  redirect(`/projects/${result.data.project_id}/documents`);
+}
+
+export async function waiveRequirement(
+  projectId: string,
+  requirement: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/checklist/${requirement}/waive`, {
+    reason: text(form, "reason"),
+  });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function restoreRequirement(
+  projectId: string,
+  requirement: string,
+  _previous: ActionState,
+): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/checklist/${requirement}/restore`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function createRoom(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send<{ id: string; token: string }>("POST", `/projects/${projectId}/rooms`, {
+    name: text(form, "name"),
+    audience: text(form, "audience") || null,
+    expires_on: text(form, "expires_on") || null,
+    document_ids: form.getAll("document_ids").map(String),
+  });
+  if (!result.ok) return { error: result.error };
+  redirect(`/rooms/${result.data.id}?link=${encodeURIComponent(result.data.token)}`);
+}
+
+export async function updateRoom(
+  roomId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const body: Record<string, unknown> = filled(form, ["name", "audience", "expires_on"]);
+  if (form.get("documents") === "change") body.document_ids = form.getAll("document_ids").map(String);
+  const result = await send("PUT", `/rooms/${roomId}`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function newRoomLink(roomId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send<{ token: string }>("POST", `/rooms/${roomId}/link`);
+  if (!result.ok) return { error: result.error };
+  redirect(`/rooms/${roomId}?link=${encodeURIComponent(result.data.token)}`);
+}
+
+export async function revokeRoom(roomId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/rooms/${roomId}/revoke`);
+  if (!result.ok) return { error: result.error };
+  redirect(`/rooms/${roomId}`);
 }
 
 export async function updateFigure(

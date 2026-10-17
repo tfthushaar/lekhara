@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { updateHandover } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { LinkedDocuments } from "@/components/documents";
 import { PrintButton } from "@/components/print-button";
 import { type UnitHandover, api } from "@/lib/api";
 import { day, inr, inrFull } from "@/lib/format";
@@ -110,6 +111,15 @@ async function UnitView({ params }: { params: Promise<{ id: string }> }) {
           </li>
         </ul>
       </section>
+
+      <Suspense fallback={null}>
+        <LinkedDocuments
+          linkType="unit"
+          linkId={u.unit_id}
+          category={u.registered_on ? "sale_deed" : "ekhata"}
+          hint="The e-Khata, the registered sale deed and the possession letter"
+        />
+      </Suspense>
 
       {u.can_edit ? (
         <section className="section no-print">

@@ -240,6 +240,14 @@ def require_prepare(principal: Principal, project: Project) -> None:
         raise ServiceError("Your role cannot start or send withdrawals.", 403)
 
 
+def require_share(principal: Principal, project: Project) -> None:
+    require_view(principal, project)
+    if not principal.can_release(project):
+        raise ServiceError(
+            "Only the owner or finance can share documents outside the company.", 403
+        )
+
+
 def require_release(principal: Principal, project: Project) -> None:
     require_view(principal, project)
     if not principal.can_release(project):

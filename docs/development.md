@@ -46,7 +46,11 @@ Sign-in is required for everything except `/health` and `/rules`. Run the API wi
 
 Who may do what: the owner, finance and accounts start withdrawals and send them to the bank; only the owner and finance record a release or rejection; each certifier changes and signs only their own certificate, and sees only the projects they certify (escrow and money, not tax or units).
 
-Main endpoints: `/today`, `/projects`, `/projects/{id}` (with `/money`, `/escrow`, `/tax`, `/units`), `/withdrawals/{id}` (with `/certificates/{role}`, `/certificates/{role}/sign`, `/submit`, `/release`, `/reject`) and `/rules`. Interactive docs are at `/docs` while the server runs.
+Main endpoints: `/today`, `/projects`, `/projects/{id}` (with `/money`, `/escrow`, `/collections`, `/handover`, `/disputes`, `/documents`, `/tax`, `/units`), `/withdrawals/{id}`, `/demands/{id}`, `/units/{id}/handover`, `/cases/{id}`, `/documents/{id}`, `/rooms/{id}`, `/shared/{token}` (no sign-in) and `/rules`. Interactive docs are at `/docs` while the server runs.
+
+### Document vault
+
+Files are kept on local disk under `HORUS_STORAGE_DIR` (default `api/storage`, not committed), addressed by their SHA-256. Uploads are limited to `HORUS_MAX_UPLOAD_MB` (default 20). The demo seed writes real PDFs there, so search works on them. Only the owner and finance can share documents outside the company; the demo data room opens at `http://localhost:3000/shared/demo-sarjapur-finance-review` without signing in.
 
 The API uses a local SQLite file unless `HORUS_DATABASE_URL` is set. For Postgres:
 
@@ -68,7 +72,7 @@ npm run build
 
 The web app reads the API from `HORUS_API_URL` (default `http://localhost:8000`). Start the API first, then the web app.
 
-Screens: Today (`/`), Projects, a project's Overview, Escrow, Tax and statutory, and Units and landowners tabs, a Withdrawal request, and Rules.
+Screens: Today (`/`), Projects, a project's Overview, Escrow, Collections, Handover, Disputes, Documents, Tax and statutory, and Units and landowners tabs, a Withdrawal request, a unit's handover page, a case, a document, a data room, demand letters, and Rules. `/shared/{token}` is the page outsiders see; `/files/{id}` and `/shared/{token}/files/{id}` pass files through from the API.
 
 Every form works without JavaScript: server actions in `src/app/actions.ts` call the API and show its error message in words.
 

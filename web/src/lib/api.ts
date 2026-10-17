@@ -11,6 +11,7 @@ export type Area =
   | "collections"
   | "handover"
   | "disputes"
+  | "documents"
   | "krera"
   | "tax"
   | "units";
@@ -533,6 +534,137 @@ export type CaseDetail = CaseRow & {
   choices: { statuses: Choice[]; order_kinds: Choice[] };
 };
 
+export type DocRow = {
+  id: string;
+  title: string;
+  category: string;
+  category_label: string;
+  filename: string;
+  content_type: string;
+  size: string;
+  document_date: string | null;
+  expires_on: string | null;
+  expiry: "held" | "expiring" | "expired";
+  reference: string | null;
+  version: number;
+  pages: number;
+  text_status: "text" | "no_text" | "unreadable";
+  requirement: string | null;
+  link_type: string | null;
+  link_id: string | null;
+  uploaded_on: string;
+};
+
+export type ChecklistRow = {
+  key: string;
+  title: string;
+  category: string;
+  why: string;
+  tracks_expiry: boolean;
+  status: "held" | "missing" | "expiring" | "expired" | "waived";
+  document_id: string | null;
+  expires_on: string | null;
+  waiver_reason: string | null;
+};
+
+export type RoomRow = {
+  id: string;
+  name: string;
+  audience: string | null;
+  created_on: string;
+  expires_on: string;
+  state: "open" | "expired" | "revoked";
+  documents: number;
+  opens: number;
+  downloads: number;
+  last_visit: string | null;
+};
+
+export type DocumentsView = {
+  can_edit: boolean;
+  can_share: boolean;
+  notice_days: number;
+  summary: { documents: number; missing: number; expiring: number; rooms_open: number };
+  checklist: ChecklistRow[];
+  records: {
+    key: string;
+    title: string;
+    category: string;
+    link_type: string;
+    needed: number;
+    held: number;
+    missing: { id: string; label: string }[];
+  }[];
+  documents: DocRow[];
+  categories: Choice[];
+  rooms: RoomRow[];
+};
+
+export type SearchResults = {
+  query: string;
+  results: {
+    document: DocRow;
+    page: number | null;
+    snippets: { before: string; match: string; after: string }[];
+  }[];
+};
+
+export type DocumentDetail = DocRow & {
+  project_id: string;
+  project_name: string;
+  can_edit: boolean;
+  notes: string | null;
+  archived_on: string | null;
+  record: string | null;
+  requirement_title: string | null;
+  current: boolean;
+  versions: {
+    id: string;
+    version: number;
+    filename: string;
+    size: string;
+    uploaded_on: string;
+    expires_on: string | null;
+  }[];
+  rooms: { id: string; name: string; state: string }[];
+  categories: Choice[];
+  requirements: Choice[];
+};
+
+export type LinkedDocuments = {
+  project_id: string;
+  can_edit: boolean;
+  documents: DocRow[];
+  categories: Choice[];
+};
+
+export type RoomDetail = RoomRow & {
+  project_id: string;
+  project_name: string;
+  can_share: boolean;
+  documents_in_room: DocRow[];
+  available: { id: string; title: string; category_label: string }[];
+  visits: { at: string; action: "open" | "download"; document: string | null }[];
+};
+
+export type SharedRoom = {
+  name: string;
+  audience: string | null;
+  organization: string;
+  project: string;
+  krera_registration: string;
+  expires_on: string;
+  documents: {
+    id: string;
+    title: string;
+    category_label: string;
+    document_date: string | null;
+    reference: string | null;
+    size: string;
+    content_type: string;
+  }[];
+};
+
 export type Rules = {
   state: string;
   version: string;
@@ -562,6 +694,43 @@ async function get<T>(path: string): Promise<T> {
   if (response.status === 404 || response.status === 403) notFound();
   if (!response.ok) throw new Error(`Horus API ${response.status} on ${path}`);
   return response.json() as Promise<T>;
+}
+
+/** A shared data room, opened without signing in. Null once the link has closed. */
+export async function sharedRoom(token: string): Promise<SharedRoom | null> {
+  const response = await fetch(`${BASE}/shared/${encodeURIComponent(token)}`, {
+    cache: "no-store",
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Horus API ${response.status} on a shared room`);
+  return response.json() as Promise<SharedRoom>;
+}
+
+/** Fetches a file from the API for a route handler to pass on to the browser. */
+export async function fetchFile(path: string, signedIn: boolean): Promise<Response> {
+  return fetch(`${BASE}${path}`, {
+    cache: "no-store",
+    headers: signedIn ? await authHeaders() : {},
+  });
+}
+
+/** Sends a multipart form, for uploads. */
+export async function sendForm<T>(path: string, body: FormData): Promise<SendResult<T>> {
+  const response = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body,
+    cache: "no-store",
+  });
+  if (response.ok) return { ok: true, data: (await response.json()) as T };
+  if (response.status === 401) return { ok: false, error: "Your session has ended. Sign in again." };
+  if (response.status === 413) return { ok: false, error: "The file is too large." };
+  try {
+    const detail = (await response.json()).detail;
+    return { ok: false, error: typeof detail === "string" ? detail : "Check the details and try again." };
+  } catch {
+    return { ok: false, error: "Something went wrong. Try again." };
+  }
 }
 
 export type SendResult<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -614,6 +783,15 @@ export const api = {
   unitHandover: (unitId: string) => get<UnitHandover>(`/units/${unitId}/handover`),
   disputes: (id: string) => get<Disputes>(`/projects/${id}/disputes`),
   case: (id: string) => get<CaseDetail>(`/cases/${id}`),
+  documents: (id: string) => get<DocumentsView>(`/projects/${id}/documents`),
+  searchDocuments: (id: string, q: string) =>
+    get<SearchResults>(`/projects/${id}/documents/search?q=${encodeURIComponent(q)}`),
+  document: (id: string) => get<DocumentDetail>(`/documents/${id}`),
+  linkedDocuments: (linkType: string, linkId: string) =>
+    get<LinkedDocuments>(
+      `/documents?link_type=${encodeURIComponent(linkType)}&link_id=${encodeURIComponent(linkId)}`,
+    ),
+  room: (id: string) => get<RoomDetail>(`/rooms/${id}`),
   demand: (id: string) => get<DemandLetter>(`/demands/${id}`),
   tax: (id: string) => get<Tax>(`/projects/${id}/tax`),
   units: (id: string) => get<Units>(`/projects/${id}/units`),
@@ -633,6 +811,8 @@ export function areaHref(o: Obligation): string {
       return `${base}/handover`;
     case "disputes":
       return `${base}/disputes`;
+    case "documents":
+      return `${base}/documents`;
     case "tax":
       return `${base}/tax`;
     case "units":

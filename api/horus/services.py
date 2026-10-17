@@ -4,11 +4,15 @@ Also holds the withdrawal workflow: create a request with drafted certificates,
 let each certifier review and sign, submit to the bank, record the release.
 """
 
+import hashlib
+import secrets
 from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
+from uuid import uuid4
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from horus.engines.collections import (
@@ -36,6 +40,21 @@ from horus.engines.disputes import (
     disputes_position,
 )
 from horus.engines.disputes import Payment as DisputePaymentIn
+from horus.engines.documents import (
+    CATEGORY_LABEL,
+    LINK_TYPES,
+    REQUIREMENTS,
+    ChecklistItem,
+    Expiring,
+    HeldDocument,
+    RecordCheck,
+    Snippet,
+    checklist,
+    expiring,
+    project_requirements,
+    record_check,
+    snippets,
+)
 from horus.engines.escrow import (
     ROLE_ORDER,
     AccountTxn,
@@ -81,12 +100,18 @@ from horus.engines.tax import (
 )
 from horus.models import (
     Bill,
+    ChecklistWaiver,
     CostLineRow,
+    DataRoom,
+    DataRoomDocument,
+    DataRoomVisit,
     DemandRow,
     DisputeCase,
     DisputeHearing,
     DisputeOrder,
     DisputePayment,
+    Document,
+    DocumentPage,
     EscrowTxn,
     Filing,
     Landowner,
@@ -103,7 +128,9 @@ from horus.models import (
     WithdrawalRequest,
 )
 from horus.money import ZERO
+from horus.pdf import read_pages
 from horus.rules import KARNATAKA, RulesPack
+from horus.storage import Storage
 
 
 class ServiceError(Exception):
@@ -339,6 +366,7 @@ def snapshot(
     collections = collections_for(session, project, as_of, rules)
     handover = handover_for(session, project, as_of, collections, rules)
     disputes = disputes_for(session, project, as_of, rules)
+    expiring_docs = expiring_documents(session, project, as_of, rules)
     request = open_request(session, project)
     waiting_on = None
     if request is not None:
@@ -365,6 +393,7 @@ def snapshot(
         collections=collections,
         handover=handover,
         disputes=disputes,
+        expiring_documents=expiring_docs,
     )
     return ProjectSnapshot(
         project=project,
@@ -964,6 +993,591 @@ def add_payment(
     row.updated_by_user_id = user_id
     session.commit()
     return payment
+
+
+# Document vault
+
+ALLOWED_TYPES = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".txt": "text/plain",
+    ".csv": "text/csv",
+}
+_SIGNATURES = {
+    ".pdf": b"%PDF-",
+    ".png": b"\x89PNG",
+    ".jpg": b"\xff\xd8\xff",
+    ".jpeg": b"\xff\xd8\xff",
+    ".docx": b"PK\x03\x04",
+    ".xlsx": b"PK\x03\x04",
+}
+DOCUMENT_FIELDS = {
+    "title",
+    "category",
+    "document_date",
+    "expires_on",
+    "reference",
+    "notes",
+    "requirement",
+}
+
+
+@dataclass(frozen=True)
+class DocumentsPosition:
+    documents: list[Document]
+    checklist: list[ChecklistItem]
+    records: list[RecordCheck]
+    expiring: list[Expiring]
+    notice_days: int
+
+
+@dataclass(frozen=True)
+class SearchHit:
+    document: Document
+    page_no: int | None
+    snippets: list[Snippet]
+
+
+def _safe_name(filename: str) -> str:
+    return filename.replace("\\", "/").rsplit("/", 1)[-1].strip()[:300] or "document"
+
+
+def _file_type(filename: str, data: bytes) -> str:
+    ext = Path(filename).suffix.lower()
+    if ext not in ALLOWED_TYPES:
+        raise ServiceError(
+            "Horus takes PDFs, Word and Excel files, photos (PNG or JPEG) and text files."
+        )
+    if ext in _SIGNATURES and not data.startswith(_SIGNATURES[ext]):
+        raise ServiceError(f"This file does not look like a {ext[1:].upper()} file.")
+    if ext in (".txt", ".csv"):
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            raise ServiceError("Text files must be saved as UTF-8.") from None
+    return ALLOWED_TYPES[ext]
+
+
+def _page_texts(content_type: str, data: bytes) -> tuple[list[str], str]:
+    if content_type == "application/pdf":
+        pages = read_pages(data)
+        if pages is None:
+            return [], "unreadable"
+        return pages, "text" if any(pages) else "no_text"
+    if content_type.startswith("text/"):
+        return [data.decode("utf-8")], "text"
+    return [], "no_text"
+
+
+def _held(rows: list[Document]) -> list[HeldDocument]:
+    return [
+        HeldDocument(
+            document_id=d.id,
+            title=d.title,
+            category=d.category,
+            requirement=d.requirement,
+            expires_on=d.expires_on,
+            link_type=d.link_type,
+            link_id=d.link_id,
+        )
+        for d in rows
+    ]
+
+
+def current_documents(session: Session, project: Project) -> list[Document]:
+    """The latest version of every document that is not archived, newest first."""
+    latest: dict[str, Document] = {}
+    for d in session.scalars(
+        select(Document).where(Document.project_id == project.id).order_by(Document.version)
+    ):
+        latest[d.family_id] = d
+    return sorted(
+        (d for d in latest.values() if d.archived_on is None),
+        key=lambda d: (d.document_date or d.uploaded_at.date(), d.uploaded_at),
+        reverse=True,
+    )
+
+
+def expiring_documents(
+    session: Session, project: Project, as_of: date, rules: RulesPack = KARNATAKA
+) -> list[Expiring]:
+    notice = rules.value("documents.expiry_notice_days", as_of)
+    return expiring(_held(current_documents(session, project)), as_of=as_of, notice_days=notice)
+
+
+def _record_checks(
+    session: Session, project: Project, as_of: date, held: list[HeldDocument]
+) -> list[RecordCheck]:
+    units = {u.id: u for u in session.scalars(select(Unit).where(Unit.project_id == project.id))}
+    handovers = sorted(
+        session.scalars(select(UnitHandover).join(Unit).where(Unit.project_id == project.id)),
+        key=lambda h: units[h.unit_id].label,
+    )
+    registered = [
+        (h.unit_id, f"Unit {units[h.unit_id].label}")
+        for h in handovers
+        if h.registered_on and h.registered_on <= as_of
+    ]
+    final_khata = [
+        (h.unit_id, f"Unit {units[h.unit_id].label}")
+        for h in handovers
+        if h.ekhata_status == "final"
+    ]
+    ordered = [
+        (c.id, f"{c.case_number} ({c.complainant})")
+        for c in session.scalars(select(DisputeCase).where(DisputeCase.project_id == project.id))
+        if any(o.ordered_on <= as_of for o in c.orders)
+    ]
+    released = [
+        (w.id, f"Withdrawal released on {w.released_on.isoformat()}")
+        for w in session.scalars(
+            select(WithdrawalRequest).where(
+                WithdrawalRequest.project_id == project.id,
+                WithdrawalRequest.released_on.is_not(None),
+                WithdrawalRequest.released_on <= as_of,
+            )
+        )
+    ]
+    checks = [
+        record_check("sale_deeds", "Registered sale deeds", "sale_deed", "unit", registered, held),
+        record_check("ekhata", "Final e-Khata for each unit", "ekhata", "unit", final_khata, held),
+        record_check("order_copies", "Copies of orders", "order", "case", ordered, held),
+        record_check(
+            "withdrawal_packs",
+            "Signed certificates as sent to the bank",
+            "certificate",
+            "withdrawal",
+            released,
+            held,
+        ),
+    ]
+    return [c for c in checks if c.needed > 0]
+
+
+def documents_for(
+    session: Session, project: Project, as_of: date, rules: RulesPack = KARNATAKA
+) -> DocumentsPosition:
+    docs = current_documents(session, project)
+    held = _held(docs)
+    notice = rules.value("documents.expiry_notice_days", as_of)
+    waivers = {
+        w.requirement: w.reason
+        for w in session.scalars(
+            select(ChecklistWaiver).where(ChecklistWaiver.project_id == project.id)
+        )
+    }
+    requirements = project_requirements(
+        joint_development=project.land_structure.startswith("jda"),
+        oc_received=oc_received(project, as_of),
+    )
+    return DocumentsPosition(
+        documents=docs,
+        checklist=checklist(requirements, held, waivers, as_of=as_of, notice_days=notice),
+        records=_record_checks(session, project, as_of, held),
+        expiring=expiring(held, as_of=as_of, notice_days=notice),
+        notice_days=notice,
+    )
+
+
+def _record(session: Session, link_type: str | None, link_id: str | None):
+    model = {"unit": Unit, "case": DisputeCase, "withdrawal": WithdrawalRequest}.get(link_type)
+    return session.get(model, link_id) if model and link_id else None
+
+
+def project_for_record(session: Session, link_type: str, link_id: str) -> Project:
+    row = _record(session, link_type, link_id)
+    if row is None:
+        raise ServiceError("Not found.", 404)
+    return get_project(session, row.project_id)
+
+
+def record_label(session: Session, link_type: str | None, link_id: str | None) -> str | None:
+    row = _record(session, link_type, link_id)
+    if row is None:
+        return None
+    if link_type == "unit":
+        return f"Unit {row.label}"
+    if link_type == "case":
+        return f"{row.case_number} ({row.complainant})"
+    return f"Withdrawal started on {row.created_on.isoformat()}"
+
+
+def _check_link(session: Session, project: Project, link_type, link_id) -> None:
+    if not link_type and not link_id:
+        return
+    if link_type not in LINK_TYPES or not link_id:
+        raise ServiceError("Choose what the document belongs to.")
+    row = _record(session, link_type, link_id)
+    if row is None or row.project_id != project.id:
+        raise ServiceError("That record is not in this project.")
+
+
+def _check_document_fields(fields: dict) -> None:
+    if fields.get("category") is not None and fields["category"] not in CATEGORY_LABEL:
+        raise ServiceError("Choose the kind of document from the list.")
+    if fields.get("requirement") and fields["requirement"] not in REQUIREMENTS:
+        raise ServiceError("That is not an item on the checklist.")
+
+
+def get_document(session: Session, document_id: str) -> Document:
+    doc = session.get(Document, document_id)
+    if doc is None:
+        raise ServiceError("Document not found.", 404)
+    return doc
+
+
+def document_versions(session: Session, doc: Document) -> list[Document]:
+    return list(
+        session.scalars(
+            select(Document)
+            .where(Document.family_id == doc.family_id)
+            .order_by(Document.version.desc())
+        )
+    )
+
+
+def store_document(
+    session: Session,
+    storage: Storage,
+    project: Project,
+    *,
+    data: bytes,
+    filename: str,
+    fields: dict,
+    max_bytes: int,
+    user_id: str | None = None,
+) -> Document:
+    if not data:
+        raise ServiceError("The file is empty.")
+    if len(data) > max_bytes:
+        raise ServiceError(f"Files can be up to {max_bytes // 1_000_000} MB.")
+    filename = _safe_name(filename)
+    content_type = _file_type(filename, data)
+    previous = None
+    if fields.get("replaces"):
+        previous = get_document(session, fields["replaces"])
+        if previous.project_id != project.id:
+            raise ServiceError("Document not found.", 404)
+
+    def inherit(key: str):
+        value = fields.get(key)
+        if isinstance(value, str):
+            value = value.strip() or None
+        return value if value is not None else getattr(previous, key, None)
+
+    values = {key: inherit(key) for key in ("category", "requirement", "link_type", "link_id")}
+    if values["category"] is None:
+        values["category"] = (
+            REQUIREMENTS[values["requirement"]].category
+            if values["requirement"] in REQUIREMENTS
+            else "other"
+        )
+    _check_document_fields(values)
+    _check_link(session, project, values["link_type"], values["link_id"])
+    title = inherit("title") or (
+        REQUIREMENTS[values["requirement"]].title if values["requirement"] else Path(filename).stem
+    )
+
+    sha = hashlib.sha256(data).hexdigest()
+    duplicate = session.scalars(
+        select(Document).where(
+            Document.project_id == project.id,
+            Document.sha256 == sha,
+            Document.archived_on.is_(None),
+        )
+    ).first()
+    if duplicate is not None:
+        raise ServiceError(f'This file is already in the vault as "{duplicate.title}".')
+
+    key = storage.put(data)
+    pages, text_status = _page_texts(content_type, data)
+    doc_id = uuid4().hex
+    version = 1
+    if previous is not None:
+        version = max(d.version for d in document_versions(session, previous)) + 1
+    doc = Document(
+        id=doc_id,
+        organization_id=project.organization_id,
+        project_id=project.id,
+        family_id=previous.family_id if previous else doc_id,
+        version=version,
+        title=title[:300],
+        filename=filename,
+        content_type=content_type,
+        size=len(data),
+        sha256=sha,
+        storage_key=key,
+        document_date=fields.get("document_date"),
+        expires_on=fields.get("expires_on"),
+        reference=(fields.get("reference") or "").strip() or None,
+        notes=(fields.get("notes") or "").strip() or None,
+        pages=len(pages),
+        text_status=text_status,
+        uploaded_by_user_id=user_id,
+        **values,
+    )
+    session.add(doc)
+    for number, page_text in enumerate(pages, start=1):
+        if page_text:
+            session.add(DocumentPage(document_id=doc_id, page_no=number, text=page_text))
+    session.commit()
+    return doc
+
+
+def update_document(session: Session, doc: Document, fields: dict) -> Document:
+    unknown = set(fields) - DOCUMENT_FIELDS
+    if unknown:
+        raise ServiceError(f"Unknown field: {sorted(unknown)[0]}.")
+    _check_document_fields(fields)
+    for key, value in fields.items():
+        if isinstance(value, str):
+            value = value.strip() or None
+        if key in ("title", "category") and value is None:
+            continue
+        setattr(doc, key, value)
+    session.commit()
+    return doc
+
+
+def archive_document(session: Session, doc: Document, as_of: date) -> None:
+    for version in document_versions(session, doc):
+        version.archived_on = as_of
+    session.commit()
+
+
+def linked_documents(
+    session: Session, project: Project, link_type: str, link_id: str
+) -> list[Document]:
+    return [
+        d
+        for d in current_documents(session, project)
+        if d.link_type == link_type and d.link_id == link_id
+    ]
+
+
+def read_file(storage: Storage, doc: Document) -> bytes:
+    try:
+        return storage.get(doc.storage_key)
+    except FileNotFoundError:
+        raise ServiceError("The file is missing from storage.", 404) from None
+
+
+def search_documents(session: Session, project: Project, query: str) -> list[SearchHit]:
+    """Titles, numbers and the text of every page, with the page each match is on."""
+    q = query.strip()
+    if len(q) < 2:
+        return []
+    current = {d.id: d for d in current_documents(session, project)}
+    hits = [
+        SearchHit(d, None, snippets(d.title, q) or snippets(d.reference or "", q))
+        for d in current.values()
+        if q.lower() in d.title.lower() or q.lower() in (d.reference or "").lower()
+    ]
+    escaped = q.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    for page in session.scalars(
+        select(DocumentPage)
+        .where(
+            DocumentPage.document_id.in_(current),
+            func.lower(DocumentPage.text).like(f"%{escaped}%", escape="\\"),
+        )
+        .order_by(DocumentPage.document_id, DocumentPage.page_no)
+    ):
+        found = snippets(page.text, q)
+        if found:
+            hits.append(SearchHit(current[page.document_id], page.page_no, found))
+    return hits[:50]
+
+
+def waive_requirement(
+    session: Session,
+    project: Project,
+    requirement: str,
+    reason: str | None,
+    *,
+    as_of: date,
+    user_id: str | None = None,
+) -> None:
+    if requirement not in REQUIREMENTS:
+        raise ServiceError("That is not an item on the checklist.", 404)
+    reason = (reason or "").strip()
+    if not reason:
+        raise ServiceError("Say why this project does not need it.")
+    row = session.scalars(
+        select(ChecklistWaiver).where(
+            ChecklistWaiver.project_id == project.id, ChecklistWaiver.requirement == requirement
+        )
+    ).first()
+    if row is None:
+        row = ChecklistWaiver(project_id=project.id, requirement=requirement)
+        session.add(row)
+    row.reason = reason[:500]
+    row.waived_on = as_of
+    row.waived_by_user_id = user_id
+    session.commit()
+
+
+def restore_requirement(session: Session, project: Project, requirement: str) -> None:
+    row = session.scalars(
+        select(ChecklistWaiver).where(
+            ChecklistWaiver.project_id == project.id, ChecklistWaiver.requirement == requirement
+        )
+    ).first()
+    if row is not None:
+        session.delete(row)
+        session.commit()
+
+
+# Data rooms
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def room_state(room: DataRoom, as_of: date) -> str:
+    if room.revoked_on is not None:
+        return "revoked"
+    if room.expires_on < as_of:
+        return "expired"
+    return "open"
+
+
+def _room_expiry(expires_on: date | None, as_of: date, rules: RulesPack) -> date:
+    longest = rules.value("documents.room_max_days", as_of)
+    if expires_on is None or expires_on < as_of:
+        raise ServiceError("Choose a closing date from today onwards.")
+    if (expires_on - as_of).days > longest:
+        raise ServiceError(f"A data room can stay open for up to {longest} days.")
+    return expires_on
+
+
+def _room_families(session: Session, project: Project, document_ids: list[str]) -> list[str]:
+    current = {d.id: d for d in current_documents(session, project)}
+    families = []
+    for document_id in document_ids:
+        doc = current.get(document_id)
+        if doc is None:
+            raise ServiceError("Choose documents from this project's vault.")
+        families.append(doc.family_id)
+    return list(dict.fromkeys(families))
+
+
+def create_room(
+    session: Session,
+    project: Project,
+    fields: dict,
+    *,
+    as_of: date,
+    user_id: str | None = None,
+    rules: RulesPack = KARNATAKA,
+) -> tuple[DataRoom, str]:
+    name = (fields.get("name") or "").strip()
+    if not name:
+        raise ServiceError("Give the data room a name.")
+    families = _room_families(session, project, fields.get("document_ids") or [])
+    if not families:
+        raise ServiceError("Choose at least one document to share.")
+    token = secrets.token_urlsafe(24)
+    room = DataRoom(
+        project_id=project.id,
+        name=name[:200],
+        audience=(fields.get("audience") or "").strip()[:200] or None,
+        token_hash=_token_hash(token),
+        created_on=as_of,
+        expires_on=_room_expiry(fields.get("expires_on"), as_of, rules),
+        created_by_user_id=user_id,
+        entries=[DataRoomDocument(family_id=f) for f in families],
+    )
+    session.add(room)
+    session.commit()
+    return room, token
+
+
+def get_room(session: Session, room_id: str) -> DataRoom:
+    room = session.get(DataRoom, room_id)
+    if room is None:
+        raise ServiceError("Data room not found.", 404)
+    return room
+
+
+def project_rooms(session: Session, project: Project) -> list[DataRoom]:
+    return list(
+        session.scalars(
+            select(DataRoom)
+            .where(DataRoom.project_id == project.id)
+            .order_by(DataRoom.created_on.desc())
+        )
+    )
+
+
+def room_documents(session: Session, room: DataRoom) -> list[Document]:
+    project = get_project(session, room.project_id)
+    families = {e.family_id for e in room.entries}
+    return [d for d in current_documents(session, project) if d.family_id in families]
+
+
+def update_room(
+    session: Session,
+    room: DataRoom,
+    fields: dict,
+    *,
+    as_of: date,
+    rules: RulesPack = KARNATAKA,
+) -> DataRoom:
+    if room.revoked_on is not None:
+        raise ServiceError("This data room has been closed. Make a new one.")
+    project = get_project(session, room.project_id)
+    if "name" in fields and fields["name"]:
+        room.name = fields["name"].strip()[:200]
+    if "audience" in fields:
+        room.audience = (fields["audience"] or "").strip()[:200] or None
+    if fields.get("expires_on") is not None:
+        room.expires_on = _room_expiry(fields["expires_on"], as_of, rules)
+    if fields.get("document_ids") is not None:
+        families = _room_families(session, project, fields["document_ids"])
+        if not families:
+            raise ServiceError("A data room needs at least one document.")
+        keep = set(families)
+        room.entries = [e for e in room.entries if e.family_id in keep]
+        have = {e.family_id for e in room.entries}
+        room.entries.extend(DataRoomDocument(family_id=f) for f in families if f not in have)
+    session.commit()
+    return room
+
+
+def new_room_link(session: Session, room: DataRoom) -> str:
+    if room.revoked_on is not None:
+        raise ServiceError("This data room has been closed. Make a new one.")
+    token = secrets.token_urlsafe(24)
+    room.token_hash = _token_hash(token)
+    session.commit()
+    return token
+
+
+def revoke_room(session: Session, room: DataRoom, as_of: date) -> None:
+    if room.revoked_on is None:
+        room.revoked_on = as_of
+        session.commit()
+
+
+def open_room(session: Session, token: str, as_of: date) -> DataRoom:
+    room = session.scalars(
+        select(DataRoom).where(DataRoom.token_hash == _token_hash(token))
+    ).first()
+    if room is None or room_state(room, as_of) != "open":
+        raise ServiceError("This link has expired or has been withdrawn.", 404)
+    return room
+
+
+def log_visit(
+    session: Session, room: DataRoom, action: str, document_id: str | None = None
+) -> None:
+    session.add(DataRoomVisit(room_id=room.id, action=action, document_id=document_id))
+    session.commit()
 
 
 # Withdrawal workflow

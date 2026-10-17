@@ -8,9 +8,10 @@ __pycache__/
 build/
 dist/
 
-# Local databases
+# Local databases and stored files
 *.db
 *.sqlite3
+api/storage/
 
 # Node
 node_modules/

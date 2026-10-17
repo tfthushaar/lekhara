@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
+from horus import services
 from horus.engines.collections import CollectionsPosition
 from horus.engines.disputes import (
     FORUM_LABEL,
@@ -14,6 +15,7 @@ from horus.engines.disputes import (
     DisputesPosition,
     Event,
 )
+from horus.engines.documents import CATEGORY_LABEL, REQUIREMENTS, expiry_status
 from horus.engines.escrow import (
     ROLE_CERTIFIES,
     ROLE_LABEL,
@@ -30,11 +32,13 @@ from horus.engines.handover import (
     HandoverPosition,
     UnitReadiness,
 )
-from horus.engines.obligations import Obligation, ObligationStatus
+from horus.engines.obligations import Area, Obligation, ObligationStatus
 from horus.engines.tax import MsmeStatus
 from horus.models import (
+    DataRoom,
     DemandRow,
     DisputeCase,
+    Document,
     Landowner,
     PaymentMilestone,
     Project,
@@ -68,6 +72,9 @@ GST_REGIME = {
 }
 
 
+_REF_LINK = {Area.DISPUTES: "/cases/", Area.DOCUMENTS: "/documents/"}
+
+
 def obligation(o: Obligation) -> dict:
     return {
         "key": o.key,
@@ -84,7 +91,7 @@ def obligation(o: Obligation) -> dict:
         "action": o.action,
         "amount_label": o.amount_label,
         "exposure": o.exposure,
-        "link": f"/cases/{o.ref}" if o.ref else None,
+        "link": f"{_REF_LINK[o.area]}{o.ref}" if o.ref and o.area in _REF_LINK else None,
     }
 
 
@@ -893,6 +900,237 @@ def case_detail(cp: CasePosition, row: DisputeCase, project: Project, *, can_edi
         }
     )
     return detail
+
+
+# Document vault
+
+
+def _bytes(n: int) -> str:
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f} MB"
+    return f"{max(n // 1000, 1)} KB"
+
+
+def doc_row(doc: Document, *, as_of: date, notice_days: int) -> dict:
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "category": doc.category,
+        "category_label": CATEGORY_LABEL.get(doc.category, doc.category),
+        "filename": doc.filename,
+        "content_type": doc.content_type,
+        "size": _bytes(doc.size),
+        "document_date": d(doc.document_date),
+        "expires_on": d(doc.expires_on),
+        "expiry": expiry_status(doc.expires_on, as_of=as_of, notice_days=notice_days),
+        "reference": doc.reference,
+        "version": doc.version,
+        "pages": doc.pages,
+        "text_status": doc.text_status,
+        "requirement": doc.requirement,
+        "link_type": doc.link_type,
+        "link_id": doc.link_id,
+        "uploaded_on": d(doc.uploaded_at.date()),
+    }
+
+
+def _category_choices() -> list[dict]:
+    return [{"value": k, "label": v} for k, v in CATEGORY_LABEL.items()]
+
+
+def room_row(room: DataRoom, count: int, as_of: date) -> dict:
+    return {
+        "id": room.id,
+        "name": room.name,
+        "audience": room.audience,
+        "created_on": d(room.created_on),
+        "expires_on": d(room.expires_on),
+        "state": services.room_state(room, as_of),
+        "documents": count,
+        "opens": sum(1 for v in room.visits if v.action == "open"),
+        "downloads": sum(1 for v in room.visits if v.action == "download"),
+        "last_visit": v_at(room.visits[0]) if room.visits else None,
+    }
+
+
+def v_at(visit) -> str:
+    return visit.at.replace(microsecond=0).isoformat()
+
+
+def documents(
+    pos,
+    rooms: list[tuple[DataRoom, int]],
+    *,
+    as_of: date,
+    can_edit: bool,
+    can_share: bool,
+) -> dict:
+    missing = sum(1 for i in pos.checklist if i.status == "missing") + sum(
+        len(r.missing) for r in pos.records
+    )
+    return {
+        "can_edit": can_edit,
+        "can_share": can_share,
+        "notice_days": pos.notice_days,
+        "summary": {
+            "documents": len(pos.documents),
+            "missing": missing,
+            "expiring": len(pos.expiring),
+            "rooms_open": sum(1 for r, _ in rooms if services.room_state(r, as_of) == "open"),
+        },
+        "checklist": [
+            {
+                "key": i.requirement.key,
+                "title": i.requirement.title,
+                "category": i.requirement.category,
+                "why": i.requirement.why,
+                "tracks_expiry": i.requirement.tracks_expiry,
+                "status": i.status,
+                "document_id": i.document_id,
+                "expires_on": d(i.expires_on),
+                "waiver_reason": i.waiver_reason,
+            }
+            for i in pos.checklist
+        ],
+        "records": [
+            {
+                "key": r.key,
+                "title": r.title,
+                "category": r.category,
+                "link_type": r.link_type,
+                "needed": r.needed,
+                "held": r.held,
+                "missing": [{"id": rid, "label": label} for rid, label in r.missing],
+            }
+            for r in pos.records
+        ],
+        "documents": [
+            doc_row(doc, as_of=as_of, notice_days=pos.notice_days) for doc in pos.documents
+        ],
+        "categories": _category_choices(),
+        "rooms": [room_row(r, n, as_of) for r, n in rooms],
+    }
+
+
+def document_detail(
+    doc: Document,
+    versions: list[Document],
+    project: Project,
+    *,
+    record: str | None,
+    rooms: list[DataRoom],
+    as_of: date,
+    notice_days: int,
+    can_edit: bool,
+) -> dict:
+    detail = doc_row(doc, as_of=as_of, notice_days=notice_days)
+    detail.update(
+        {
+            "project_id": project.id,
+            "project_name": project.name,
+            "can_edit": can_edit,
+            "notes": doc.notes,
+            "archived_on": d(doc.archived_on),
+            "record": record,
+            "requirement_title": REQUIREMENTS[doc.requirement].title
+            if doc.requirement in REQUIREMENTS
+            else None,
+            "current": doc.id == versions[0].id,
+            "versions": [
+                {
+                    "id": v.id,
+                    "version": v.version,
+                    "filename": v.filename,
+                    "size": _bytes(v.size),
+                    "uploaded_on": d(v.uploaded_at.date()),
+                    "expires_on": d(v.expires_on),
+                }
+                for v in versions
+            ],
+            "rooms": [
+                {"id": r.id, "name": r.name, "state": services.room_state(r, as_of)} for r in rooms
+            ],
+            "categories": _category_choices(),
+            "requirements": [{"value": k, "label": r.title} for k, r in REQUIREMENTS.items()],
+        }
+    )
+    return detail
+
+
+def search_results(hits, query: str, *, as_of: date, notice_days: int) -> dict:
+    return {
+        "query": query,
+        "results": [
+            {
+                "document": doc_row(h.document, as_of=as_of, notice_days=notice_days),
+                "page": h.page_no,
+                "snippets": [
+                    {"before": s.before, "match": s.match, "after": s.after} for s in h.snippets
+                ],
+            }
+            for h in hits
+        ],
+    }
+
+
+def room_detail(
+    room: DataRoom,
+    docs: list[Document],
+    available: list[Document],
+    project: Project,
+    *,
+    as_of: date,
+    notice_days: int,
+    can_share: bool,
+) -> dict:
+    titles = {doc.id: doc.title for doc in [*docs, *available]}
+    row = room_row(room, len(docs), as_of)
+    row.update(
+        {
+            "project_id": project.id,
+            "project_name": project.name,
+            "can_share": can_share,
+            "documents_in_room": [
+                doc_row(doc, as_of=as_of, notice_days=notice_days) for doc in docs
+            ],
+            "available": [
+                {"id": doc.id, "title": doc.title, "category_label": CATEGORY_LABEL[doc.category]}
+                for doc in available
+            ],
+            "visits": [
+                {
+                    "at": v_at(v),
+                    "action": v.action,
+                    "document": titles.get(v.document_id) if v.document_id else None,
+                }
+                for v in room.visits[:50]
+            ],
+        }
+    )
+    return row
+
+
+def shared_room(room: DataRoom, docs: list[Document], project: Project) -> dict:
+    return {
+        "name": room.name,
+        "audience": room.audience,
+        "organization": project.organization.name,
+        "project": project.name,
+        "krera_registration": project.krera_registration,
+        "expires_on": d(room.expires_on),
+        "documents": [
+            {
+                "id": doc.id,
+                "title": doc.title,
+                "category_label": CATEGORY_LABEL.get(doc.category, doc.category),
+                "document_date": d(doc.document_date),
+                "reference": doc.reference,
+                "size": _bytes(doc.size),
+                "content_type": doc.content_type,
+            }
+            for doc in docs
+        ],
+    }
 
 
 _MONEY_RULES = {
