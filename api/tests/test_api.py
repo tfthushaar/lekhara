@@ -135,6 +135,9 @@ def test_certificate_that_disagrees_blocks_submission(client) -> None:
     ).json()
     checks = {c["code"]: c["status"] for c in r["checks"]}
     assert checks["ca_matches_books"] == "fail"
+    ca_figures = {f["field"]: f for f in r["certificates"][2]["figures"]}
+    assert not ca_figures["total_cost_incurred"]["matches_books"]
+    assert ca_figures["withdrawable_amount"]["matches_books"]
     assert not r["can_submit"]
     assert r["waiting_on"] == "corrected figures"
     assert client.post(f"/withdrawals/{request_id}/submit").status_code == 400
@@ -181,6 +184,12 @@ def test_rules_are_published_with_their_basis(client) -> None:
     assert rules["escrow.deposit_share"]["source_quality"] == "official"
     assert rules["krera.qpr_late_fee_per_quarter"]["source_quality"] == "unverified"
     assert rules["gst.procurement.payment_due"]["value"] == "6-30"
+    assert rules["gst.procurement.payment_due"]["display"] == "30 June of the following year"
+    assert rules["escrow.deposit_share"]["display"] == "70%"
+    assert rules["rera.sbi_mclr"]["display"] == "8.95%"
+    assert rules["krera.qpr_late_fee_per_quarter"]["display"] == "₹25,000"
+    assert rules["escrow.min_suggested_withdrawal"]["display"] == "₹10 lakh"
+    assert rules["escrow.cycle_days"]["display"] == "90 days"
 
 
 def test_unknown_project_is_404(client) -> None:

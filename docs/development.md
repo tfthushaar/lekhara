@@ -52,7 +52,11 @@ npm run lint
 npm run build
 ```
 
-The web app reads the API from `HORUS_API_URL` (default `http://localhost:8000`).
+The web app reads the API from `HORUS_API_URL` (default `http://localhost:8000`). Start the API first, then the web app.
+
+Screens: Today (`/`), Projects, a project's Overview, Escrow, Tax and statutory, and Units and landowners tabs, a Withdrawal request, and Rules.
+
+Every form works without JavaScript: server actions in `src/app/actions.ts` call the API and show its error message in words.
 
 This is Next.js 16 with Cache Components enabled. APIs differ from older versions; read the guides bundled in `web/node_modules/next/dist/docs/` before using a Next.js API. Uncached data must be read inside a `<Suspense>` boundary.
 

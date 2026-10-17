@@ -15,7 +15,7 @@ from horus.engines.escrow import (
 from horus.engines.obligations import Obligation, ObligationStatus
 from horus.engines.tax import MsmeStatus
 from horus.models import Landowner, Unit, WithdrawalRequest
-from horus.rules import RuleNotFound, RulesPack
+from horus.rules import KARNATAKA, RuleNotFound, RulesPack
 from horus.services import ProjectSnapshot, RequestState
 
 
@@ -303,6 +303,15 @@ def request(state: RequestState) -> dict:
                 "figures": figures,
             }
         )
+    tolerance = KARNATAKA.value("escrow.figure_tolerance", snap.as_of)
+    for cert in certificates:
+        for figure in cert["figures"]:
+            value, books = figure["value"], figure["books"]
+            figure["matches_books"] = (
+                value is None
+                or books is None
+                or abs(Decimal(value) - Decimal(books)) <= abs(Decimal(books)) * tolerance
+            )
     return {
         "id": r.id,
         "project_id": snap.project.id,
@@ -457,6 +466,71 @@ def units(s: ProjectSnapshot, rows: list[Unit], owners: list[Landowner]) -> dict
     }
 
 
+_MONEY_RULES = {
+    "escrow.min_suggested_withdrawal",
+    "krera.qpr_late_fee_per_quarter",
+    "it.s194ia.threshold",
+}
+_DAY_RULES = {
+    "escrow.cycle_days",
+    "escrow.certificate_window_days",
+    "krera.qpr_due_days",
+    "it.msme.days_with_agreement",
+    "it.msme.days_without_agreement",
+    "it.msme.warning_days",
+    "obligations.due_soon_days",
+}
+_POINT_RULES = {
+    "escrow.progress_gap_points",
+    "money.cost_ahead_points",
+    "obligations.headroom_warning_points",
+}
+_MONTHS = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+]
+
+
+def _inr(amount: Decimal) -> str:
+    """Indian style: 25,000 / 10 lakh / 1.5 crore."""
+    if amount >= 10_000_000:
+        return f"₹{(amount / 10_000_000).normalize():f} crore"
+    if amount >= 100_000:
+        return f"₹{(amount / 100_000).normalize():f} lakh"
+    return f"₹{int(amount):,}"
+
+
+def rule_display(key: str, value) -> str:
+    if key in _MONEY_RULES:
+        return _inr(Decimal(value))
+    if key in _DAY_RULES:
+        return f"{value} days"
+    if key in _POINT_RULES:
+        return f"{value} points"
+    if key == "krera.annual_audit_months":
+        return f"{value} months after the financial year"
+    if key == "gst.procurement.payment_due":
+        month, day = value
+        return f"{day} {_MONTHS[month - 1]} of the following year"
+    if key == "escrow.withdrawal_cost_basis":
+        return "Cost incurred and paid" if value == "incurred_and_paid" else "Cost incurred"
+    if key == "escrow.ongoing_ratio_threshold":
+        return f"Ratio above {value}"
+    if isinstance(value, Decimal):
+        return f"{(value * 100).normalize():f}%"
+    return str(value)
+
+
 def rules(pack: RulesPack, on: date) -> dict:
     items = []
     for key in pack.rule_keys():
@@ -472,6 +546,7 @@ def rules(pack: RulesPack, on: date) -> dict:
                 "key": rule.key,
                 "title": rule.title,
                 "value": str(value),
+                "display": rule_display(rule.key, rule.value),
                 "basis": rule.basis,
                 "source_quality": rule.source_quality.value,
                 "confirm_against": rule.confirm_against,

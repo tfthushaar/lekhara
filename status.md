@@ -1,6 +1,6 @@
 # Horus status
 
-Last updated: 2026-10-17, with the commit "Add the database, demo data and HTTP API".
+Last updated: 2026-10-17, with the commit "Add the Horus web app".
 
 ## What we are building
 
@@ -23,18 +23,25 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states.
 - Every amount on the obligations list carries a plain label (for example "Can be drawn now", "Reverse charge", "Bill"), and only real exposures are added up as money at stake.
 - Demo data: a fictional developer with three Bengaluru projects (a JDA area-share project, an own-land project and a nearly complete JDA revenue-share project), dated relative to today.
 - JDA basics: every unit is marked as the developer's or the landowner's; landowners carry their share, deposit and payments, with the TDS check.
+- Web app, minimal and monochrome:
+  - Today: what needs you, grouped as Needs you now, Money waiting, At risk and Coming up, with the cash you can draw and the money at stake.
+  - Projects: progress, final cost against budget, what can be drawn, what needs attention.
+  - Project: Overview (key figures, cost signals, what the project owes, cost lines), Escrow (how much can be withdrawn today, worked out step by step, deposits, withdrawal history), Tax and statutory (80% meter, GST on development rights, delay interest, labour cess, guidance value, MSME bills, landowner TDS) and Units and landowners.
+  - Withdrawal request: who it is waiting for, the six steps, the three certificates with each figure against the books, the checks, and the next step (send to the bank, record the release or a rejection).
+  - Rules: every rate and deadline with its basis and how settled it is.
+  - Every form works without JavaScript and explains errors in words. Tested end to end against the demo data.
 
 ## In progress
 
-- Web screens.
+- Nothing in progress. Next up: sign-in, organisations and roles, so each certifier signs from their own seat.
 
 ## Left
 
 ### MVP
 
-- K-RERA: the quarterly progress report pack itself (deadlines and delay interest are done).
-- Web screens: Today, Projects, Project (overview, escrow, tax, units and landowners), Withdrawal request.
-- Sign-in, organisations and roles, including certifier seats.
+- K-RERA: the quarterly progress report pack and the annual audit pack (deadlines and delay interest are done).
+- Downloadable withdrawal pack for the bank (PDF of the three certificates and supporting figures).
+- Sign-in, organisations and roles, including certifier seats (today anyone can sign for a certifier, to try the flow).
 - Connectors: accounts mailbox (read-only), Tally (read-only), Excel and CRM imports.
 - AI document reading, obligation extraction and history backfill.
 - Monday briefing and Ask on WhatsApp.
