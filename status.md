@@ -1,6 +1,6 @@
 # Horus status
 
-Last updated: 2026-10-17, with the commit "Set up the Horus repository".
+Last updated: 2026-10-17, with the commit "Add the Karnataka rules pack and the money truth engine".
 
 ## What we are building
 
@@ -13,17 +13,17 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states.
 - Repository set up: customer-facing README, developer guide, CI for API and web.
 - API skeleton (Python, FastAPI) with a health check and tests.
 - Web app shell (Next.js 16) with the Horus text wordmark and the monochrome design system.
+- Karnataka rules pack v1: 35 rates, thresholds and deadlines as dated data, each with its legal basis, source quality and what to confirm it against. Horus settings are marked as settings, not law.
+- Money truth engine: cost lines, ledger stages (committed, incurred, paid, retention, advances), anticipated final cost, cost to complete, contingency, land and development totals for RERA, point-in-time positions, and alerts for overruns, low contingency and spending ahead of certified progress.
 
 ## In progress
 
-- Rules pack (Karnataka v1) and the money truth engine.
+- Escrow and certification engine.
 
 ## Left
 
 ### MVP
 
-- Rules pack: every rate, threshold and deadline as versioned data with legal basis and source quality.
-- Money truth engine: cost lines, append-only ledger, cost incurred, estimated cost to complete, anticipated final cost, overrun and cost-ahead-of-progress alerts.
 - Escrow and certification: drawable amount, deposit check, withdrawal requests, architect, engineer and CA certificates, consistency checks, sign-off, bank submission and release.
 - K-RERA: quarterly progress report deadlines and pack, delay interest exposure.
 - Real-estate tax: 80% registered-procurement meter, GST on development rights at completion, guidance-value check (s.43CA), TDS to landowners (s.194-IC), MSME 45-day clock, BOCW cess.
