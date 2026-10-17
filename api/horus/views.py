@@ -4,6 +4,16 @@ from datetime import date
 from decimal import Decimal
 
 from horus.engines.collections import CollectionsPosition
+from horus.engines.disputes import (
+    FORUM_LABEL,
+    ORDER_LABEL,
+    RELIEF_LABEL,
+    RUNNING,
+    STATUS_LABEL,
+    CasePosition,
+    DisputesPosition,
+    Event,
+)
 from horus.engines.escrow import (
     ROLE_CERTIFIES,
     ROLE_LABEL,
@@ -24,6 +34,7 @@ from horus.engines.obligations import Obligation, ObligationStatus
 from horus.engines.tax import MsmeStatus
 from horus.models import (
     DemandRow,
+    DisputeCase,
     Landowner,
     PaymentMilestone,
     Project,
@@ -73,7 +84,7 @@ def obligation(o: Obligation) -> dict:
         "action": o.action,
         "amount_label": o.amount_label,
         "exposure": o.exposure,
-        "link": None,
+        "link": f"/cases/{o.ref}" if o.ref else None,
     }
 
 
@@ -739,6 +750,146 @@ def unit_handover(h: HandoverPosition, project: Project, unit: Unit, *, can_edit
                 {"label": "Undivided share of land", "value": "To be completed by your lawyer"},
                 {"label": "Schedule of the property", "value": "To be completed by your lawyer"},
             ],
+        }
+    )
+    return detail
+
+
+# Disputes and orders
+
+
+def _event(e: Event) -> dict:
+    return {"on": d(e.on), "kind": e.kind, "case_id": e.case_id, "text": e.text}
+
+
+def _choices(labels: dict) -> list[dict]:
+    return [{"value": k.value, "label": v} for k, v in labels.items()]
+
+
+def case_row(cp: CasePosition) -> dict:
+    c = cp.case
+    return {
+        "id": c.case_id,
+        "forum": c.forum.value,
+        "forum_label": FORUM_LABEL[c.forum],
+        "case_number": c.case_number,
+        "complainant": c.complainant,
+        "unit": c.unit_label,
+        "relief": c.relief.value,
+        "relief_label": RELIEF_LABEL[c.relief],
+        "status": c.status.value,
+        "status_label": STATUS_LABEL[c.status],
+        "open": cp.open,
+        "at_stake": m(cp.at_stake),
+        "ordered": bool(cp.orders),
+        "next": _event(cp.next_event) if cp.next_event else None,
+    }
+
+
+def disputes(dp: DisputesPosition, project: Project, units: list[Unit], *, can_edit: bool) -> dict:
+    pt = dp.patterns
+    return {
+        "can_edit": can_edit,
+        "summary": {
+            "open": dp.open_cases,
+            "at_stake": m(dp.at_stake),
+            "owed_under_orders": m(dp.owed_under_orders),
+            "overdue_orders": dp.overdue_orders,
+            "next": _event(dp.events[0]) if dp.events else None,
+        },
+        "events": [_event(e) for e in dp.events],
+        "cases": [case_row(cp) for cp in dp.cases],
+        "patterns": {
+            "total": len(dp.cases),
+            "by_relief": [
+                {"label": RELIEF_LABEL[r], "count": n} for r, n in pt.by_relief.items() if n
+            ],
+            "by_forum": [
+                {"label": FORUM_LABEL[f], "count": n} for f, n in pt.by_forum.items() if n
+            ],
+            "filed_after_possession_due": pt.filed_after_possession_due,
+            "with_filing_date": pt.with_filing_date,
+            "possession_due_on": d(project.possession_due_on),
+            "units_with_cases": pt.units_with_cases,
+            "booked_units": pt.booked_units,
+        },
+        "choices": {"forums": _choices(FORUM_LABEL), "reliefs": _choices(RELIEF_LABEL)},
+        "units": [u.label for u in units],
+    }
+
+
+def case_detail(cp: CasePosition, row: DisputeCase, project: Project, *, can_edit: bool) -> dict:
+    c = cp.case
+    e = cp.estimate
+    summaries = {o.id: o.summary for o in row.orders}
+    detail = case_row(cp)
+    detail.update(
+        {
+            "project_id": project.id,
+            "project_name": project.name,
+            "can_edit": can_edit,
+            "summary": row.summary,
+            "lawyer": row.lawyer,
+            "claim_amount": m(row.claim_amount),
+            "filed_on": d(row.filed_on),
+            "notice_received_on": d(row.notice_received_on),
+            "reply_due_on": d(row.reply_due_on),
+            "reply_filed_on": d(row.reply_filed_on),
+            "next_hearing_on": d(row.next_hearing_on),
+            "appealed_on": d(row.appealed_on),
+            "closed_on": d(row.closed_on),
+            "possession_due_on": d(c.possession_due_on),
+            "possession_on": d(c.possession_on),
+            "buyer_paid": m(sum((p.amount for p in c.buyer_payments), ZERO)),
+            "rate_pct": str((cp.rate * 100).quantize(Decimal("0.01"))),
+            "estimate": {
+                "principal": m(e.principal),
+                "interest": m(e.interest),
+                "other": m(e.other),
+                "total": m(e.total),
+                "basis": e.basis,
+            },
+            "orders": [
+                {
+                    "id": o.order.order_id,
+                    "kind": o.order.kind.value,
+                    "label": ORDER_LABEL[o.order.kind],
+                    "summary": summaries.get(o.order.order_id),
+                    "ordered_on": d(o.order.ordered_on),
+                    "received_on": d(o.order.received_on),
+                    "comply_by": d(o.order.comply_by),
+                    "worked_out": o.order.amount is None and o.order.kind in RUNNING,
+                    "due": m(o.due),
+                    "paid": m(o.paid),
+                    "outstanding": m(o.outstanding),
+                    "overdue": o.overdue,
+                    "appeal_to": o.appeal.to if o.appeal else None,
+                    "appeal_by": d(o.appeal_by),
+                    "appeal_deposit": m(o.appeal_deposit),
+                }
+                for o in cp.orders
+            ],
+            "ordered_total": m(cp.ordered),
+            "owed": m(cp.owed),
+            "paid": m(cp.paid),
+            "settlement": {
+                "offered": m(row.settlement_offered),
+                "agreed": m(row.settlement_agreed),
+                "saving": m(cp.settlement_saving),
+            },
+            "hearings": [
+                {"held_on": d(h.held_on), "purpose": h.purpose, "outcome": h.outcome}
+                for h in reversed(row.hearings)
+            ],
+            "payments": [
+                {"paid_on": d(p.paid_on), "amount": m(p.amount), "reference": p.reference}
+                for p in row.payments
+            ],
+            "events": [_event(ev) for ev in cp.events],
+            "choices": {
+                "statuses": _choices(STATUS_LABEL),
+                "order_kinds": _choices(ORDER_LABEL),
+            },
         }
     )
     return detail

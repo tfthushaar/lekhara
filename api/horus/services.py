@@ -21,6 +21,21 @@ from horus.engines.collections import (
     new_demand,
 )
 from horus.engines.collections import Demand as DemandIn
+from horus.engines.disputes import OPEN as DISPUTE_OPEN
+from horus.engines.disputes import (
+    RUNNING,
+    CaseIn,
+    CasePosition,
+    CaseStatus,
+    DisputesPosition,
+    Forum,
+    OrderIn,
+    OrderKind,
+    Relief,
+    case_position,
+    disputes_position,
+)
+from horus.engines.disputes import Payment as DisputePaymentIn
 from horus.engines.escrow import (
     ROLE_ORDER,
     AccountTxn,
@@ -68,6 +83,10 @@ from horus.models import (
     Bill,
     CostLineRow,
     DemandRow,
+    DisputeCase,
+    DisputeHearing,
+    DisputeOrder,
+    DisputePayment,
     EscrowTxn,
     Filing,
     Landowner,
@@ -319,6 +338,7 @@ def snapshot(
     )
     collections = collections_for(session, project, as_of, rules)
     handover = handover_for(session, project, as_of, collections, rules)
+    disputes = disputes_for(session, project, as_of, rules)
     request = open_request(session, project)
     waiting_on = None
     if request is not None:
@@ -344,6 +364,7 @@ def snapshot(
         open_withdrawal_waiting_on=waiting_on,
         collections=collections,
         handover=handover,
+        disputes=disputes,
     )
     return ProjectSnapshot(
         project=project,
@@ -615,6 +636,334 @@ def update_handover(
     record.updated_by_user_id = user_id
     session.commit()
     return record
+
+
+# Disputes and orders
+
+
+def _choice(value: str | None, enum: type, what: str) -> str:
+    try:
+        return enum(value).value
+    except ValueError:
+        raise ServiceError(f"Choose the {what} from the list.") from None
+
+
+def _money_in(fields: dict, key: str) -> None:
+    value = fields.get(key)
+    if value is not None and Decimal(value) < 0:
+        raise ServiceError("Amounts cannot be negative.")
+
+
+def _case_in(
+    row: DisputeCase,
+    project: Project,
+    as_of: date,
+    units: dict[str, Unit],
+    receipts: dict[str, list[DisputePaymentIn]],
+    possession: dict[str, date],
+) -> CaseIn:
+    unit = units.get(row.unit_id) if row.unit_id else None
+    return CaseIn(
+        case_id=row.id,
+        forum=Forum(row.forum),
+        case_number=row.case_number,
+        relief=Relief(row.relief),
+        status=CaseStatus(row.status),
+        complainant=row.complainant,
+        unit_label=unit.label if unit else None,
+        filed_on=row.filed_on,
+        claim_amount=row.claim_amount,
+        reply_due_on=row.reply_due_on,
+        reply_filed_on=row.reply_filed_on,
+        next_hearing_on=row.next_hearing_on,
+        buyer_payments=tuple(sorted(receipts.get(row.unit_id, []), key=lambda p: p.on)),
+        possession_due_on=project.possession_due_on,
+        possession_on=possession.get(row.unit_id) if row.unit_id else None,
+        orders=tuple(
+            OrderIn(
+                order_id=o.id,
+                ordered_on=o.ordered_on,
+                kind=OrderKind(o.kind),
+                amount=o.amount,
+                comply_by=o.comply_by,
+                received_on=o.received_on,
+            )
+            for o in row.orders
+            if o.ordered_on <= as_of
+        ),
+        paid=tuple(DisputePaymentIn(p.paid_on, p.amount) for p in row.payments),
+        settlement_offered=row.settlement_offered,
+        settlement_agreed=row.settlement_agreed,
+        appealed_on=row.appealed_on,
+    )
+
+
+def _case_inputs(
+    session: Session, project: Project, rows: list[DisputeCase], as_of: date
+) -> list[CaseIn]:
+    unit_ids = {r.unit_id for r in rows if r.unit_id}
+    units = {u.id: u for u in session.scalars(select(Unit).where(Unit.id.in_(unit_ids)))}
+    receipts: dict[str, list[DisputePaymentIn]] = {}
+    for r in session.scalars(
+        select(Receipt).where(Receipt.unit_id.in_(unit_ids), Receipt.received_on <= as_of)
+    ):
+        receipts.setdefault(r.unit_id, []).append(
+            DisputePaymentIn(r.received_on, r.amount + r.tds_deducted)
+        )
+    possession = {
+        h.unit_id: h.possession_on
+        for h in session.scalars(select(UnitHandover).where(UnitHandover.unit_id.in_(unit_ids)))
+        if h.possession_on and h.possession_on <= as_of
+    }
+    return [_case_in(r, project, as_of, units, receipts, possession) for r in rows]
+
+
+def booked_units(session: Session, project: Project, as_of: date) -> list[Unit]:
+    return [
+        u
+        for u in session.scalars(
+            select(Unit)
+            .where(Unit.project_id == project.id, Unit.booked.is_(True))
+            .order_by(Unit.label)
+        )
+        if u.booked_on is None or u.booked_on <= as_of
+    ]
+
+
+def disputes_for(
+    session: Session, project: Project, as_of: date, rules: RulesPack = KARNATAKA
+) -> DisputesPosition:
+    rows = list(
+        session.scalars(
+            select(DisputeCase).where(
+                DisputeCase.project_id == project.id,
+                or_(DisputeCase.filed_on.is_(None), DisputeCase.filed_on <= as_of),
+            )
+        )
+    )
+    return disputes_position(
+        _case_inputs(session, project, rows, as_of),
+        as_of=as_of,
+        rules=rules,
+        possession_due_on=project.possession_due_on,
+        booked_units=len(booked_units(session, project, as_of)),
+    )
+
+
+def get_case(session: Session, case_id: str) -> DisputeCase:
+    row = session.get(DisputeCase, case_id)
+    if row is None:
+        raise ServiceError("Case not found.", 404)
+    return row
+
+
+def case_position_for(
+    session: Session, row: DisputeCase, project: Project, as_of: date, rules: RulesPack = KARNATAKA
+) -> CasePosition:
+    (case,) = _case_inputs(session, project, [row], as_of)
+    return case_position(case, as_of=as_of, rules=rules)
+
+
+def create_case(
+    session: Session, project: Project, fields: dict, *, as_of: date, user_id: str | None = None
+) -> DisputeCase:
+    number = (fields.get("case_number") or "").strip()
+    if not number:
+        raise ServiceError("Enter the case number.")
+    unit = None
+    label = (fields.get("unit") or "").strip()
+    if label:
+        unit = session.scalars(
+            select(Unit).where(Unit.project_id == project.id, Unit.label == label)
+        ).first()
+        if unit is None or not unit.booked:
+            raise ServiceError(f"No booked unit {label} in this project.")
+    complainant = (fields.get("complainant") or "").strip() or (unit.buyer_name if unit else "")
+    if not complainant:
+        raise ServiceError("Enter who brought the case, or the unit it is about.")
+    _money_in(fields, "claim_amount")
+    row = DisputeCase(
+        project_id=project.id,
+        unit_id=unit.id if unit else None,
+        forum=_choice(fields.get("forum"), Forum, "forum"),
+        case_number=number,
+        relief=_choice(fields.get("relief"), Relief, "relief sought"),
+        complainant=complainant,
+        summary=(fields.get("summary") or "").strip() or None,
+        claim_amount=fields.get("claim_amount"),
+        filed_on=fields.get("filed_on"),
+        notice_received_on=fields.get("notice_received_on") or as_of,
+        reply_due_on=fields.get("reply_due_on"),
+        next_hearing_on=fields.get("next_hearing_on"),
+        lawyer=(fields.get("lawyer") or "").strip() or None,
+        status=CaseStatus.HEARING.value if fields.get("next_hearing_on") else "notice",
+        created_by_user_id=user_id,
+        updated_by_user_id=user_id,
+    )
+    session.add(row)
+    session.commit()
+    return row
+
+
+CASE_FIELDS = {
+    "status",
+    "lawyer",
+    "summary",
+    "claim_amount",
+    "reply_due_on",
+    "reply_filed_on",
+    "next_hearing_on",
+    "settlement_offered",
+    "settlement_agreed",
+    "appealed_on",
+}
+
+
+def _close_if_done(row: DisputeCase, as_of: date) -> None:
+    if CaseStatus(row.status) in DISPUTE_OPEN:
+        row.closed_on = None
+    elif row.closed_on is None:
+        row.closed_on = as_of
+
+
+def update_case(
+    session: Session, row: DisputeCase, fields: dict, *, as_of: date, user_id: str | None = None
+) -> DisputeCase:
+    unknown = set(fields) - CASE_FIELDS
+    if unknown:
+        raise ServiceError(f"Unknown field: {sorted(unknown)[0]}.")
+    for key in ("claim_amount", "settlement_offered", "settlement_agreed"):
+        _money_in(fields, key)
+    if "status" in fields:
+        fields["status"] = _choice(fields["status"], CaseStatus, "status")
+    status_changed = fields.get("status", row.status) != row.status
+    for key, value in fields.items():
+        if isinstance(value, str) and key != "status":
+            value = value.strip() or None
+        setattr(row, key, value)
+    if not status_changed:
+        if fields.get("appealed_on"):
+            row.status = CaseStatus.APPEALED.value
+        elif fields.get("settlement_agreed") is not None and CaseStatus(row.status) in DISPUTE_OPEN:
+            row.status = CaseStatus.SETTLING.value
+    _close_if_done(row, as_of)
+    row.updated_by_user_id = user_id
+    session.commit()
+    return row
+
+
+def add_hearing(
+    session: Session, row: DisputeCase, fields: dict, *, as_of: date, user_id: str | None = None
+) -> DisputeHearing:
+    held_on = fields.get("held_on")
+    if held_on is None:
+        raise ServiceError("Enter the date of the hearing.")
+    if held_on > as_of:
+        raise ServiceError(
+            "Record a hearing once it has happened. Set the next hearing date instead."
+        )
+    hearing = DisputeHearing(
+        case_id=row.id,
+        held_on=held_on,
+        purpose=(fields.get("purpose") or "").strip() or "Hearing",
+        outcome=(fields.get("outcome") or "").strip() or None,
+        recorded_by_user_id=user_id,
+    )
+    session.add(hearing)
+    next_on = fields.get("next_hearing_on")
+    if next_on is not None and next_on <= held_on:
+        raise ServiceError("The next hearing must be after this one.")
+    row.next_hearing_on = next_on
+    if fields.get("order_reserved"):
+        row.status = CaseStatus.RESERVED.value
+    elif row.status == CaseStatus.NOTICE.value:
+        row.status = CaseStatus.HEARING.value
+    row.updated_by_user_id = user_id
+    session.commit()
+    return hearing
+
+
+def add_order(
+    session: Session, row: DisputeCase, fields: dict, *, as_of: date, user_id: str | None = None
+) -> DisputeOrder:
+    ordered_on = fields.get("ordered_on")
+    if ordered_on is None or ordered_on > as_of:
+        raise ServiceError("Enter the date of the order; it cannot be in the future.")
+    kind = OrderKind(_choice(fields.get("kind"), OrderKind, "kind of order"))
+    _money_in(fields, "amount")
+    amount = fields.get("amount")
+    if (
+        amount is None
+        and kind not in RUNNING
+        and kind
+        not in (
+            OrderKind.POSSESSION,
+            OrderKind.DISMISSED,
+            OrderKind.OTHER,
+        )
+    ):
+        raise ServiceError("Enter the amount the order directs.")
+    if amount is None and kind in RUNNING and row.unit_id is None:
+        raise ServiceError(
+            "Enter the amount. Horus works out refunds and interest only for a buyer's unit."
+        )
+    order = DisputeOrder(
+        case_id=row.id,
+        ordered_on=ordered_on,
+        received_on=fields.get("received_on"),
+        kind=kind.value,
+        amount=amount,
+        comply_by=fields.get("comply_by"),
+        summary=(fields.get("summary") or "").strip() or None,
+        recorded_by_user_id=user_id,
+    )
+    session.add(order)
+    if kind == OrderKind.DISMISSED:
+        row.status = CaseStatus.DISMISSED.value
+    elif row.status != CaseStatus.APPEALED.value:
+        row.status = CaseStatus.ORDERED.value
+    row.next_hearing_on = None
+    _close_if_done(row, as_of)
+    row.updated_by_user_id = user_id
+    session.commit()
+    return order
+
+
+def add_payment(
+    session: Session,
+    row: DisputeCase,
+    project: Project,
+    fields: dict,
+    *,
+    as_of: date,
+    user_id: str | None = None,
+    rules: RulesPack = KARNATAKA,
+) -> DisputePayment:
+    paid_on = fields.get("paid_on")
+    amount = fields.get("amount")
+    if paid_on is None or paid_on > as_of:
+        raise ServiceError("Enter the date of the payment; it cannot be in the future.")
+    if amount is None or Decimal(amount) <= 0:
+        raise ServiceError("Enter the amount paid.")
+    payment = DisputePayment(
+        case_id=row.id,
+        paid_on=paid_on,
+        amount=amount,
+        reference=(fields.get("reference") or "").strip() or None,
+        recorded_by_user_id=user_id,
+    )
+    session.add(payment)
+    session.flush()
+    session.refresh(row)
+    position = case_position_for(session, row, project, as_of, rules)
+    if row.settlement_agreed is not None and position.paid >= row.settlement_agreed:
+        row.status = CaseStatus.SETTLED.value
+    elif position.orders and position.owed <= 0 and row.status == CaseStatus.ORDERED.value:
+        row.status = CaseStatus.COMPLIED.value
+    _close_if_done(row, as_of)
+    row.updated_by_user_id = user_id
+    session.commit()
+    return payment
 
 
 # Withdrawal workflow

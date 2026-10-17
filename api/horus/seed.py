@@ -35,6 +35,10 @@ from horus.models import (
     Bill,
     CostLineRow,
     DemandRow,
+    DisputeCase,
+    DisputeHearing,
+    DisputeOrder,
+    DisputePayment,
     EscrowTxn,
     Filing,
     Landowner,
@@ -479,6 +483,51 @@ class Seeder:
                     record.possession_on = self.ago(5)
                 ready += 1
             self.s.add(record)
+
+    def case(
+        self,
+        p: Project,
+        unit: Unit | None,
+        *,
+        forum: str,
+        number: str,
+        relief: str,
+        status: str,
+        filed_on: date,
+        summary: str,
+        complainant: str | None = None,
+        user_id: str | None = None,
+        hearings: tuple[tuple[date, str, str], ...] = (),
+        orders: tuple[dict, ...] = (),
+        payments: tuple[tuple[date, Decimal, str], ...] = (),
+        **fields,
+    ) -> DisputeCase:
+        row = DisputeCase(
+            project_id=p.id,
+            unit_id=unit.id if unit else None,
+            forum=forum,
+            case_number=number,
+            relief=relief,
+            status=status,
+            filed_on=filed_on,
+            summary=summary,
+            complainant=complainant or (unit.buyer_name if unit else ""),
+            created_by_user_id=user_id,
+            **fields,
+        )
+        self.s.add(row)
+        self.s.flush()
+        for held_on, purpose, outcome in hearings:
+            self.s.add(
+                DisputeHearing(case_id=row.id, held_on=held_on, purpose=purpose, outcome=outcome)
+            )
+        for order in orders:
+            self.s.add(DisputeOrder(case_id=row.id, **order))
+        for paid_on, amount, reference in payments:
+            self.s.add(
+                DisputePayment(case_id=row.id, paid_on=paid_on, amount=amount, reference=reference)
+            )
+        return row
 
     def escrow(
         self,
@@ -1045,6 +1094,154 @@ def seed(session: Session, today: date) -> None:
             row.signer_firm = account.firm
             row.signed_by_user_id = users[account.email].id
             row.issued_on = sd.ago(2 if row.role == "architect" else 1)
+    session.flush()
+
+    # Disputes. Sarjapur Greens is past its promised possession date and buyers have gone to
+    # K-RERA and the consumer commission; Whitefield has a boundary suit from a neighbour.
+    sg_units = list(
+        session.scalars(
+            select(Unit).where(Unit.project_id == sg.id, Unit.booked.is_(True)).order_by(Unit.label)
+        )
+    )
+    at = lambda i: sg_units[min(i, len(sg_units) - 1)]  # noqa: E731
+    clerk = users["accounts@demo.horus"].id
+    sd.case(
+        sg,
+        at(72),
+        forum="krera",
+        number="CMP/DEMO/0412/2026",
+        relief="delay_interest",
+        status="hearing",
+        filed_on=sd.ago(40),
+        notice_received_on=sd.ago(35),
+        reply_due_on=sd.ago(21),
+        reply_filed_on=sd.ago(22),
+        next_hearing_on=sd.ahead(9),
+        lawyer="R. Narayan, Advocate",
+        summary=(
+            "Asks for interest for every month of delay from the promised possession date, and "
+            "possession with a final e-Khata."
+        ),
+        hearings=((sd.ago(12), "First hearing", "Reply taken on record. Rejoinder to be filed."),),
+        user_id=clerk,
+    )
+    sd.case(
+        sg,
+        at(85),
+        forum="krera",
+        number="CMP/DEMO/0377/2026",
+        relief="refund",
+        status="ordered",
+        filed_on=sd.ago(150),
+        notice_received_on=sd.ago(140),
+        reply_due_on=sd.ago(116),
+        reply_filed_on=sd.ago(118),
+        lawyer="R. Narayan, Advocate",
+        summary="Wants to leave the project and get back everything paid, citing the delay.",
+        hearings=(
+            (sd.ago(95), "First hearing", "Reply taken on record."),
+            (sd.ago(60), "Arguments", "Arguments heard. Order reserved."),
+        ),
+        orders=(
+            {
+                "ordered_on": sd.ago(25),
+                "received_on": sd.ago(22),
+                "kind": "refund",
+                "comply_by": sd.ago(25) + timedelta(days=60),
+                "summary": (
+                    "Refund the amount paid with interest at SBI MCLR plus 2% from each payment "
+                    "until it is refunded, within 60 days."
+                ),
+            },
+        ),
+        user_id=clerk,
+    )
+    sd.case(
+        sg,
+        at(91),
+        forum="consumer_district",
+        number="CC/DEMO/218/2026",
+        relief="defects",
+        status="notice",
+        filed_on=sd.ago(30),
+        notice_received_on=sd.ago(10),
+        reply_due_on=sd.ahead(5),
+        next_hearing_on=sd.ahead(25),
+        claim_amount=lakh("4.5"),
+        summary="Seepage in the master bedroom and the balcony; asks for repairs and compensation.",
+        user_id=clerk,
+    )
+    sd.case(
+        sg,
+        at(78),
+        forum="adjudicating_officer",
+        number="AO/DEMO/051/2026",
+        relief="compensation",
+        status="ordered",
+        filed_on=sd.ago(200),
+        notice_received_on=sd.ago(190),
+        reply_filed_on=sd.ago(170),
+        claim_amount=lakh("10"),
+        lawyer="S. Hegde and Associates",
+        summary="Compensation for rent paid and hardship during the delay.",
+        hearings=(
+            (sd.ago(120), "First hearing", "Reply taken on record."),
+            (sd.ago(85), "Arguments", "Order reserved."),
+        ),
+        orders=(
+            {
+                "ordered_on": sd.ago(70),
+                "received_on": sd.ago(66),
+                "kind": "compensation",
+                "amount": lakh("2.5"),
+                "comply_by": sd.ago(10),
+                "summary": "Compensation of 2.5 lakh within 60 days.",
+            },
+            {
+                "ordered_on": sd.ago(70),
+                "received_on": sd.ago(66),
+                "kind": "costs",
+                "amount": Decimal("25000"),
+                "comply_by": sd.ago(10),
+                "summary": "Costs of the proceedings.",
+            },
+        ),
+        user_id=clerk,
+    )
+    sd.case(
+        sg,
+        at(64),
+        forum="krera",
+        number="CMP/DEMO/0290/2026",
+        relief="delay_interest",
+        status="settled",
+        filed_on=sd.ago(120),
+        notice_received_on=sd.ago(110),
+        reply_filed_on=sd.ago(90),
+        settlement_offered=lakh("1.6"),
+        settlement_agreed=lakh("1.85"),
+        closed_on=sd.ago(28),
+        summary="Settled for interest for the delay; terms filed and the complaint withdrawn.",
+        payments=((sd.ago(30), lakh("1.85"), "NEFT DEMO0290"),),
+        user_id=clerk,
+    )
+    sd.case(
+        wf,
+        None,
+        forum="civil_court",
+        number="OS/DEMO/1123/2026",
+        relief="other",
+        status="hearing",
+        complainant="M. Kumar (adjoining plot)",
+        filed_on=sd.ago(60),
+        notice_received_on=sd.ago(50),
+        reply_due_on=sd.ago(20),
+        reply_filed_on=sd.ago(30),
+        next_hearing_on=sd.ahead(20),
+        lawyer="S. Hegde and Associates",
+        summary="Suit for an injunction over the boundary wall on the eastern side.",
+        user_id=clerk,
+    )
     session.commit()
 
 

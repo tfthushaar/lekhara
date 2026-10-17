@@ -510,7 +510,8 @@ h3 {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--line-2);
@@ -520,7 +521,8 @@ h3 {
 }
 
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   border-color: var(--ink);
   outline: none;
 }
@@ -640,6 +642,18 @@ h3 {
 
 .disclosure[open] summary {
   margin-bottom: 12px;
+}
+
+.field-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 14px;
+}
+
+.field-wide {
+  grid-column: 1 / -1;
 }
 
 .field-grid {

@@ -331,6 +331,81 @@ class UnitHandover(Base):
     updated_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
 
 
+# Disputes and orders
+
+
+class DisputeCase(Base):
+    """A case brought against a project: at K-RERA, a consumer commission or a court."""
+
+    __tablename__ = "dispute_cases"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    unit_id: Mapped[str | None] = mapped_column(ForeignKey("units.id"))
+    forum: Mapped[str] = mapped_column(String(32))
+    case_number: Mapped[str] = mapped_column(String(100))
+    relief: Mapped[str] = mapped_column(String(32))
+    complainant: Mapped[str] = mapped_column(String(200))
+    summary: Mapped[str | None] = mapped_column(String(2000))
+    claim_amount: Mapped[Decimal | None] = mapped_column(Money)
+    filed_on: Mapped[date | None] = mapped_column(Date)
+    notice_received_on: Mapped[date | None] = mapped_column(Date)
+    reply_due_on: Mapped[date | None] = mapped_column(Date)
+    reply_filed_on: Mapped[date | None] = mapped_column(Date)
+    next_hearing_on: Mapped[date | None] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(16), default="notice")
+    lawyer: Mapped[str | None] = mapped_column(String(200))
+    settlement_offered: Mapped[Decimal | None] = mapped_column(Money)
+    settlement_agreed: Mapped[Decimal | None] = mapped_column(Money)
+    appealed_on: Mapped[date | None] = mapped_column(Date)
+    closed_on: Mapped[date | None] = mapped_column(Date)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    updated_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+    hearings: Mapped[list["DisputeHearing"]] = relationship(order_by="DisputeHearing.held_on")
+    orders: Mapped[list["DisputeOrder"]] = relationship(order_by="DisputeOrder.ordered_on")
+    payments: Mapped[list["DisputePayment"]] = relationship(order_by="DisputePayment.paid_on")
+
+
+class DisputeHearing(Base):
+    __tablename__ = "dispute_hearings"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    case_id: Mapped[str] = mapped_column(ForeignKey("dispute_cases.id"), index=True)
+    held_on: Mapped[date] = mapped_column(Date)
+    purpose: Mapped[str] = mapped_column(String(200))
+    outcome: Mapped[str | None] = mapped_column(String(1000))
+    recorded_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
+class DisputeOrder(Base):
+    __tablename__ = "dispute_orders"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    case_id: Mapped[str] = mapped_column(ForeignKey("dispute_cases.id"), index=True)
+    ordered_on: Mapped[date] = mapped_column(Date)
+    received_on: Mapped[date | None] = mapped_column(Date)
+    kind: Mapped[str] = mapped_column(String(32))
+    amount: Mapped[Decimal | None] = mapped_column(Money)
+    """A fixed sum. Empty for refund and delay-interest orders, which Horus works out."""
+    comply_by: Mapped[date | None] = mapped_column(Date)
+    summary: Mapped[str | None] = mapped_column(String(2000))
+    recorded_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
+class DisputePayment(Base):
+    """Money the developer paid under an order or a settlement."""
+
+    __tablename__ = "dispute_payments"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    case_id: Mapped[str] = mapped_column(ForeignKey("dispute_cases.id"), index=True)
+    paid_on: Mapped[date] = mapped_column(Date)
+    amount: Mapped[Decimal] = mapped_column(Money)
+    reference: Mapped[str | None] = mapped_column(String(200))
+    recorded_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
 # People and access
 
 
@@ -401,6 +476,6 @@ def _forbid(_mapper, _connection, target) -> None:
     )
 
 
-for _model in (LedgerEntry, EscrowTxn):
+for _model in (LedgerEntry, EscrowTxn, DisputePayment):
     event.listen(_model, "before_update", _forbid)
     event.listen(_model, "before_delete", _forbid)

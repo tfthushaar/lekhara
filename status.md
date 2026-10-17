@@ -1,6 +1,6 @@
 # Horus status
 
-Last updated: 2026-10-17, with the commit "Add the registration and handover desk".
+Last updated: 2026-10-17, with the commit "Add the disputes and orders desk".
 
 ## What we are building
 
@@ -18,7 +18,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - Repository set up: customer-facing README, developer guide, CI for API and web.
 - API skeleton (Python, FastAPI) with a health check and tests.
 - Web app shell (Next.js 16) with the Horus text wordmark and the monochrome design system.
-- Karnataka rules pack v1: 42 rates, thresholds and deadlines as dated data, each with its legal basis, source quality and what to confirm it against. Horus settings are marked as settings, not law.
+- Karnataka rules pack v1: 51 rates, thresholds and deadlines as dated data, each with its legal basis, source quality and what to confirm it against. Horus settings are marked as settings, not law.
 - Money truth engine: cost lines, ledger stages (committed, incurred, paid, retention, advances), anticipated final cost, cost to complete, contingency, land and development totals for RERA, point-in-time positions, and alerts for overruns, low contingency and spending ahead of certified progress.
 - Escrow and certification engine: drawable amount (limited by cost incurred and paid, or by the account balance, whichever is lower), 70% deposit check, the ongoing-project deposit rule, next certificate cycle, drafts of the architect's, engineer's and CA's certificates prepared from the books, and the checks a bank or K-RERA auditor would run.
 - Real-estate tax engine: the 80% registered-supplier meter, GST on development rights at completion, the s.43CA guidance-value check, s.194-IC landowner TDS, the MSME 45-day clock, BOCW labour cess and delay interest owed to buyers.
@@ -27,7 +27,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - HTTP API: Today, projects, money, escrow, tax, units and the rules pack; the full withdrawal workflow with its checks enforced.
 - Demo data: a fictional developer with three Bengaluru projects, dated relative to today.
 - JDA basics: every unit is marked as the developer's or the landowner's; landowners carry their share, deposit and payments, with the TDS check.
-- Web app: Today, Projects, a project's Overview, Escrow, Collections, Handover, Tax and statutory, and Units and landowners tabs, the Withdrawal request, a unit's handover page, demand letters and Rules. Every form works without JavaScript.
+- Web app: Today, Projects, a project's Overview, Escrow, Collections, Handover, Disputes, Tax and statutory, and Units and landowners tabs, the Withdrawal request, a unit's handover page, a case page, demand letters and Rules. Every form works without JavaScript.
 - Database migrations (Alembic, inside the package). The API brings the schema up to date on start; the demo seed builds the schema through migrations; a test fails if the migrated schema and the models ever disagree.
 - Sign-in, organisations, roles and certifier seats:
   - Email and password sign-in (scrypt-hashed passwords, hashed session tokens, 14-day sessions, sign-out, throttling of repeated failed attempts).
@@ -48,10 +48,18 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - A page per unit: the steps, a form for the next step (e-Khata, deed drafted, appointment, registration with its document number, possession), corrections, a printable sale deed fact sheet for the lawyer and an estimate of the buyer's stamp duty, cess and registration fee (rates marked to confirm).
   - On Today: units not yet registered and the money waiting on them, and the date by which the common areas are due to go to the association (three months after the occupancy certificate under RERA where no local law says otherwise; marked to confirm for Karnataka).
   - Tested end to end: one unit taken from a drafted deed to possession, an e-Khata recorded on another, certifiers kept out.
+- Disputes and orders desk:
+  - One register of every case: K-RERA, its adjudicating officer and Appellate Tribunal, the district, state and national consumer commissions, the High Court and civil courts.
+  - What each case could cost, worked out from what the buyer actually paid: a refund with interest from each payment, or interest for the delay from the promised possession date (or the payment, if later), at the delay-interest rate; otherwise the amount claimed.
+  - Orders: refunds and interest are worked out to the day and stop growing once paid in full; fixed sums for compensation, costs and penalties. The date to comply by, and the last day to appeal with the deposit an appeal needs first (K-RERA to the Tribunal in 60 days with the full amount owed to the buyer, or 30% of a penalty; consumer appeals in 45 or 30 days with half the amount; all marked to confirm).
+  - Hearings, payments under orders (append-only) and settlements, with what a settlement saves against the order or the estimate. Cases close themselves when an order is paid or a settlement is paid in full.
+  - Patterns: how many complaints came after the promised possession date, how many booked units have a case, and cases by relief and forum.
+  - On Today: replies due, hearings in the next 30 days, orders to pay (past their date shown as overdue, with the K-RERA recovery warning), the last day to appeal and settlements to pay. Each opens its case.
+  - Tested end to end: a new case recorded against a unit and taken through a hearing, an order and payment; a settlement agreed on another; certifiers kept out.
 
 ## In progress
 
-- Disputes and orders desk.
+- Document vault.
 
 ## Left
 
@@ -63,7 +71,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
 - Collections, next steps: importing receipts from the bank statement and the CRM, reminders through the team's own WhatsApp or email.
 - Registration and handover, next steps: recording the occupancy certificate and the conveyance from the web, possession letters, the association handover checklist.
-- Disputes and orders desk.
+- Disputes, next steps: reading complaints and orders with AI (with the AI gateway), reply outlines for the lawyer, cancelling the unit when a refund is paid.
 - Document vault.
 - Bank withdrawal pack (PDF); quarterly progress report and annual audit packs.
 - Form errors shown without JavaScript too (today the browser's own checks catch most cases; the server's message appears once the page has loaded its scripts).

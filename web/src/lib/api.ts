@@ -6,7 +6,14 @@ import { SESSION_COOKIE } from "@/lib/session-cookie";
 const BASE = process.env.HORUS_API_URL ?? "http://localhost:8000";
 
 export type Status = "overdue" | "due_soon" | "at_risk" | "opportunity" | "upcoming" | "done";
-export type Area = "escrow" | "collections" | "handover" | "krera" | "tax" | "units";
+export type Area =
+  | "escrow"
+  | "collections"
+  | "handover"
+  | "disputes"
+  | "krera"
+  | "tax"
+  | "units";
 
 export type Obligation = {
   key: string;
@@ -427,6 +434,105 @@ export type UnitHandover = UnitReadiness & {
   fact_sheet: { label: string; value: string }[];
 };
 
+export type Choice = { value: string; label: string };
+
+export type CaseEvent = {
+  on: string;
+  kind: "reply" | "hearing" | "comply" | "appeal";
+  case_id: string;
+  text: string;
+};
+
+export type CaseRow = {
+  id: string;
+  forum: string;
+  forum_label: string;
+  case_number: string;
+  complainant: string;
+  unit: string | null;
+  relief: string;
+  relief_label: string;
+  status: string;
+  status_label: string;
+  open: boolean;
+  at_stake: string;
+  ordered: boolean;
+  next: CaseEvent | null;
+};
+
+export type Disputes = {
+  can_edit: boolean;
+  summary: {
+    open: number;
+    at_stake: string;
+    owed_under_orders: string;
+    overdue_orders: number;
+    next: CaseEvent | null;
+  };
+  events: CaseEvent[];
+  cases: CaseRow[];
+  patterns: {
+    total: number;
+    by_relief: { label: string; count: number }[];
+    by_forum: { label: string; count: number }[];
+    filed_after_possession_due: number;
+    with_filing_date: number;
+    possession_due_on: string | null;
+    units_with_cases: number;
+    booked_units: number;
+  };
+  choices: { forums: Choice[]; reliefs: Choice[] };
+  units: string[];
+};
+
+export type CaseOrder = {
+  id: string;
+  kind: string;
+  label: string;
+  summary: string | null;
+  ordered_on: string;
+  received_on: string | null;
+  comply_by: string | null;
+  worked_out: boolean;
+  due: string;
+  paid: string;
+  outstanding: string;
+  overdue: boolean;
+  appeal_to: string | null;
+  appeal_by: string | null;
+  appeal_deposit: string | null;
+};
+
+export type CaseDetail = CaseRow & {
+  project_id: string;
+  project_name: string;
+  can_edit: boolean;
+  summary: string | null;
+  lawyer: string | null;
+  claim_amount: string | null;
+  filed_on: string | null;
+  notice_received_on: string | null;
+  reply_due_on: string | null;
+  reply_filed_on: string | null;
+  next_hearing_on: string | null;
+  appealed_on: string | null;
+  closed_on: string | null;
+  possession_due_on: string | null;
+  possession_on: string | null;
+  buyer_paid: string;
+  rate_pct: string;
+  estimate: { principal: string; interest: string; other: string; total: string; basis: string };
+  orders: CaseOrder[];
+  ordered_total: string;
+  owed: string;
+  paid: string;
+  settlement: { offered: string | null; agreed: string | null; saving: string | null };
+  hearings: { held_on: string; purpose: string; outcome: string | null }[];
+  payments: { paid_on: string; amount: string; reference: string | null }[];
+  events: CaseEvent[];
+  choices: { statuses: Choice[]; order_kinds: Choice[] };
+};
+
 export type Rules = {
   state: string;
   version: string;
@@ -506,6 +612,8 @@ export const api = {
   collections: (id: string) => get<Collections>(`/projects/${id}/collections`),
   handover: (id: string) => get<Handover>(`/projects/${id}/handover`),
   unitHandover: (unitId: string) => get<UnitHandover>(`/units/${unitId}/handover`),
+  disputes: (id: string) => get<Disputes>(`/projects/${id}/disputes`),
+  case: (id: string) => get<CaseDetail>(`/cases/${id}`),
   demand: (id: string) => get<DemandLetter>(`/demands/${id}`),
   tax: (id: string) => get<Tax>(`/projects/${id}/tax`),
   units: (id: string) => get<Units>(`/projects/${id}/units`),
@@ -523,6 +631,8 @@ export function areaHref(o: Obligation): string {
       return `${base}/collections`;
     case "handover":
       return `${base}/handover`;
+    case "disputes":
+      return `${base}/disputes`;
     case "tax":
       return `${base}/tax`;
     case "units":

@@ -86,6 +86,112 @@ export async function updateHandover(
   return {};
 }
 
+function filled(form: FormData, names: string[]): Record<string, string> {
+  const body: Record<string, string> = {};
+  for (const name of names) {
+    const value = text(form, name);
+    if (value) body[name] = value;
+  }
+  return body;
+}
+
+export async function createCase(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const body = filled(form, [
+    "forum",
+    "case_number",
+    "relief",
+    "unit",
+    "complainant",
+    "filed_on",
+    "notice_received_on",
+    "reply_due_on",
+    "next_hearing_on",
+    "claim_amount",
+    "lawyer",
+    "summary",
+  ]);
+  const result = await send<{ id: string }>("POST", `/projects/${projectId}/disputes`, body);
+  if (!result.ok) return { error: result.error };
+  redirect(`/cases/${result.data.id}`);
+}
+
+export async function updateCase(
+  caseId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const body = filled(form, [
+    "status",
+    "lawyer",
+    "summary",
+    "claim_amount",
+    "reply_due_on",
+    "reply_filed_on",
+    "next_hearing_on",
+    "settlement_offered",
+    "settlement_agreed",
+    "appealed_on",
+  ]);
+  if (Object.keys(body).length === 0) return { error: "Fill in the details first." };
+  const result = await send("PUT", `/cases/${caseId}`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function addHearing(
+  caseId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const body: Record<string, string | boolean> = filled(form, [
+    "held_on",
+    "purpose",
+    "outcome",
+    "next_hearing_on",
+  ]);
+  body.order_reserved = form.get("order_reserved") === "on";
+  const result = await send("POST", `/cases/${caseId}/hearings`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function addOrder(
+  caseId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const body = filled(form, [
+    "ordered_on",
+    "received_on",
+    "kind",
+    "amount",
+    "comply_by",
+    "summary",
+  ]);
+  const result = await send("POST", `/cases/${caseId}/orders`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function addPayment(
+  caseId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const body = filled(form, ["paid_on", "amount", "reference"]);
+  const result = await send("POST", `/cases/${caseId}/payments`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function updateFigure(
   requestId: string,
   role: string,

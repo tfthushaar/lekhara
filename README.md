@@ -29,7 +29,7 @@ Quarterly progress reports and the annual audit are prepared from your own recor
 See unit by unit what stands between a buyer and registration: occupancy certificate, e-Khata, final payment, sale deed, appointment. See how much money is waiting on it. Each unit comes with a fact sheet for your lawyer's sale deed and an estimate of the buyer's stamp duty and fees, and Horus reminds you when the common areas are due to go to the residents' association.
 
 **Stay ahead of complaints.**
-Every K-RERA, consumer and civil case in one register, with hearings, deadlines and what each one could cost.
+Every K-RERA, consumer and civil case in one register, with hearings, deadlines and what each one could cost, worked out from what the buyer actually paid. When an order is passed, Horus shows what it directs to the rupee, the date to comply by, and the last day to appeal with the deposit an appeal needs. Weigh a settlement against the order before you agree to it.
 
 **Collect from buyers' banks faster.**
 Track every home-loan disbursement by bank and milestone, and send each bank the documents it asks for.

@@ -28,6 +28,57 @@ class Login(BaseModel):
     password: str
 
 
+class NewCase(BaseModel):
+    forum: str
+    case_number: str
+    relief: str
+    complainant: str | None = None
+    unit: str | None = None
+    filed_on: date | None = None
+    notice_received_on: date | None = None
+    claim_amount: Decimal | None = None
+    reply_due_on: date | None = None
+    next_hearing_on: date | None = None
+    lawyer: str | None = None
+    summary: str | None = None
+
+
+class CaseUpdate(BaseModel):
+    status: str | None = None
+    lawyer: str | None = None
+    summary: str | None = None
+    claim_amount: Decimal | None = None
+    reply_due_on: date | None = None
+    reply_filed_on: date | None = None
+    next_hearing_on: date | None = None
+    settlement_offered: Decimal | None = None
+    settlement_agreed: Decimal | None = None
+    appealed_on: date | None = None
+
+
+class NewHearing(BaseModel):
+    held_on: date
+    purpose: str | None = None
+    outcome: str | None = None
+    next_hearing_on: date | None = None
+    order_reserved: bool = False
+
+
+class NewOrder(BaseModel):
+    ordered_on: date
+    kind: str
+    amount: Decimal | None = None
+    comply_by: date | None = None
+    received_on: date | None = None
+    summary: str | None = None
+
+
+class NewPayment(BaseModel):
+    paid_on: date
+    amount: Decimal
+    reference: str | None = None
+
+
 class HandoverUpdate(BaseModel):
     ekhata_status: str | None = None
     khata_type: str | None = None
@@ -369,6 +420,73 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         )
         h = services.handover_for(session, p, on)
         return views.unit_handover(h, p, unit, can_edit=True)
+
+    # Disputes and orders
+
+    @app.get("/projects/{project_id}/disputes")
+    def project_disputes(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return views.disputes(
+            services.disputes_for(session, p, on),
+            p,
+            services.booked_units(session, p, on),
+            can_edit=me.can_prepare(p),
+        )
+
+    @app.post("/projects/{project_id}/disputes", status_code=201)
+    def create_case(project_id: str, body: NewCase, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        row = services.create_case(
+            session, p, body.model_dump(exclude_unset=True), as_of=on, user_id=me.user_id
+        )
+        return {"id": row.id}
+
+    def case_for(session: Session, me: auth.Principal, case_id: str, *, edit: bool = False):
+        row = services.get_case(session, case_id)
+        p = services.get_project(session, row.project_id)
+        if edit:
+            auth.require_prepare(me, p)
+        else:
+            auth.require_team(me, p)
+        return row, p
+
+    def case_view(session: Session, me: auth.Principal, row, p: Project, on: date) -> dict:
+        session.refresh(row)
+        position = services.case_position_for(session, row, p, on)
+        return views.case_detail(position, row, p, can_edit=me.can_prepare(p))
+
+    @app.get("/cases/{case_id}")
+    def get_case(case_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = case_for(session, me, case_id)
+        return case_view(session, me, row, p, on)
+
+    @app.put("/cases/{case_id}")
+    def update_case(case_id: str, body: CaseUpdate, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = case_for(session, me, case_id, edit=True)
+        services.update_case(
+            session, row, body.model_dump(exclude_unset=True), as_of=on, user_id=me.user_id
+        )
+        return case_view(session, me, row, p, on)
+
+    @app.post("/cases/{case_id}/hearings")
+    def add_hearing(case_id: str, body: NewHearing, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = case_for(session, me, case_id, edit=True)
+        services.add_hearing(session, row, body.model_dump(), as_of=on, user_id=me.user_id)
+        return case_view(session, me, row, p, on)
+
+    @app.post("/cases/{case_id}/orders")
+    def add_order(case_id: str, body: NewOrder, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = case_for(session, me, case_id, edit=True)
+        services.add_order(session, row, body.model_dump(), as_of=on, user_id=me.user_id)
+        return case_view(session, me, row, p, on)
+
+    @app.post("/cases/{case_id}/payments")
+    def add_payment(case_id: str, body: NewPayment, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = case_for(session, me, case_id, edit=True)
+        services.add_payment(session, row, p, body.model_dump(), as_of=on, user_id=me.user_id)
+        return case_view(session, me, row, p, on)
 
     # Withdrawals
 

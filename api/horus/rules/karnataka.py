@@ -13,6 +13,7 @@ from horus.rules.pack import Rule, RulesPack, SourceQuality
 RERA_IN_FORCE = date(2017, 5, 1)
 GST_SCHEME_2019 = date(2019, 4, 1)
 LABOUR_CODES = date(2025, 11, 21)
+CPA_2019 = date(2020, 7, 20)
 ALWAYS = date(2000, 1, 1)
 """Horus settings are not law; they apply on any date."""
 
@@ -20,6 +21,7 @@ _RERA_ACT = "Real Estate (Regulation and Development) Act, 2016"
 _KRERA_RULES = "Karnataka Real Estate (Regulation and Development) Rules"
 _NOTIF_03_2019 = "Notification 03/2019-Central Tax (Rate)"
 _JDA_NOTIFS = "Notifications 04/2019, 05/2019 and 06/2019-Central Tax (Rate)"
+_CPA = "Consumer Protection Act, 2019"
 
 _rules = (
     # Escrow: the designated account and withdrawals
@@ -398,6 +400,85 @@ _rules = (
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),
+    # Disputes and orders: appeal time limits and the deposit an appeal needs
+    Rule(
+        key="disputes.rera_appeal_days",
+        value=60,
+        title="Days to appeal a K-RERA order to the Appellate Tribunal",
+        basis=f"{_RERA_ACT}, s.44(2)",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="The Act, s.44(2); your lawyer",
+        effective_from=RERA_IN_FORCE,
+        note=(
+            "Runs from the day the copy of the order is received. The Tribunal can admit a late "
+            "appeal for sufficient cause."
+        ),
+    ),
+    Rule(
+        key="disputes.rera_appeal_deposit_buyer_dues",
+        value=Decimal("1.00"),
+        title="Share of what is owed to the buyer a promoter deposits before an appeal is heard",
+        basis=f"{_RERA_ACT}, s.43(5), proviso",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="The Act, s.43(5); your lawyer",
+        effective_from=RERA_IN_FORCE,
+        note="The whole amount to be paid to the buyer, with interest and compensation.",
+    ),
+    Rule(
+        key="disputes.rera_appeal_deposit_penalty",
+        value=Decimal("0.30"),
+        title="Least share of a penalty a promoter deposits before an appeal is heard",
+        basis=f"{_RERA_ACT}, s.43(5), proviso",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="The Act, s.43(5); your lawyer",
+        effective_from=RERA_IN_FORCE,
+        note="The Tribunal can ask for a higher share.",
+    ),
+    Rule(
+        key="disputes.tribunal_appeal_days",
+        value=60,
+        title="Days to appeal an Appellate Tribunal decision to the High Court",
+        basis=f"{_RERA_ACT}, s.58",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="The Act, s.58; your lawyer",
+        effective_from=RERA_IN_FORCE,
+    ),
+    Rule(
+        key="disputes.consumer_district_appeal_days",
+        value=45,
+        title="Days to appeal a District Commission order to the State Commission",
+        basis=f"{_CPA}, s.41",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="The Act, s.41; your lawyer",
+        effective_from=CPA_2019,
+    ),
+    Rule(
+        key="disputes.consumer_state_appeal_days",
+        value=30,
+        title="Days to appeal a State Commission order to the National Commission",
+        basis=f"{_CPA}, s.51",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="The Act, s.51; your lawyer",
+        effective_from=CPA_2019,
+    ),
+    Rule(
+        key="disputes.consumer_national_appeal_days",
+        value=30,
+        title="Days to appeal a National Commission order to the Supreme Court",
+        basis=f"{_CPA}, s.67",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="The Act, s.67; your lawyer",
+        effective_from=CPA_2019,
+    ),
+    Rule(
+        key="disputes.consumer_appeal_deposit",
+        value=Decimal("0.50"),
+        title="Share of the amount ordered to deposit before a consumer appeal is heard",
+        basis=f"{_CPA}, ss.41, 51 and 67",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="The Act; your lawyer",
+        effective_from=CPA_2019,
+    ),
     Rule(
         key="obligations.due_soon_days",
         value=14,
@@ -411,6 +492,15 @@ _rules = (
         key="obligations.headroom_warning_points",
         value=Decimal("5"),
         title="Points above the 80% minimum at which Horus starts showing purchase headroom",
+        basis="Horus setting",
+        source_quality=SourceQuality.HORUS_DEFAULT,
+        confirm_against="Not a legal rule",
+        effective_from=ALWAYS,
+    ),
+    Rule(
+        key="disputes.hearing_notice_days",
+        value=30,
+        title="Days before a hearing when Horus starts showing it on Today",
         basis="Horus setting",
         source_quality=SourceQuality.HORUS_DEFAULT,
         confirm_against="Not a legal rule",

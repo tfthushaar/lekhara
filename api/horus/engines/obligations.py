@@ -12,6 +12,13 @@ from decimal import Decimal
 from enum import StrEnum
 
 from horus.engines.collections import CollectionsPosition
+from horus.engines.disputes import (
+    FORUM_LABEL,
+    RELIEF_LABEL,
+    RUNNING,
+    DisputesPosition,
+    Forum,
+)
 from horus.engines.escrow import EscrowPosition
 from horus.engines.handover import BLOCKER_TEXT, HandoverPosition, Stage
 from horus.engines.tax import (
@@ -47,6 +54,7 @@ class Area(StrEnum):
     ESCROW = "escrow"
     COLLECTIONS = "collections"
     HANDOVER = "handover"
+    DISPUTES = "disputes"
     KRERA = "krera"
     TAX = "tax"
     UNITS = "units"
@@ -71,6 +79,8 @@ class Obligation:
     exposure: bool = False
     """True when the amount is money at risk (a penalty, tax or shortfall), not a bill or an
     opportunity. Only exposures are added up as money at stake."""
+    ref: str | None = None
+    """The record the obligation is about, when it has its own page (a case)."""
 
 
 @dataclass(frozen=True)
@@ -97,6 +107,7 @@ class ProjectFacts:
     """Who the open withdrawal request is waiting for, for example "the CA" or "the bank"."""
     collections: CollectionsPosition | None = None
     handover: HandoverPosition | None = None
+    disputes: DisputesPosition | None = None
 
 
 def _quarter_ends(start: date, end: date) -> list[date]:
@@ -278,6 +289,123 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
                 rule_key="rera.s17_conveyance_months",
                 action="Open handover",
             )
+
+    # Disputes and orders
+    dp = f.disputes
+    if dp is not None:
+        hearing_days = rules.value("disputes.hearing_notice_days", f.as_of)
+        for cp in dp.cases:
+            if not cp.open:
+                continue
+            c = cp.case
+            who = f"the case by {c.complainant}"
+            forum = FORUM_LABEL[c.forum]
+            where = f"{forum}, {c.case_number}."
+            could_cost = cp.at_stake if cp.at_stake > 0 else None
+            if c.reply_due_on and not c.reply_filed_on:
+                add(
+                    key=f"case:{c.case_id}:reply",
+                    title=f"File the reply in {who}",
+                    detail=f"{where} {RELIEF_LABEL[c.relief]} is sought.",
+                    owed_to=forum,
+                    status=_dated_status(c.reply_due_on, f.as_of, soon),
+                    area=Area.DISPUTES,
+                    due_on=c.reply_due_on,
+                    amount=could_cost,
+                    amount_label="Could cost",
+                    exposure=False,
+                    action="Open the case",
+                    ref=c.case_id,
+                )
+            if (
+                c.next_hearing_on
+                and c.next_hearing_on >= f.as_of
+                and (c.next_hearing_on - f.as_of).days <= hearing_days
+            ):
+                add(
+                    key=f"case:{c.case_id}:hearing",
+                    title=f"Hearing in {who}",
+                    detail=f"{where} Brief your lawyer and send the documents they need.",
+                    owed_to=forum,
+                    status=_dated_status(c.next_hearing_on, f.as_of, soon),
+                    area=Area.DISPUTES,
+                    due_on=c.next_hearing_on,
+                    amount=could_cost,
+                    amount_label="Could cost",
+                    exposure=False,
+                    action="Open the case",
+                    ref=c.case_id,
+                )
+            unpaid = [o for o in cp.orders if o.outstanding > 0]
+            if unpaid and c.appealed_on is None and c.settlement_agreed is None:
+                comply = min((o.order.comply_by for o in unpaid if o.order.comply_by), default=None)
+                overdue = any(o.overdue for o in unpaid)
+                running = any(o.order.amount is None and o.order.kind in RUNNING for o in unpaid)
+                notes = []
+                if running:
+                    notes.append("Interest keeps running until it is paid.")
+                if overdue and c.forum in (Forum.KRERA, Forum.ADJUDICATING_OFFICER):
+                    notes.append("K-RERA can recover an unpaid amount as arrears of land revenue.")
+                add(
+                    key=f"case:{c.case_id}:order",
+                    title=(
+                        f"The order in {who} is past its date"
+                        if overdue
+                        else f"Pay what was ordered in {who}"
+                    ),
+                    detail=" ".join([where, *notes]),
+                    owed_to=c.complainant,
+                    status=ObligationStatus.OVERDUE
+                    if overdue
+                    else _dated_status(comply, f.as_of, soon)
+                    if comply
+                    else ObligationStatus.DUE_SOON,
+                    area=Area.DISPUTES,
+                    due_on=comply,
+                    amount=sum((o.outstanding for o in unpaid), ZERO),
+                    amount_label="Ordered to pay",
+                    exposure=True,
+                    rule_key="rera.delay_interest_margin" if running else None,
+                    action="Open the case",
+                    ref=c.case_id,
+                )
+                open_appeals = [o for o in unpaid if o.appeal_by and o.appeal_by >= f.as_of]
+                if open_appeals:
+                    first = min(open_appeals, key=lambda o: o.appeal_by)
+                    deposit = sum((o.appeal_deposit or ZERO for o in open_appeals), ZERO)
+                    add(
+                        key=f"case:{c.case_id}:appeal",
+                        title=f"Decide whether to appeal the order in {who}",
+                        detail=(
+                            f"An appeal to the {first.appeal.to} must be filed by "
+                            f"{_fmt(first.appeal_by)}"
+                            + (", with the amount shown deposited first." if deposit else ".")
+                        ),
+                        owed_to=first.appeal.to,
+                        status=_dated_status(first.appeal_by, f.as_of, soon),
+                        area=Area.DISPUTES,
+                        due_on=first.appeal_by,
+                        amount=deposit or None,
+                        amount_label="Deposit to appeal",
+                        exposure=False,
+                        rule_key=first.appeal.days_rule,
+                        action="Open the case",
+                        ref=c.case_id,
+                    )
+            if c.settlement_agreed is not None and cp.at_stake > 0:
+                add(
+                    key=f"case:{c.case_id}:settlement",
+                    title=f"Pay the settlement agreed in {who}",
+                    detail=f"{where} File the settlement terms once it is paid.",
+                    owed_to=c.complainant,
+                    status=ObligationStatus.DUE_SOON,
+                    area=Area.DISPUTES,
+                    amount=cp.at_stake,
+                    amount_label="Agreed settlement",
+                    exposure=False,
+                    action="Open the case",
+                    ref=c.case_id,
+                )
 
     # Quarterly progress reports
     late_fee = None
