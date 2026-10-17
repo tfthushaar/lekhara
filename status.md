@@ -158,6 +158,7 @@ In this order:
 - Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, engines that work with partial data and say what is missing, first-run help.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
 - A forwarding address per workspace for bills, notices and statements; a background job queue; S3-compatible file storage.
+- Automatic feeds, waiting for your decision (plan v7.3, section 7.4.2, researched on 2026-10-18): bank statements and scheduled reports by email to the forwarding address; an optional Lekhara Connector on the Tally computer; Sell.Do and other CRMs by API; the GST portal through a GSP (an OTP about once a month); bank APIs with each bank as a partner. The Account Aggregator is open only to regulated entities.
 - A review queue for anything imported or read by AI with doubt.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
 - Collections, next steps: reminders through the team's own WhatsApp or email.
@@ -197,7 +198,6 @@ In this order:
 - Two layers: features only Lekhara has, plus standard modules done better, each able to coexist with the customer's own tools.
 - Stack: Python and FastAPI for the API, Next.js for the web, Postgres in production (SQLite for local development).
 - AI: several providers behind one gateway, chosen per task by measured accuracy, cost and residency; never a single provider.
-- Automatic feeds (researched on 2026-10-18, plan v7.3 section 7.4.2, not yet decided): Tally by an optional connector on the Tally computer, CRMs with an API such as Sell.Do, the GST portal through a GSP with a monthly OTP, and bank statements by email are possible; bank APIs need each bank as a partner; the Account Aggregator is open only to regulated entities.
 - Tally data: read from the files Tally exports, by Lekhara's own Tally import built from scratch (the founder's earlier module does not fit); no Tally API, nothing installed on the customer's machine.
 - Team: two founders through v1; a seed raise after three paying customers funds the team for v2 onwards.
 - Design: minimal, monochrome, no emojis, no symbols in the branding, text wordmark only.
