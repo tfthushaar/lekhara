@@ -1,6 +1,6 @@
 # Horus status
 
-Last updated: 2026-10-17, with the commit "Add the escrow and certification engine".
+Last updated: 2026-10-17, with the commit "Add the real-estate tax and obligations engines".
 
 ## What we are building
 
@@ -16,20 +16,21 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states.
 - Karnataka rules pack v1: 35 rates, thresholds and deadlines as dated data, each with its legal basis, source quality and what to confirm it against. Horus settings are marked as settings, not law.
 - Money truth engine: cost lines, ledger stages (committed, incurred, paid, retention, advances), anticipated final cost, cost to complete, contingency, land and development totals for RERA, point-in-time positions, and alerts for overruns, low contingency and spending ahead of certified progress.
 - Escrow and certification engine: drawable amount (limited by cost incurred and paid, or by the account balance, whichever is lower), 70% deposit check, the ongoing-project deposit rule, next certificate cycle, drafts of the architect's, engineer's and CA's certificates prepared from the books, and the checks a bank or K-RERA auditor would run (amount, figures against the books, progress against cost, dates, CA independence, signatures).
+- Real-estate tax engine: the 80% registered-supplier meter (with exclusions, unregistered cement and how much more can still be bought unregistered), GST on development rights for flats unbooked at completion (and the saving per flat sold before then), guidance-value check under s.43CA, TDS on landowner payments under s.194-IC, the MSME 45-day clock, BOCW labour cess and delay interest owed to buyers.
+- Obligations engine: one dated list per project of what is owed, to whom, by when and what is at stake, covering withdrawals, deposits, quarterly progress reports, the annual audit, possession and delay interest, the 80% test, GST on development rights, guidance value, landowner TDS, MSME payments and labour cess. Most urgent first.
 
 ## In progress
 
-- Real-estate tax and obligations engines.
+- Database models, demo data and the HTTP API.
 
 ## Left
 
 ### MVP
 
 - Escrow and certification workflow in the database and API: withdrawal requests, certificate sign-off, bank submission and release.
-- K-RERA: quarterly progress report deadlines and pack, delay interest exposure.
-- Real-estate tax: 80% registered-procurement meter, GST on development rights at completion, guidance-value check (s.43CA), TDS to landowners (s.194-IC), MSME 45-day clock, BOCW cess.
+- K-RERA: the quarterly progress report pack itself (deadlines and delay interest are done).
 - JDA landowner register and the developer or landowner split on every unit.
-- Obligations calendar and the Today screen.
+- The Today screen.
 - Database models, demo data and the HTTP API.
 - Web screens: Today, Projects, Project (overview, escrow, tax, units), Withdrawal request.
 - Sign-in, organisations and roles, including certifier seats.
