@@ -11,9 +11,10 @@ from sqlalchemy.orm import Session
 
 from horus import services, views
 from horus.config import Settings, get_settings
-from horus.db import Base, make_engine, make_sessionmaker
+from horus.db import make_engine, make_sessionmaker
 from horus.engines.escrow import CertifierRole
 from horus.engines.obligations import ObligationStatus, sort_obligations
+from horus.migrate import upgrade
 from horus.money import ZERO
 from horus.rules import KARNATAKA
 
@@ -48,7 +49,8 @@ class RejectWithdrawal(BaseModel):
 def create_app(settings: Settings | None = None, engine: Engine | None = None) -> FastAPI:
     settings = settings or get_settings()
     engine = engine or make_engine(settings.database_url)
-    Base.metadata.create_all(engine)
+    if settings.auto_migrate:
+        upgrade(engine)
     session_factory = make_sessionmaker(engine)
 
     app = FastAPI(title="Horus API", version="0.1.0")

@@ -22,5 +22,7 @@ def engine():
 
 @pytest.fixture
 def client(engine) -> TestClient:
-    app = create_app(Settings(database_url="sqlite://", today=TODAY), engine=engine)
+    app = create_app(
+        Settings(database_url="sqlite://", today=TODAY, auto_migrate=False), engine=engine
+    )
     return TestClient(app)

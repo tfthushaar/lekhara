@@ -1,6 +1,6 @@
 # Horus status
 
-Last updated: 2026-10-17, with the commit "Update status and README for the v6 plan".
+Last updated: 2026-10-17, with the commit "Add database migrations".
 
 ## What we are building
 
@@ -28,16 +28,16 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - Demo data: a fictional developer with three Bengaluru projects, dated relative to today.
 - JDA basics: every unit is marked as the developer's or the landowner's; landowners carry their share, deposit and payments, with the TDS check.
 - Web app: Today, Projects, a project's Overview, Escrow, Tax and statutory, and Units and landowners tabs, the Withdrawal request and Rules. Every form works without JavaScript.
+- Database migrations (Alembic, inside the package). The API brings the schema up to date on start; the demo seed builds the schema through migrations; a test fails if the migrated schema and the models ever disagree.
 
 ## In progress
 
-- Database migrations, then sign-in, organisations, roles and certifier seats.
+- Sign-in, organisations, roles and certifier seats.
 
 ## Left
 
 ### v1: pilot-ready (two founders)
 
-- Database migrations.
 - Sign-in, organisations, roles and certifier seats, so each certifier signs from their own access.
 - Integration of the founder's existing Tally file import module (details to come).
 - Mailbox connector (read-only), Excel and CRM imports.

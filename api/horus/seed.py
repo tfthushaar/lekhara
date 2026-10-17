@@ -21,11 +21,13 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from horus.config import get_settings
 from horus.db import Base, make_engine, make_sessionmaker
 from horus.engines.tax import financial_year
+from horus.migrate import upgrade
 from horus.models import (
     Bill,
     CostLineRow,
@@ -766,7 +768,9 @@ def seed(session: Session, today: date) -> None:
 def reset_and_seed(database_url: str, today: date) -> None:
     engine = make_engine(database_url)
     Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
+    upgrade(engine)
     with make_sessionmaker(engine)() as session:
         seed(session, today)
 

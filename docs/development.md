@@ -26,6 +26,7 @@ python -m venv .venv
 
 .venv/Scripts/python -m pytest                       # tests
 .venv/Scripts/python -m ruff check .                 # lint
+.venv/Scripts/python -m horus.migrate               # bring the schema up to date
 .venv/Scripts/python -m horus.seed                  # load demo data (resets the database)
 .venv/Scripts/python -m uvicorn horus.app:app --reload   # http://localhost:8000
 ```
@@ -59,6 +60,19 @@ Screens: Today (`/`), Projects, a project's Overview, Escrow, Tax and statutory,
 Every form works without JavaScript: server actions in `src/app/actions.ts` call the API and show its error message in words.
 
 This is Next.js 16 with Cache Components enabled. APIs differ from older versions; read the guides bundled in `web/node_modules/next/dist/docs/` before using a Next.js API. Uncached data must be read inside a `<Suspense>` boundary.
+
+## Database migrations
+
+Schema changes go through Alembic migrations in `api/horus/migrations/versions/`. The API brings the schema up to date on start (`HORUS_AUTO_MIGRATE`, on by default); `python -m horus.migrate` does the same by hand.
+
+After changing a model:
+
+```bash
+cd api
+.venv/Scripts/python -m horus.migrate revision "describe the change"   # autogenerates from the models
+```
+
+Review the generated file, then run the tests: `test_migrations.py` fails if the migrated schema and the models disagree.
 
 ## Conventions
 

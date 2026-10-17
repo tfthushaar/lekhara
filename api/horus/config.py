@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./horus.db"
     today: date | None = None
     """Fixes the date Horus treats as today. For demos and tests only."""
+    auto_migrate: bool = True
+    """Bring the database schema up to date when the API starts."""
 
     def as_of(self) -> date:
         return self.today or date.today()
