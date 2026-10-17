@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-17, with the commit "Add the Import centre for units and buyers".
+Last updated: 2026-10-17, with the commit "Plan the Tally import, built from scratch".
 
 ## What we are building
 
@@ -92,7 +92,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 
 ## In progress
 
-- Payment plans and buyer payments: edit the plan from templates, import receipts and bank statements.
+- Tally import, built from scratch: reads Tally's XML, JSON and Excel or text report exports; fills in suppliers, suppliers' bills and buyer payments; alerts the builder to any required data the file lacks.
 
 ## Left
 
@@ -102,7 +102,9 @@ In this order:
 
 - Self-serve start, still to do: sign-in with Google and by phone code, limits on sign-ups and resets per network address, and row-level security in Postgres as a second wall between firms when production moves to Postgres.
 - Add, edit, import and export for the remaining records that today come only from the demo data: payment plans, receipts, cost lines, budgets, commitments, bills, vendors, landowners and their payments, approvals, filings, and editing a project's own details; spreadsheet-style bulk editing; change history for each.
-- Import centre, still to do: bank statements and known CRM export formats, templates in Kannada, AI column mapping for unfamiliar sheets, and the founder's existing Tally file import module (details to come).
+- Import centre, still to do: bank statements and known CRM export formats, templates in Kannada, AI column mapping for unfamiliar sheets.
+- Tally import, next steps: expense ledgers mapped to cost lines (cost incurred and paid), the RERA designated account's deposits and withdrawals, landowner payments with TDS; tested against real exports from design partners.
+- Payment plans and buyer payments: edit the plan from templates; receipts from bank statements.
 - A full workspace export (Excel, JSON and every document) at any time.
 - Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, a completeness meter per project, engines that work with partial data and say what is missing, a sample workspace, first-run help.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
@@ -146,7 +148,7 @@ In this order:
 - Two layers: features only Lekhara has, plus standard modules done better, each able to coexist with the customer's own tools.
 - Stack: Python and FastAPI for the API, Next.js for the web, Postgres in production (SQLite for local development).
 - AI: several providers behind one gateway, chosen per task by measured accuracy, cost and residency; never a single provider.
-- Tally data: through the founder's existing Tally file import module, not the Tally API.
+- Tally data: read from the files Tally exports, by Lekhara's own Tally import built from scratch (the founder's earlier module does not fit); no Tally API, nothing installed on the customer's machine.
 - Team: two founders through v1; a seed raise after three paying customers funds the team for v2 onwards.
 - Design: minimal, monochrome, no emojis, no symbols in the branding, text wordmark only.
 
