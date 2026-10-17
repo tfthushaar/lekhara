@@ -51,7 +51,7 @@ Compare an outright purchase with a joint development, premium FAR with TDR, wit
 If you already use other tools, keep them. Lekhara reads from them instead. If you don't, Lekhara has:
 
 - **Sales and bookings:** live inventory, cost sheets and bookings, with a warning before any discount creates a tax problem.
-- **Collections:** demand letters that go out when your architect certifies a stage, and payments matched to each buyer.
+- **Collections:** your payment plan set up in a minute from a standard one, demand letters that go out when your architect certifies a stage, and buyers' payments typed in, imported from your collections register or brought in from Tally.
 - **Channel partners:** commissions paid only to K-RERA-registered agents.
 - **Agreements:** generated from your data, e-stamped and e-signed.
 - **A buyer portal:** payments, documents, certified progress and registration readiness, on WhatsApp.

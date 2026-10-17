@@ -205,6 +205,8 @@ class Receipt(Base):
     amount: Mapped[Decimal] = mapped_column(Money)
     received_on: Mapped[date] = mapped_column(Date)
     tds_deducted: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    reference: Mapped[str | None] = mapped_column(String(200))
+    """UTR, cheque or receipt number."""
     source_ref: Mapped[str | None] = mapped_column(String(200), index=True)
 
 

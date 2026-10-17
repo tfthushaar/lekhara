@@ -54,7 +54,7 @@ Main endpoints: `/today`, `/projects`, `/projects/{id}` (with `/money`, `/escrow
 
 ### Import centre
 
-Record types are defined once in `api/lekhara/records.py` (fields, aliases, parsing); `registers.py` adds, changes and deletes records with a change history; `imports.py` reads Excel or CSV, previews, applies and undoes. To add a record type, define it in `records.py`, add its register functions, and point the import and export at them. Units and buyers are the first; try the template at `/imports/templates/units.xlsx`.
+Record types are defined once in `api/lekhara/records.py` (fields, aliases, parsing); `registers.py` adds, changes and deletes records with a change history; `imports.py` reads Excel or CSV, previews, applies and undoes. To add a record type, define it in `records.py`, add its register functions, and add a handler for it in `imports.py` (how a row is checked, added, updated, undone and exported). Units and buyers, and buyer payments, are in; try the template at `/imports/templates/units.xlsx`.
 
 ### Tally import
 

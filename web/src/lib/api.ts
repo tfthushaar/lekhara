@@ -734,6 +734,15 @@ export type UnitDetail = {
   can_delete: boolean;
   dependents: string[];
   history: { at: string; action: string; source: string; by: string; changes: FieldChange[] }[];
+  receipts: {
+    id: string;
+    received_on: string;
+    amount: string;
+    tds: string;
+    reference: string | null;
+    source: string;
+    can_delete: boolean;
+  }[];
 };
 
 export type ImportBatch = {
@@ -882,6 +891,27 @@ export type TallyMoney = {
   party_ledgers: string[];
 };
 
+export type PaymentPlan = {
+  can_edit: boolean;
+  stages: {
+    id: string;
+    name: string;
+    trigger: string;
+    trigger_label: string;
+    progress_pct: string | null;
+    share_pct: string;
+    demands: number;
+  }[];
+  total_pct: string;
+  any_raised: boolean;
+  templates: {
+    key: string;
+    label: string;
+    stages: { name: string; trigger_label: string; progress_pct: string | null; share_pct: string }[];
+  }[];
+  triggers: Choice[];
+};
+
 export type Rules = {
   state: string;
   version: string;
@@ -1025,6 +1055,7 @@ export const api = {
   importBatch: (id: string) => get<ImportBatch>(`/imports/${id}`),
   tally: (id: string) => get<TallyReview>(`/tally/${id}`),
   costLines: (projectId: string) => get<CostLines>(`/projects/${projectId}/cost-lines`),
+  paymentPlan: (projectId: string) => get<PaymentPlan>(`/projects/${projectId}/payment-plan`),
   tallyImports: (projectId: string) => get<TallyList>(`/projects/${projectId}/tally`),
   demand: (id: string) => get<DemandLetter>(`/demands/${id}`),
   tax: (id: string) => get<Tax>(`/projects/${id}/tax`),

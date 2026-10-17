@@ -20,6 +20,7 @@ from lekhara.models import (
     Document,
     Landowner,
     LedgerEntry,
+    PaymentMilestone,
     Project,
     Receipt,
     Unit,
@@ -532,3 +533,246 @@ def update_landowner(
             user_id=user_id,
             source="typed",
         )
+
+
+# Buyer payments
+
+
+def create_receipt(
+    session: Session,
+    project: Project,
+    unit: Unit,
+    values: dict,
+    *,
+    user_id: str | None,
+    source: str = "typed",
+    batch_id: str | None = None,
+) -> Receipt:
+    if not unit.booked:
+        raise ServiceError(f"Unit {unit.label} is not sold, so it has no buyer to receive from.")
+    amount = values.get("amount")
+    if amount is None or amount <= 0:
+        raise ServiceError("Enter the amount received.")
+    if values.get("received_on") is None:
+        raise ServiceError("Enter the date the money was received.")
+    receipt = Receipt(
+        project_id=project.id,
+        unit_id=unit.id,
+        amount=amount,
+        received_on=values["received_on"],
+        tds_deducted=values.get("tds_deducted") or ZERO,
+        reference=(values.get("reference") or "").strip()[:200] or None,
+        source_ref=f"import:{batch_id}" if batch_id else None,
+    )
+    session.add(receipt)
+    session.flush()
+    log_change(
+        session,
+        project,
+        "receipt",
+        receipt.id,
+        "created",
+        {k: [None, to_json(v)] for k, v in values.items() if v is not None and k != "unit"}
+        | {"unit": [None, unit.label]},
+        user_id=user_id,
+        source=source,
+        batch_id=batch_id,
+    )
+    return receipt
+
+
+def delete_receipt(
+    session: Session, project: Project, receipt: Receipt, *, user_id: str | None
+) -> None:
+    if receipt.source_ref and receipt.source_ref.startswith("tally:"):
+        raise ServiceError("This payment came from Tally. Correct it in Tally and import again.")
+    log_change(
+        session,
+        project,
+        "receipt",
+        receipt.id,
+        "deleted",
+        {
+            "amount": [to_json(receipt.amount), None],
+            "received_on": [to_json(receipt.received_on), None],
+        },
+        user_id=user_id,
+        source="typed",
+    )
+    session.delete(receipt)
+
+
+def unit_receipts(session: Session, unit: Unit) -> list[Receipt]:
+    return list(
+        session.scalars(
+            select(Receipt).where(Receipt.unit_id == unit.id).order_by(Receipt.received_on)
+        )
+    )
+
+
+# Payment plans
+
+
+PLAN_TEMPLATES = {
+    "construction_linked": (
+        "Construction-linked, ten stages",
+        (
+            ("On booking", "booking", None, "10"),
+            ("On the agreement for sale", "agreement", None, "10"),
+            ("On completion of the foundation", "progress", "10", "10"),
+            ("On completion of the 2nd floor slab", "progress", "20", "10"),
+            ("On completion of the 5th floor slab", "progress", "35", "10"),
+            ("On completion of the 8th floor slab", "progress", "50", "10"),
+            ("On completion of the roof slab", "progress", "65", "10"),
+            ("On completion of brickwork and plastering", "progress", "80", "10"),
+            ("On completion of flooring and finishes", "progress", "90", "10"),
+            ("On possession", "possession", None, "10"),
+        ),
+    ),
+    "front_loaded": (
+        "Construction-linked, front-loaded",
+        (
+            ("On booking", "booking", None, "10"),
+            ("On the agreement for sale", "agreement", None, "15"),
+            ("On completion of the foundation", "progress", "10", "10"),
+            ("On completion of the 4th floor slab", "progress", "30", "15"),
+            ("On completion of the roof slab", "progress", "60", "15"),
+            ("On completion of finishes", "progress", "85", "20"),
+            ("On possession", "possession", None, "15"),
+        ),
+    ),
+    "twenty_eighty": (
+        "20:80",
+        (
+            ("On booking", "booking", None, "10"),
+            ("On the agreement for sale", "agreement", None, "10"),
+            ("On possession", "possession", None, "80"),
+        ),
+    ),
+}
+TRIGGERS = ("booking", "agreement", "progress", "possession")
+
+
+def payment_plan(session: Session, project: Project) -> list[PaymentMilestone]:
+    return list(
+        session.scalars(
+            select(PaymentMilestone)
+            .where(PaymentMilestone.project_id == project.id)
+            .order_by(PaymentMilestone.sequence)
+        )
+    )
+
+
+def demands_by_milestone(session: Session, project: Project) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for d in session.scalars(select(DemandRow).where(DemandRow.project_id == project.id)):
+        out[d.milestone_id] = out.get(d.milestone_id, 0) + 1
+    return out
+
+
+def _milestone(raw: dict, index: int) -> dict:
+    name = (raw.get("name") or "").strip()
+    trigger = raw.get("trigger") or ""
+    if trigger not in TRIGGERS:
+        raise ServiceError(f"Stage {index}: choose when it falls due.")
+    if not name:
+        raise ServiceError(f"Stage {index}: give it a name.")
+    try:
+        share = Decimal(str(raw.get("share_pct") or "").replace("%", "").strip())
+    except InvalidOperation:
+        raise ServiceError(f"Stage {index}: the share should be a percentage.") from None
+    if share <= 0:
+        raise ServiceError(f"Stage {index}: the share should be above zero.")
+    progress = None
+    if trigger == "progress":
+        try:
+            progress = Decimal(str(raw.get("progress_pct") or "").replace("%", "").strip())
+        except InvalidOperation:
+            raise ServiceError(
+                f"Stage {index}: enter the certified progress it falls due at."
+            ) from None
+        if not 0 < progress <= 100:
+            raise ServiceError(f"Stage {index}: progress should be between 0 and 100 per cent.")
+    return {
+        "id": raw.get("id") or None,
+        "name": name[:200],
+        "trigger": trigger,
+        "progress_pct": progress,
+        "share_pct": share,
+    }
+
+
+def replace_plan(
+    session: Session, project: Project, stages: list[dict], *, user_id: str | None
+) -> None:
+    """Sets the whole plan. Stages that already have demands raised keep their timing and share."""
+    if not stages:
+        raise ServiceError("A payment plan needs at least one stage.")
+    clean = [_milestone(raw, i + 1) for i, raw in enumerate(stages)]
+    current = {m.id: m for m in payment_plan(session, project)}
+    raised = demands_by_milestone(session, project)
+    kept = {s["id"] for s in clean if s["id"] in current}
+    for milestone_id, milestone in current.items():
+        if milestone_id not in kept and raised.get(milestone_id):
+            raise ServiceError(
+                f"{milestone.name} has demands raised against it, so it cannot be removed."
+            )
+    for stage in clean:
+        existing = current.get(stage["id"]) if stage["id"] else None
+        if (
+            existing
+            and raised.get(existing.id)
+            and (
+                existing.trigger != stage["trigger"]
+                or existing.share_pct != stage["share_pct"]
+                or existing.progress_pct != stage["progress_pct"]
+            )
+        ):
+            raise ServiceError(
+                f"{existing.name} has demands raised against it; its timing and share are fixed."
+            )
+    total = sum((s["share_pct"] for s in clean), ZERO)
+    if abs(total - Decimal(100)) > Decimal("0.01"):
+        raise ServiceError(
+            f"The stages add up to {total.normalize():f}%; they should add up to 100%."
+        )
+    for milestone_id, milestone in current.items():
+        if milestone_id not in kept:
+            session.delete(milestone)
+    session.flush()
+    for sequence, stage in enumerate(clean, start=1):
+        existing = current.get(stage["id"]) if stage["id"] else None
+        if existing is None:
+            existing = PaymentMilestone(project_id=project.id)
+            session.add(existing)
+        existing.sequence = sequence
+        existing.name = stage["name"]
+        existing.trigger = stage["trigger"]
+        existing.progress_pct = stage["progress_pct"]
+        existing.share_pct = stage["share_pct"]
+    log_change(
+        session,
+        project,
+        "payment_plan",
+        project.id,
+        "updated",
+        {"stages": [len(current), len(clean)]},
+        user_id=user_id,
+        source="typed",
+    )
+
+
+def apply_template(session: Session, project: Project, key: str, *, user_id: str | None) -> None:
+    if key not in PLAN_TEMPLATES:
+        raise ServiceError("Choose a plan from the list.")
+    if any(demands_by_milestone(session, project).values()):
+        raise ServiceError(
+            "Demands have already been raised, so change the plan stage by stage instead."
+        )
+    _, stages = PLAN_TEMPLATES[key]
+    replace_plan(
+        session,
+        project,
+        [{"name": n, "trigger": t, "progress_pct": p, "share_pct": s} for n, t, p, s in stages],
+        user_id=user_id,
+    )

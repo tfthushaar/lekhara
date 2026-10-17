@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from lekhara import registers
-from lekhara.models import ImportBatch, ImportMapping, Project, Unit, utcnow
+from lekhara.models import ImportBatch, ImportMapping, Project, Receipt, Unit, utcnow
 from lekhara.records import RECORD_TYPES, RecordType, match_columns, normalise_header
 from lekhara.services import ServiceError
 
@@ -174,41 +174,210 @@ def set_mapping(session: Session, batch: ImportBatch, mapping: dict) -> None:
     session.commit()
 
 
-def evaluate(session: Session, batch: ImportBatch) -> list[dict]:
-    """What each row would do: add, update, unchanged or error, with the reasons."""
-    record = record_type(batch.kind)
-    project = session.get(Project, batch.project_id)
-    mapping = mapping_of(batch)
-    existing = registers.units_by_label(session, project)
-    seen: set[str] = set()
-    out = []
-    first_row = batch.header_row + 1
-    for offset, row in enumerate(json.loads(batch.rows)):
-        raw = {key: row[col] for col, key in mapping.items() if col < len(row) and row[col] != ""}
-        values, problems = registers.parse_row(record, raw)
-        label = values.get(record.key)
-        result = {"row": first_row + offset, "key": label, "changes": {}, "values": {}}
+class UnitImport:
+    """Units and buyers: matched on the unit number; new ones added, changed ones updated."""
+
+    kind = "units"
+
+    def context(self, session: Session, project: Project) -> dict:
+        return {"units": registers.units_by_label(session, project)}
+
+    def evaluate(self, values: dict, problems: list[str], seen: set, ctx: dict) -> dict:
+        label = values.get("label")
         if label is None:
             problems.insert(0, "The unit number is missing.")
         elif label.casefold() in seen:
             problems.insert(0, f"Unit {label} appears more than once in the file.")
         if label:
             seen.add(label.casefold())
-        unit = existing.get(label.casefold()) if label else None
+        unit = ctx["units"].get(label.casefold()) if label else None
         if not problems:
             problems = registers.unit_problems(values, unit)
         if problems:
-            result.update(action="error", messages=problems)
+            return {"key": label, "action": "error", "messages": problems, "changes": {}}
+        if unit is None:
+            return {"key": label, "action": "add", "messages": [], "changes": {}}
+        before = registers.unit_values(unit)
+        changes = {
+            k: [registers.to_json(before[k]), registers.to_json(v)]
+            for k, v in values.items()
+            if v is not None and before[k] != v
+        }
+        action = "update" if changes else "unchanged"
+        return {"key": label, "action": action, "messages": [], "changes": changes}
+
+    def add(self, session, project, values, *, user_id, batch_id, ctx) -> str:
+        unit = registers.create_unit(
+            session, project, values, user_id=user_id, source="import", batch_id=batch_id
+        )
+        return unit.id
+
+    def update(self, session, project, key, values, *, user_id, batch_id) -> tuple[str, dict]:
+        unit = registers.units_by_label(session, project)[key.casefold()]
+        changes = registers.update_unit(
+            session, project, unit, values, user_id=user_id, source="import", batch_id=batch_id
+        )
+        return unit.id, changes
+
+    def blocker(self, session, item) -> str | None:
+        unit = session.get(Unit, item["id"])
+        if unit is None:
+            return f"row {item['row']} (the unit has been deleted)"
+        now = {k: registers.to_json(v) for k, v in registers.unit_values(unit).items()}
+        expected = (
+            item["after"]
+            if item["action"] == "add"
+            else {k: after for k, (_, after) in item["changes"].items()}
+        )
+        if any(now.get(k) != v for k, v in expected.items()):
+            return f"unit {unit.label} (changed since)"
+        dependents = registers.unit_dependents(session, unit)
+        if item["action"] == "add" and dependents:
+            return f"unit {unit.label} (now has {dependents[0]})"
+        return None
+
+    def reverse(self, session, project, item, *, user_id, batch_id) -> None:
+        unit = session.get(Unit, item["id"])
+        if item["action"] == "add":
+            registers.delete_unit(session, project, unit, user_id=user_id)
+            return
+        record = record_type(self.kind)
+        before = {k: registers.from_json(record, k, b) for k, (b, _) in item["changes"].items()}
+        for key, value in before.items():
+            setattr(unit, key, value)
+        unit.booked = bool(unit.buyer_name)
+        registers.log_change(
+            session,
+            project,
+            "unit",
+            unit.id,
+            "updated",
+            {k: [after, b] for k, (b, after) in item["changes"].items()},
+            user_id=user_id,
+            source="undo",
+            batch_id=batch_id,
+        )
+
+    def export_rows(self, session, project, record) -> list[list]:
+        units = sorted(registers.units_by_label(session, project).values(), key=lambda u: u.label)
+        return [[_display(record, k, getattr(u, k)) for k in registers.UNIT_KEYS] for u in units]
+
+
+class ReceiptImport:
+    """Buyer payments: each row is one payment to one sold unit. A payment already recorded with
+    the same unit, date, amount and reference is left as it is, so a file can be imported again."""
+
+    kind = "receipts"
+
+    def context(self, session: Session, project: Project) -> dict:
+        units = registers.units_by_label(session, project)
+        recorded = {
+            self._key(r.unit_id, r.received_on, r.amount, r.reference)
+            for r in session.scalars(select(Receipt).where(Receipt.project_id == project.id))
+        }
+        return {"units": units, "recorded": recorded}
+
+    @staticmethod
+    def _key(unit_id, on, amount, reference) -> tuple:
+        return (unit_id, on, registers.to_json(amount), (reference or "").strip().casefold())
+
+    def evaluate(self, values: dict, problems: list[str], seen: set, ctx: dict) -> dict:
+        label = values.get("unit")
+        unit = ctx["units"].get(label.casefold()) if label else None
+        if label is None:
+            problems.insert(0, "The unit number is missing.")
         elif unit is None:
-            result.update(action="add", messages=[])
-        else:
-            before = registers.unit_values(unit)
-            changes = {
-                k: [registers.to_json(before[k]), registers.to_json(v)]
-                for k, v in values.items()
-                if v is not None and before[k] != v
+            problems.insert(0, f"There is no unit {label} in this project.")
+        elif not unit.booked:
+            problems.insert(0, f"Unit {label} is not sold yet; record its buyer first.")
+        for name, words in (
+            ("received_on", "The date is missing."),
+            ("amount", "The amount is missing."),
+        ):
+            if values.get(name) is None and not any(words in p for p in problems):
+                problems.append(words)
+        if values.get("amount") is not None and values["amount"] <= 0:
+            problems.append("The amount should be above zero.")
+        if problems:
+            return {"key": label, "action": "error", "messages": problems, "changes": {}}
+        key = self._key(unit.id, values["received_on"], values["amount"], values.get("reference"))
+        if key in seen:
+            return {
+                "key": label,
+                "action": "error",
+                "messages": ["The same payment appears twice in the file."],
+                "changes": {},
             }
-            result.update(action="update" if changes else "unchanged", messages=[], changes=changes)
+        seen.add(key)
+        if key in ctx["recorded"]:
+            return {"key": label, "action": "unchanged", "messages": [], "changes": {}}
+        return {"key": label, "action": "add", "messages": [], "changes": {}}
+
+    def add(self, session, project, values, *, user_id, batch_id, ctx) -> str:
+        unit = ctx["units"][values["unit"].casefold()]
+        receipt = registers.create_receipt(
+            session, project, unit, values, user_id=user_id, source="import", batch_id=batch_id
+        )
+        return receipt.id
+
+    def update(self, session, project, key, values, *, user_id, batch_id):
+        raise ServiceError("Payments are only ever added.")
+
+    def blocker(self, session, item) -> str | None:
+        if session.get(Receipt, item["id"]) is None:
+            return f"row {item['row']} (the payment has been deleted)"
+        return None
+
+    def reverse(self, session, project, item, *, user_id, batch_id) -> None:
+        receipt = session.get(Receipt, item["id"])
+        registers.log_change(
+            session,
+            project,
+            "receipt",
+            receipt.id,
+            "deleted",
+            {"amount": [registers.to_json(receipt.amount), None]},
+            user_id=user_id,
+            source="undo",
+            batch_id=batch_id,
+        )
+        session.delete(receipt)
+
+    def export_rows(self, session, project, record) -> list[list]:
+        units = {u.id: u.label for u in registers.units_by_label(session, project).values()}
+        receipts = session.scalars(
+            select(Receipt).where(Receipt.project_id == project.id).order_by(Receipt.received_on)
+        )
+        return [
+            [
+                units.get(r.unit_id, ""),
+                r.received_on.strftime("%d/%m/%Y"),
+                float(r.amount),
+                float(r.tds_deducted or 0),
+                r.reference or "",
+            ]
+            for r in receipts
+        ]
+
+
+HANDLERS = {h.kind: h for h in (UnitImport(), ReceiptImport())}
+
+
+def evaluate(session: Session, batch: ImportBatch) -> list[dict]:
+    """What each row would do: add, update, unchanged or error, with the reasons."""
+    record = record_type(batch.kind)
+    handler = HANDLERS[batch.kind]
+    project = session.get(Project, batch.project_id)
+    ctx = handler.context(session, project)
+    mapping = mapping_of(batch)
+    seen: set = set()
+    out = []
+    first_row = batch.header_row + 1
+    for offset, row in enumerate(json.loads(batch.rows)):
+        raw = {key: row[col] for col, key in mapping.items() if col < len(row) and row[col] != ""}
+        values, problems = registers.parse_row(record, raw)
+        result = handler.evaluate(values, problems, seen, ctx)
+        result["row"] = first_row + offset
         result["values"] = {k: registers.to_json(v) for k, v in values.items() if v is not None}
         out.append(result)
     return out
@@ -218,24 +387,29 @@ def apply(session: Session, batch: ImportBatch, *, user_id: str | None) -> dict:
     if batch.status != "preview":
         raise ServiceError("This import has already been applied.")
     record = record_type(batch.kind)
+    handler = HANDLERS[batch.kind]
     project = session.get(Project, batch.project_id)
     rows = evaluate(session, batch)
+    ctx = handler.context(session, project)
     done = []
     for row in rows:
         if row["action"] not in ("add", "update"):
             continue
         values = {k: registers.from_json(record, k, v) for k, v in row["values"].items()}
         if row["action"] == "add":
-            unit = registers.create_unit(
-                session, project, values, user_id=user_id, source="import", batch_id=batch.id
+            record_id = handler.add(
+                session, project, values, user_id=user_id, batch_id=batch.id, ctx=ctx
             )
-            done.append({"row": row["row"], "action": "add", "id": unit.id, "after": row["values"]})
+            done.append(
+                {"row": row["row"], "action": "add", "id": record_id, "after": row["values"]}
+            )
         else:
-            unit = registers.units_by_label(session, project)[row["key"].casefold()]
-            changes = registers.update_unit(
-                session, project, unit, values, user_id=user_id, source="import", batch_id=batch.id
+            record_id, changes = handler.update(
+                session, project, row["key"], values, user_id=user_id, batch_id=batch.id
             )
-            done.append({"row": row["row"], "action": "update", "id": unit.id, "changes": changes})
+            done.append(
+                {"row": row["row"], "action": "update", "id": record_id, "changes": changes}
+            )
     batch.status = "applied"
     batch.applied_at = utcnow()
     batch.result = json.dumps(
@@ -281,27 +455,10 @@ def can_undo(batch: ImportBatch) -> bool:
 def undo(session: Session, batch: ImportBatch, *, user_id: str | None) -> None:
     if not can_undo(batch):
         raise ServiceError(f"An import can be undone for {UNDO_DAYS} days after it is applied.")
-    record = record_type(batch.kind)
+    handler = HANDLERS[batch.kind]
     project = session.get(Project, batch.project_id)
     done = json.loads(batch.result)["done"]
-    blockers = []
-    for item in done:
-        unit = session.get(Unit, item["id"])
-        if unit is None:
-            blockers.append(f"row {item['row']} (the unit has been deleted)")
-            continue
-        now = {k: registers.to_json(v) for k, v in registers.unit_values(unit).items()}
-        expected = (
-            item["after"]
-            if item["action"] == "add"
-            else {k: after for k, (_, after) in item["changes"].items()}
-        )
-        if any(now.get(k) != v for k, v in expected.items()):
-            blockers.append(f"unit {unit.label} (changed since)")
-        elif item["action"] == "add" and registers.unit_dependents(session, unit):
-            blockers.append(
-                f"unit {unit.label} (now has {registers.unit_dependents(session, unit)[0]})"
-            )
+    blockers = [b for b in (handler.blocker(session, item) for item in done) if b]
     if blockers:
         listed = ", ".join(blockers[:5]) + (" and others" if len(blockers) > 5 else "")
         raise ServiceError(
@@ -309,25 +466,7 @@ def undo(session: Session, batch: ImportBatch, *, user_id: str | None) -> None:
             "Change them by hand instead."
         )
     for item in reversed(done):
-        unit = session.get(Unit, item["id"])
-        if item["action"] == "add":
-            registers.delete_unit(session, project, unit, user_id=user_id)
-        else:
-            before = {k: registers.from_json(record, k, b) for k, (b, _) in item["changes"].items()}
-            for key, value in before.items():
-                setattr(unit, key, value)
-            unit.booked = bool(unit.buyer_name)
-            registers.log_change(
-                session,
-                project,
-                "unit",
-                unit.id,
-                "updated",
-                {k: [after, b] for k, (b, after) in item["changes"].items()},
-                user_id=user_id,
-                source="undo",
-                batch_id=batch.id,
-            )
+        handler.reverse(session, project, item, user_id=user_id, batch_id=batch.id)
     batch.status = "undone"
     batch.undone_at = utcnow()
     session.commit()
@@ -402,10 +541,9 @@ def template(kind: str, fmt: str) -> bytes:
     return _csv(record, example)
 
 
-def export_units(session: Session, project: Project, fmt: str) -> bytes:
-    record = record_type("units")
-    units = sorted(registers.units_by_label(session, project).values(), key=lambda u: u.label)
-    rows = [[_display(record, k, getattr(u, k)) for k in registers.UNIT_KEYS] for u in units]
+def export(session: Session, project: Project, kind: str, fmt: str) -> bytes:
+    record = record_type(kind)
+    rows = HANDLERS[kind].export_rows(session, project, record)
     if fmt == "xlsx":
         return _xlsx(record, rows, notes=False)
     return _csv(record, rows)

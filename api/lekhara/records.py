@@ -149,7 +149,81 @@ UNITS = RecordType(
     ),
 )
 
-RECORD_TYPES = {UNITS.kind: UNITS}
+RECEIPTS = RecordType(
+    kind="receipts",
+    title="Buyer payments",
+    key="unit",
+    fields=(
+        Field(
+            "unit",
+            "Unit",
+            "text",
+            required=True,
+            aliases=("unit no", "unit number", "flat", "flat no", "flat number"),
+            help="The unit the payment is for, as in Lekhara.",
+            example="A-0101",
+        ),
+        Field(
+            "received_on",
+            "Received on",
+            "date",
+            required=True,
+            aliases=(
+                "date",
+                "receipt date",
+                "payment date",
+                "value date",
+                "date of receipt",
+                "credit date",
+            ),
+            help="Day first, as in 05/06/2025.",
+            example="05/06/2025",
+        ),
+        Field(
+            "amount",
+            "Amount received",
+            "money",
+            required=True,
+            aliases=(
+                "amount",
+                "received",
+                "receipt amount",
+                "credit",
+                "credit amount",
+                "amount received (rs)",
+            ),
+            help="What reached your bank, in rupees.",
+            example="495000",
+        ),
+        Field(
+            "tds_deducted",
+            "TDS deducted",
+            "money",
+            aliases=("tds", "tds amount", "tds 194ia", "tds deducted by buyer"),
+            help="TDS the buyer deducted under s.194IA, if any.",
+            example="5000",
+        ),
+        Field(
+            "reference",
+            "Reference",
+            "text",
+            aliases=(
+                "utr",
+                "utr no",
+                "cheque no",
+                "cheque number",
+                "reference no",
+                "ref no",
+                "transaction id",
+                "instrument no",
+            ),
+            help="UTR, cheque number or receipt number.",
+            example="HDFCN52025060512345",
+        ),
+    ),
+)
+
+RECORD_TYPES = {UNITS.kind: UNITS, RECEIPTS.kind: RECEIPTS}
 
 
 def normalise_header(text: str) -> str:

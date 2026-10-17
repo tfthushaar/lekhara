@@ -66,12 +66,12 @@ function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
         <div className="stat">
           <p className="stat-label">New</p>
           <p className="stat-value">{b.counts.add}</p>
-          <p className="stat-note">Units not in Lekhara yet</p>
+          <p className="stat-note">{b.kind === "receipts" ? "Payments not recorded yet" : "Units not in Lekhara yet"}</p>
         </div>
         <div className="stat">
           <p className="stat-label">Changes</p>
           <p className="stat-value">{b.counts.update}</p>
-          <p className="stat-note">Units whose details differ</p>
+          <p className="stat-note">{b.kind === "receipts" ? "Payments are only added" : "Units whose details differ"}</p>
         </div>
         <div className="stat">
           <p className="stat-label">Already the same</p>
@@ -172,7 +172,7 @@ function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
           {ready > 0 ? (
             <ActionForm
               action={applyImport.bind(null, b.id)}
-              label={`Import ${plural(ready, "unit")}`}
+              label={`Import ${plural(ready, b.kind === "receipts" ? "payment" : "unit")}`}
               pendingLabel="Importing"
             >
               <p style={{ marginBottom: 12 }}>
@@ -197,7 +197,9 @@ function Result({ b, base }: { b: ImportBatch; base: string }) {
       <p className="status-line">
         {b.status === "undone"
           ? "This import was undone. The units are as they were before it."
-          : `Imported: ${r ? `${plural(r.added, "unit")} added, ${plural(r.updated, "unit")} changed` : ""}.`}
+          : b.kind === "receipts"
+            ? `Imported: ${r ? plural(r.added, "payment") : ""} recorded.`
+            : `Imported: ${r ? `${plural(r.added, "unit")} added, ${plural(r.updated, "unit")} changed` : ""}.`}
       </p>
       {r && b.status === "applied" ? (
         <p className="muted">
@@ -206,8 +208,8 @@ function Result({ b, base }: { b: ImportBatch; base: string }) {
         </p>
       ) : null}
       <p style={{ marginTop: 16 }}>
-        <Link href={`${base}/units`} className="link-action">
-          See the units
+        <Link href={b.kind === "receipts" ? `${base}/collections` : `${base}/units`} className="link-action">
+          {b.kind === "receipts" ? "See collections" : "See the units"}
         </Link>
       </p>
       {b.can_undo ? (

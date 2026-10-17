@@ -1149,6 +1149,7 @@ def unit_detail(
     *,
     can_edit: bool,
     dependents: list[str],
+    receipts: list = (),
 ) -> dict:
     record = RECORD_TYPES["units"]
     labels = {f.key: f.label for f in record.fields}
@@ -1172,6 +1173,7 @@ def unit_detail(
         "can_edit": can_edit,
         "can_delete": can_edit and not dependents,
         "dependents": dependents,
+        "receipts": receipt_rows(list(receipts)),
         "history": [
             {
                 "at": c.at.replace(microsecond=0).isoformat(),
@@ -1472,6 +1474,80 @@ def tally_money(plan, lines: list, owners: list) -> dict:
         "cost_lines": [{"id": c.id, "code": c.code, "name": c.name} for c in lines],
         "landowners": [{"id": o.id, "name": o.name} for o in owners],
     }
+
+
+# Payment plans and buyer payments
+
+TRIGGER_LABEL = {
+    "booking": "On booking",
+    "agreement": "On the agreement for sale",
+    "progress": "At certified progress",
+    "possession": "On possession",
+}
+
+
+def payment_plan(stages: list, raised: dict[str, int], *, can_edit: bool) -> dict:
+    from lekhara.registers import PLAN_TEMPLATES
+
+    return {
+        "can_edit": can_edit,
+        "stages": [
+            {
+                "id": s.id,
+                "name": s.name,
+                "trigger": s.trigger,
+                "trigger_label": TRIGGER_LABEL.get(s.trigger, s.trigger),
+                "progress_pct": m(s.progress_pct),
+                "share_pct": m(s.share_pct),
+                "demands": raised.get(s.id, 0),
+            }
+            for s in stages
+        ],
+        "total_pct": m(sum((s.share_pct for s in stages), ZERO)),
+        "any_raised": any(raised.values()),
+        "templates": [
+            {
+                "key": key,
+                "label": label,
+                "stages": [
+                    {
+                        "name": n,
+                        "trigger_label": TRIGGER_LABEL[t],
+                        "progress_pct": p,
+                        "share_pct": sh,
+                    }
+                    for n, t, p, sh in stages_
+                ],
+            }
+            for key, (label, stages_) in PLAN_TEMPLATES.items()
+        ],
+        "triggers": [{"value": k, "label": v} for k, v in TRIGGER_LABEL.items()],
+    }
+
+
+def receipt_rows(receipts: list) -> list[dict]:
+    def source(r) -> str:
+        ref = r.source_ref or ""
+        return (
+            "Tally"
+            if ref.startswith("tally:")
+            else "Imported"
+            if ref.startswith("import:")
+            else "Typed in"
+        )
+
+    return [
+        {
+            "id": r.id,
+            "received_on": d(r.received_on),
+            "amount": m(r.amount),
+            "tds": m(r.tds_deducted),
+            "reference": r.reference,
+            "source": source(r),
+            "can_delete": not (r.source_ref or "").startswith("tally:"),
+        }
+        for r in receipts
+    ]
 
 
 _MONEY_RULES = {

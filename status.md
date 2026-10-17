@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Bring cost, the RERA account and landowners in from Tally".
+Last updated: 2026-10-18, with the commit "Add payment plans and buyer payments".
 
 ## What we are building
 
@@ -107,9 +107,16 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - New alerts: no cost lines yet, expense ledgers without a cost line (with the spending left out), which bank account is the RERA account, payments to suppliers that cannot be spread over cost lines, a joint development with no landowners, landowners without a PAN.
   - Undo adds reversing entries for cost and the RERA account (both are append-only) and removes landowner payments; importing the same file again afterwards brings them back.
   - Tested end to end: standard cost lines set up, a landowner added, an export reviewed with cost, RERA deposits and the landowner matched, brought in, and shown on the Overview, the budget, Escrow and the landowners; then undone.
+- Payment plans and buyer payments:
+  - A payment plan for any project, started from a standard plan (construction-linked in ten stages, construction-linked front-loaded, or 20:80) and changed stage by stage on the Collections tab: name, when it falls due (booking, agreement, a certified-progress percentage, possession) and share. The shares must add up to 100%; stages with demands already raised keep their timing and share.
+  - Buyer payments typed in on the unit page (date, amount, TDS the buyer deducted, UTR or cheque number), listed with where each came from (typed, imported or Tally), and deleted if entered by mistake (Tally's are corrected in Tally).
+  - Buyer payments imported from a collections register or a bank export through the Import centre, with a template; each row checked (the unit exists and is sold, the date and amount are there), payments already recorded recognised so the file can be imported again, exported in the same layout, and undone.
+  - The Import centre now takes any record type through one handler per type, so new types plug in with their own checks.
+  - Tested end to end: a 20:80 plan chosen and changed, a plan that does not add up refused, a payment typed in, two imported, and collections showing them.
 
 ## In progress
 
+- Project details and the completeness meter: change a project's details after adding it; see for each project which data is in, how fresh it is, and what each missing piece unlocks.
 
 ## Left
 

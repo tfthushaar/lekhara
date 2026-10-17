@@ -251,6 +251,61 @@ export async function updateLandowner(
   return { ok: "Saved." };
 }
 
+export async function applyPlanTemplate(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/payment-plan/template`, {
+    template: text(form, "template"),
+  });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Payment plan set." };
+}
+
+export async function savePlan(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const stages = [];
+  for (let i = 0; form.has(`stage_${i}_name`); i++) {
+    const name = text(form, `stage_${i}_name`);
+    const share = text(form, `stage_${i}_share`);
+    if (!name && !share) continue;
+    stages.push({
+      id: text(form, `stage_${i}_id`) || null,
+      name,
+      trigger: text(form, `stage_${i}_trigger`),
+      progress_pct: text(form, `stage_${i}_progress`) || null,
+      share_pct: share,
+    });
+  }
+  const result = await send("PUT", `/projects/${projectId}/payment-plan`, { stages });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Payment plan saved." };
+}
+
+export async function recordReceipt(
+  unitId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send("POST", `/units/${unitId}/receipts`, filled(form, ["received_on", "amount", "tds_deducted", "reference"]));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Payment recorded." };
+}
+
+export async function deleteReceipt(receiptId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/receipts/${receiptId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function signUp(_previous: ActionState, form: FormData): Promise<ActionState> {
   const result = await send<{ token: string }>("POST", "/auth/signup", {
     name: text(form, "name"),

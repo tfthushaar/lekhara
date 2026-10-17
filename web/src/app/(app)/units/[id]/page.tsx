@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { deleteUnit, markUnsold, updateHandover, updateUnit } from "@/app/actions";
+import { deleteReceipt, deleteUnit, markUnsold, recordReceipt, updateHandover, updateUnit } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { LinkedDocuments } from "@/components/documents";
 import { PrintButton } from "@/components/print-button";
@@ -52,6 +52,7 @@ async function UnitView({ params }: { params: Promise<{ id: string }> }) {
       </div>
 
       <UnitDetails unit={unit} />
+      {unit.booked ? <Payments unit={unit} /> : null}
 
       {unit.booked ? (
         <Suspense fallback={<p className="loading">Loading the handover steps</p>}>
@@ -456,4 +457,73 @@ function NextStep({ u }: { u: UnitHandover }) {
         </p>
       );
   }
+}
+
+function Payments({ unit }: { unit: UnitDetail }) {
+  const total = unit.receipts.reduce((sum, r) => sum + Number(r.amount) + Number(r.tds), 0);
+  return (
+    <section className="no-print" style={{ marginBottom: 40 }}>
+      <div className="section-head">
+        <h2>Payments received</h2>
+        <p>{`${inrFull(String(total))} so far, counting TDS the buyer deducted`}</p>
+      </div>
+      {unit.receipts.length === 0 ? (
+        <p className="empty">No payments recorded yet.</p>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Received</th>
+              <th className="right">Amount</th>
+              <th className="right">TDS</th>
+              <th>Reference</th>
+              <th>From</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {unit.receipts.map((r) => (
+              <tr key={r.id}>
+                <td className="nowrap">{day(r.received_on)}</td>
+                <td className="right num">{inrFull(r.amount)}</td>
+                <td className="right num">{Number(r.tds) ? inrFull(r.tds) : ""}</td>
+                <td>{r.reference}</td>
+                <td className="small muted">{r.source}</td>
+                <td className="right">
+                  {unit.can_edit && r.can_delete ? (
+                    <ActionForm action={deleteReceipt.bind(null, r.id)} label="Delete" pendingLabel="Deleting" secondary />
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {unit.can_edit ? (
+        <details className="disclosure">
+          <summary>Record a payment</summary>
+          <ActionForm action={recordReceipt.bind(null, unit.id)} label="Record the payment" pendingLabel="Saving">
+            <div className="field-grid">
+              <div className="field">
+                <label htmlFor="pay-on">Received on</label>
+                <input id="pay-on" name="received_on" type="date" required />
+              </div>
+              <div className="field">
+                <label htmlFor="pay-amount">Amount received (rupees)</label>
+                <input id="pay-amount" name="amount" inputMode="decimal" required />
+              </div>
+              <div className="field">
+                <label htmlFor="pay-tds">TDS the buyer deducted</label>
+                <input id="pay-tds" name="tds_deducted" inputMode="decimal" />
+              </div>
+              <div className="field">
+                <label htmlFor="pay-ref">UTR or cheque number</label>
+                <input id="pay-ref" name="reference" />
+              </div>
+            </div>
+          </ActionForm>
+        </details>
+      ) : null}
+    </section>
+  );
 }

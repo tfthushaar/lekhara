@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { raiseDemands } from "@/app/actions";
+import { applyPlanTemplate, raiseDemands, savePlan } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
-import { type Collections, api } from "@/lib/api";
+import { type Collections, type PaymentPlan, api } from "@/lib/api";
 import { day, inr, pct } from "@/lib/format";
 
 export default function CollectionsPage({ params }: PageProps<"/projects/[id]/collections">) {
@@ -23,7 +23,7 @@ function when(m: Collections["milestones"][number]): string {
 
 async function CollectionsView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const c = await api.collections(id);
+  const [c, plan] = await Promise.all([api.collections(id), api.paymentPlan(id)]);
   const s = c.summary;
 
   return (
@@ -136,6 +136,7 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
           <h2>Payment plan</h2>
           <p>Each milestone is a share of the agreement value</p>
         </div>
+        <PlanEditor plan={plan} projectId={id} />
         <table className="table">
           <thead>
             <tr>
@@ -235,6 +236,85 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
           </table>
         </details>
       </section>
+    </>
+  );
+}
+
+function PlanEditor({ plan, projectId }: { plan: PaymentPlan; projectId: string }) {
+  if (!plan.can_edit) return null;
+  const rows = [...plan.stages, ...Array.from({ length: 3 }, () => null)];
+  return (
+    <>
+      {plan.stages.length === 0 || !plan.any_raised ? (
+        <details className="disclosure" open={plan.stages.length === 0}>
+          <summary>{plan.stages.length === 0 ? "Choose a payment plan to start from" : "Start again from a standard plan"}</summary>
+          <ActionForm action={applyPlanTemplate.bind(null, projectId)} label="Use this plan" pendingLabel="Setting it">
+            <div className="checks">
+              {plan.templates.map((t, i) => (
+                <label key={t.key}>
+                  <input type="radio" name="template" value={t.key} defaultChecked={i === 0} />{" "}
+                  <span>
+                    <strong>{t.label}</strong>
+                    <span className="small muted">
+                      {` ${t.stages.map((s) => `${s.share_pct}% ${s.trigger_label.toLowerCase()}${s.progress_pct ? ` (${s.progress_pct}%)` : ""}`).join(", ")}`}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="small muted" style={{ marginBottom: 12 }}>
+              A starting point: change the stages to match your agreement for sale.
+            </p>
+          </ActionForm>
+        </details>
+      ) : null}
+      {plan.stages.length > 0 ? (
+        <details className="disclosure">
+          <summary>Change the payment plan</summary>
+          <p className="small muted" style={{ margin: "8px 0 12px", maxWidth: 720 }}>
+            The shares must add up to 100%. Stages with demands already raised keep their timing and
+            share. Leave a row blank to drop it.
+          </p>
+          <ActionForm action={savePlan.bind(null, projectId)} label="Save the plan" pendingLabel="Saving">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Stage</th>
+                  <th>When</th>
+                  <th className="right">At progress (%)</th>
+                  <th className="right">Share (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((stage, i) => (
+                  <tr key={stage?.id ?? `new-${i}`}>
+                    <td>
+                      <input type="hidden" name={`stage_${i}_id`} value={stage?.id ?? ""} />
+                      <input name={`stage_${i}_name`} defaultValue={stage?.name ?? ""} aria-label="Stage name" />
+                      {stage?.demands ? <span className="small muted">{` ${stage.demands} demands raised`}</span> : null}
+                    </td>
+                    <td>
+                      <select name={`stage_${i}_trigger`} defaultValue={stage?.trigger ?? "progress"} aria-label="When it falls due">
+                        {plan.triggers.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="right">
+                      <input name={`stage_${i}_progress`} defaultValue={stage?.progress_pct ?? ""} inputMode="decimal" size={5} aria-label="Progress per cent" />
+                    </td>
+                    <td className="right">
+                      <input name={`stage_${i}_share`} defaultValue={stage?.share_pct ?? ""} inputMode="decimal" size={5} aria-label="Share per cent" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ActionForm>
+        </details>
+      ) : null}
     </>
   );
 }

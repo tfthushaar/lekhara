@@ -146,6 +146,29 @@ async function ImportView({ params }: { params: Promise<{ id: string }> }) {
 
       <section className="section">
         <div className="section-head">
+          <h2>Import buyer payments</h2>
+          <p>From your collections register or a bank export: unit, date, amount, TDS and UTR</p>
+        </div>
+        <p className="small" style={{ marginTop: 12 }}>
+          <a href="/download/imports/templates/receipts.xlsx" className="link-action">
+            Download the payments template
+          </a>
+          . Payments already recorded are recognised, so the same file can be imported again.
+        </p>
+        {list.can_import ? (
+          <div style={{ maxWidth: 560, marginTop: 16 }}>
+            <ActionForm action={startImport.bind(null, id, "receipts")} label="Preview the payments" pendingLabel="Reading the file">
+              <div className="field">
+                <label htmlFor="receipts-file">Your file</label>
+                <input id="receipts-file" name="file" type="file" accept=".xlsx,.xlsm,.csv" required />
+              </div>
+            </ActionForm>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="section">
+        <div className="section-head">
           <h2>Earlier imports</h2>
         </div>
         {list.imports.length === 0 ? (

@@ -23,10 +23,12 @@ from lekhara.models import (
     Organization,
     PaymentMilestone,
     Project,
+    Receipt,
     Unit,
     User,
 )
 from lekhara.money import ZERO
+from lekhara.records import RECEIPTS
 from lekhara.rules import KARNATAKA
 from lekhara.services import ServiceError
 from lekhara.storage import LocalStorage
@@ -52,6 +54,21 @@ class UnitBody(BaseModel):
 class TallyOptions(BaseModel):
     cost_centre: str | None = None
     links: dict[str, str | dict[str, str | None]] = {}
+
+
+class PlanBody(BaseModel):
+    stages: list[dict] = []
+
+
+class TemplateBody(BaseModel):
+    template: str = ""
+
+
+class ReceiptBody(BaseModel):
+    received_on: str | None = None
+    amount: str | None = None
+    tds_deducted: str | None = None
+    reference: str | None = None
 
 
 class CostLineBody(BaseModel):
@@ -578,6 +595,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             names,
             can_edit=me.can_prepare(p) and not me.views_as_sample(p),
             dependents=registers.unit_dependents(session, unit),
+            receipts=registers.unit_receipts(session, unit),
         )
 
     @app.post("/projects/{project_id}/units", status_code=201)
@@ -652,7 +670,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         p = services.get_project(session, project_id)
         auth.require_team(me, p)
         kind, fmt = split_name(name)
-        data = imports.export_units(session, p, fmt)
+        data = imports.export(session, p, kind, fmt)
         return file_download(data, f"{p.name} {kind} {on.isoformat()}.{fmt}".replace(" ", "-"))
 
     @app.post("/projects/{project_id}/imports/{kind}", status_code=201)
@@ -716,6 +734,58 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         batch, p = batch_for(session, me, batch_id, edit=True)
         imports.undo(session, batch, user_id=me.user_id)
         return batch_view(session, me, batch, p)
+
+    # Payment plans and buyer payments
+
+    @app.get("/projects/{project_id}/payment-plan")
+    def get_payment_plan(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return views.payment_plan(
+            registers.payment_plan(session, p),
+            registers.demands_by_milestone(session, p),
+            can_edit=me.can_prepare(p) and not me.views_as_sample(p),
+        )
+
+    @app.put("/projects/{project_id}/payment-plan")
+    def put_payment_plan(project_id: str, body: PlanBody, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        registers.replace_plan(session, p, body.stages, user_id=me.user_id)
+        session.commit()
+        return get_payment_plan(project_id, session, me)
+
+    @app.post("/projects/{project_id}/payment-plan/template")
+    def plan_template(project_id: str, body: TemplateBody, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        registers.apply_template(session, p, body.template, user_id=me.user_id)
+        session.commit()
+        return get_payment_plan(project_id, session, me)
+
+    @app.post("/units/{unit_id}/receipts", status_code=201)
+    def record_receipt(unit_id: str, body: ReceiptBody, session: SessionDep, me: Me) -> dict:
+        unit, p = unit_for(session, me, unit_id, edit=True)
+        values, problems = registers.parse_row(
+            RECEIPTS, {k: v for k, v in body.model_dump().items() if v not in (None, "")}
+        )
+        if problems:
+            raise ServiceError(" ".join(problems))
+        receipt = registers.create_receipt(session, p, unit, values, user_id=me.user_id)
+        session.commit()
+        return {"id": receipt.id}
+
+    @app.post("/receipts/{receipt_id}/delete")
+    def delete_receipt(receipt_id: str, session: SessionDep, me: Me) -> dict:
+        receipt = session.get(Receipt, receipt_id)
+        if receipt is None:
+            raise ServiceError("Payment not found.", 404)
+        p = services.get_project(session, receipt.project_id)
+        auth.require_prepare(me, p)
+        unit_id = receipt.unit_id
+        registers.delete_receipt(session, p, receipt, user_id=me.user_id)
+        session.commit()
+        return {"unit_id": unit_id}
 
     # Cost lines and landowners
 
