@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { send, sendForm } from "@/lib/api";
 import { SESSION_COOKIE, SESSION_DAYS } from "@/lib/session-cookie";
 
-export type ActionState = { error?: string };
+export type ActionState = { error?: string; ok?: string; link?: string };
 
 function text(form: FormData, name: string): string {
   return String(form.get(name) ?? "").trim();
@@ -19,16 +19,147 @@ export async function signIn(_previous: ActionState, form: FormData): Promise<Ac
   if (!email || !password) return { error: "Enter your email and password." };
   const result = await send<{ token: string }>("POST", "/auth/login", { email, password });
   if (!result.ok) return { error: result.error };
+  await startSession(result.data.token);
+  redirect("/");
+}
+
+async function startSession(token: string): Promise<void> {
   (await cookies()).set({
     name: SESSION_COOKIE,
-    value: result.data.token,
+    value: token,
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_DAYS * 24 * 60 * 60,
   });
+}
+
+
+export async function signUp(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send<{ token: string }>("POST", "/auth/signup", {
+    name: text(form, "name"),
+    firm: text(form, "firm"),
+    email: text(form, "email"),
+    password: String(form.get("password") ?? ""),
+  });
+  if (!result.ok) return { error: result.error };
+  await startSession(result.data.token);
   redirect("/");
+}
+
+export async function forgotPassword(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", "/auth/forgot", { email: text(form, "email") });
+  if (!result.ok) return { error: result.error };
+  return { ok: "If there is an account for that email, a link to reset the password is on its way. It works for one hour." };
+}
+
+export async function resetPassword(
+  token: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const password = String(form.get("password") ?? "");
+  if (password !== String(form.get("confirm") ?? "")) return { error: "The two passwords do not match." };
+  const result = await send("POST", "/auth/reset", { token, password });
+  if (!result.ok) return { error: result.error };
+  redirect("/login?reset=1");
+}
+
+export async function verifyEmail(token: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", "/auth/verify", { token });
+  if (!result.ok) return { error: result.error };
+  return { ok: "Your email is confirmed." };
+}
+
+export async function resendVerification(_previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", "/auth/verify/resend");
+  if (!result.ok) return { error: result.error };
+  return { ok: "Sent. Check your inbox." };
+}
+
+export async function acceptInvitation(
+  token: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send<{ token: string }>("POST", `/invitations/${token}/accept`, {
+    name: text(form, "name") || null,
+    firm: text(form, "firm") || null,
+    password: String(form.get("password") ?? ""),
+  });
+  if (!result.ok) return { error: result.error };
+  await startSession(result.data.token);
+  redirect("/");
+}
+
+export async function updateFirm(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("PUT", "/organization", {
+    name: text(form, "name"),
+    legal_name: text(form, "legal_name"),
+    gstin: text(form, "gstin"),
+  });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function inviteMember(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const email = text(form, "email");
+  const result = await send<{ link: string }>("POST", "/organization/invitations", {
+    email,
+    role: text(form, "role"),
+    project_ids: form.getAll("project_ids").map(String),
+  });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {
+    ok: `Invitation emailed to ${email}. You can also send them this link, for example on WhatsApp. It works for seven days.`,
+    link: result.data.link,
+  };
+}
+
+export async function cancelInvitation(id: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/organization/invitations/${id}/cancel`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function changeRole(
+  userId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send("PUT", `/organization/members/${userId}`, { role: text(form, "role") });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function removeMember(userId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/organization/members/${userId}/remove`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function createProject(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const body = filled(form, [
+    "name",
+    "krera_registration",
+    "registered_on",
+    "possession_due_on",
+    "locality",
+    "city",
+    "spv_name",
+    "land_structure",
+    "gst_regime",
+    "escrow_bank",
+  ]);
+  const result = await send<{ id: string }>("POST", "/projects", body);
+  if (!result.ok) return { error: result.error };
+  redirect(`/projects/${result.data.id}`);
 }
 
 export async function signOut(): Promise<void> {

@@ -94,7 +94,7 @@ def test_certifiers_see_escrow_but_not_tax(ca) -> None:
     assert ca.get(f"/projects/{WF}/units").status_code == 403
     detail = ca.get(f"/projects/{WF}").json()
     assert {o["area"] for o in detail["obligations"]} <= {"escrow"}
-    assert detail["access"] == {"team": False, "certifies": ["ca"]}
+    assert detail["access"] == {"sample": False, "team": False, "certifies": ["ca"]}
 
 
 def test_certifiers_cannot_start_withdrawals(ca) -> None:

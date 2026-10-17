@@ -18,7 +18,7 @@ export default function ProjectsPage() {
         </div>
       </div>
       <Suspense fallback={<p className="loading">Loading projects</p>}>
-        <ProjectList />
+        <ProjectSections />
       </Suspense>
     </>
   );
@@ -33,8 +33,42 @@ function attention(p: ProjectCard): string {
   return parts.length ? parts.join(", ") : "Nothing pressing";
 }
 
-async function ProjectList() {
-  const projects = await api.projects();
+async function ProjectSections() {
+  const [projects, me] = await Promise.all([api.projects(), api.me()]);
+  const own = projects.filter((p) => !p.sample);
+  const samples = projects.filter((p) => p.sample);
+  const org = me.organization;
+  const canAdd = Boolean(org?.can_add_projects && org.access !== "read_only" && !org.is_sample);
+  return (
+    <>
+      {canAdd ? (
+        <p style={{ marginBottom: 24 }}>
+          <Link href="/projects/new" className="button">
+            Add a project
+          </Link>
+        </p>
+      ) : null}
+      {own.length > 0 ? (
+        <ProjectList projects={own} />
+      ) : (
+        <p className="empty">
+          {canAdd ? "No projects yet. Add your first one above." : "No projects to show yet."}
+        </p>
+      )}
+      {samples.length > 0 ? (
+        <section className="section">
+          <div className="section-head">
+            <h2>Sample projects</h2>
+            <p>A fictional developer, to show what Lekhara does. Read-only.</p>
+          </div>
+          <ProjectList projects={samples} />
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+function ProjectList({ projects }: { projects: ProjectCard[] }) {
   return (
     <table className="table">
       <thead>

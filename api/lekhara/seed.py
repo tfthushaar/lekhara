@@ -131,6 +131,7 @@ def seed_people(session: Session, org: Organization, projects: list[Project]) ->
             email=account.email,
             password_hash=_demo_password_hash(),
             firm=account.firm,
+            email_verified_at=datetime(2026, 1, 1),
         )
         session.add(user)
         session.flush()
@@ -175,7 +176,7 @@ class Seeder:
         self.s = session
         self.today = today
         self.rng = random.Random(17)
-        self.org = Organization(id="demo", name="Demo Builders")
+        self.org = Organization(id="demo", name="Demo Builders", is_sample=True, access="active")
         session.add(self.org)
         self.vendors: dict[str, Vendor] = {}
 

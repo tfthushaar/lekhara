@@ -17,7 +17,7 @@ import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 
 from sqlalchemy import select
@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from lekhara.engines.escrow import CertifierRole
 from lekhara.models import Membership, Project, ProjectAccess, User, UserSession
-from lekhara.services import ServiceError
+from lekhara.services import ServiceError, access_state
 
 SESSION_DAYS = 14
 _SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 1
@@ -130,15 +130,36 @@ class Principal:
     """Organisation id to the person's role in the developer's team."""
     project_roles: dict[str, frozenset[CertifierRole]]
     """Project id to the certifying roles the person holds on it."""
+    as_of: date = date.min
+    """Today, for deciding whether a firm's workspace can still be changed."""
 
     def org_role(self, project: Project) -> OrgRole | None:
         return self.org_roles.get(project.organization_id)
 
     def can_view(self, project: Project) -> bool:
-        return project.organization_id in self.org_roles or project.id in self.project_roles
+        return (
+            project.organization_id in self.org_roles
+            or project.id in self.project_roles
+            or project.organization.is_sample
+        )
 
     def is_team(self, project: Project) -> bool:
+        """The firm's own team; or, on a sample project, anyone with no other role on it."""
+        if self.org_role(project) is not None:
+            return True
+        return project.organization.is_sample and project.id not in self.project_roles
+
+    def is_team_member(self, project: Project) -> bool:
+        """In the firm's own team, as opposed to looking at the sample."""
         return self.org_role(project) is not None
+
+    def views_as_sample(self, project: Project) -> bool:
+        """Looking at a sample project with no role on it: read-only."""
+        return (
+            project.organization.is_sample
+            and not self.is_team_member(project)
+            and project.id not in self.project_roles
+        )
 
     def can_prepare(self, project: Project) -> bool:
         """Start withdrawals and send them to the bank."""
@@ -162,14 +183,7 @@ class Principal:
         return ", ".join(CERTIFIER_LABEL[r] for r in sorted(roles)) or "No access"
 
 
-def login(session: Session, email: str, password: str, throttle: LoginThrottle) -> tuple[str, User]:
-    key = email.strip().casefold()
-    throttle.check(key)
-    user = session.scalars(select(User).where(User.email == key)).first()
-    if user is None or not user.is_active or not verify_password(password, user.password_hash):
-        throttle.failed(key)
-        raise ServiceError("That email and password do not match.", 401)
-    throttle.succeeded(key)
+def start_session(session: Session, user: User) -> str:
     token = secrets.token_urlsafe(32)
     now = _now()
     session.add(
@@ -181,7 +195,18 @@ def login(session: Session, email: str, password: str, throttle: LoginThrottle) 
         )
     )
     session.commit()
-    return token, user
+    return token
+
+
+def login(session: Session, email: str, password: str, throttle: LoginThrottle) -> tuple[str, User]:
+    key = email.strip().casefold()
+    throttle.check(key)
+    user = session.scalars(select(User).where(User.email == key)).first()
+    if user is None or not user.is_active or not verify_password(password, user.password_hash):
+        throttle.failed(key)
+        raise ServiceError("That email and password do not match.", 401)
+    throttle.succeeded(key)
+    return start_session(session, user), user
 
 
 def logout(session: Session, token: str) -> None:
@@ -193,7 +218,7 @@ def logout(session: Session, token: str) -> None:
         session.commit()
 
 
-def principal_for(session: Session, token: str) -> Principal | None:
+def principal_for(session: Session, token: str, as_of: date = date.min) -> Principal | None:
     row = session.scalars(
         select(UserSession).where(UserSession.token_hash == _token_hash(token))
     ).first()
@@ -216,6 +241,7 @@ def principal_for(session: Session, token: str) -> Principal | None:
         firm=user.firm,
         org_roles=org_roles,
         project_roles={k: frozenset(v) for k, v in project_roles.items()},
+        as_of=as_of,
     )
 
 
@@ -228,6 +254,17 @@ def require_view(principal: Principal, project: Project) -> None:
         raise ServiceError("Project not found.", 404)
 
 
+READ_ONLY = (
+    "Your free month has ended. Subscribe to keep adding and changing data; you can still "
+    "see and export everything."
+)
+
+
+def require_writable(principal: Principal, project: Project) -> None:
+    if access_state(project.organization, principal.as_of) == "read_only":
+        raise ServiceError(READ_ONLY, 402)
+
+
 def require_team(principal: Principal, project: Project) -> None:
     require_view(principal, project)
     if not principal.is_team(project):
@@ -237,7 +274,10 @@ def require_team(principal: Principal, project: Project) -> None:
 def require_prepare(principal: Principal, project: Project) -> None:
     require_view(principal, project)
     if not principal.can_prepare(project):
+        if principal.views_as_sample(project):
+            raise ServiceError("The sample projects are read-only.", 403)
         raise ServiceError("Your role cannot start or send withdrawals.", 403)
+    require_writable(principal, project)
 
 
 def require_share(principal: Principal, project: Project) -> None:
@@ -246,15 +286,18 @@ def require_share(principal: Principal, project: Project) -> None:
         raise ServiceError(
             "Only the owner or finance can share documents outside the company.", 403
         )
+    require_writable(principal, project)
 
 
 def require_release(principal: Principal, project: Project) -> None:
     require_view(principal, project)
     if not principal.can_release(project):
         raise ServiceError("Only the owner or finance can record what the bank did.", 403)
+    require_writable(principal, project)
 
 
 def require_certifier(principal: Principal, project: Project, role: CertifierRole) -> None:
     require_view(principal, project)
     if not principal.certifies(project, role):
         raise ServiceError(f"Only the project's {CERTIFIER_LABEL[role].lower()} can do this.", 403)
+    require_writable(principal, project)

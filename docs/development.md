@@ -33,7 +33,11 @@ python -m venv .venv
 
 The demo data is a fictional developer with three Bengaluru projects, dated relative to today. Set `LEKHARA_TODAY=2026-10-17` to pin the date.
 
-Sign-in is required for everything except `/health` and `/rules`. Run the API with `LEKHARA_DEMO=1` to list the demo accounts on the sign-in screen; every demo account uses the password `lekhara-demo`:
+Anyone can create a builder firm at `/signup` (the API's `/auth/signup`): the firm gets its own workspace and a free month (`LEKHARA_TRIAL_DAYS`, default 30), after which an unpaid workspace is read-only. The demo firm is the sample: every signed-in person can look at its projects, and only its own members can change them.
+
+Emails (confirmation, password reset, invitations) are kept in the `outbound_emails` table. Set `LEKHARA_SMTP_URL` (for example `smtp://user:password@smtp.example.com:587`) and `LEKHARA_MAIL_FROM` to send them; without SMTP they are written to the API's log, which is how to follow the links locally. Links point at `LEKHARA_WEB_URL` (default `http://localhost:3000`).
+
+Sign-in is required for everything except `/health`, `/rules`, sign-up, password reset, invitations and shared data rooms. Run the API with `LEKHARA_DEMO=1` to list the demo accounts on the sign-in screen; every demo account uses the password `lekhara-demo`:
 
 | Email | Role |
 |---|---|

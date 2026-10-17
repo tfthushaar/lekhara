@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { signIn } from "@/app/actions";
@@ -7,12 +8,15 @@ import { demoAccounts } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default function LoginPage() {
+export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <main className="login">
       <p className="wordmark login-wordmark">Lekhara</p>
       <div className="login-card">
         <h1>Sign in</h1>
+        <Suspense fallback={null}>
+          <ResetNotice searchParams={searchParams} />
+        </Suspense>
         <p className="muted" style={{ marginTop: 6, marginBottom: 24 }}>
           For developers, and for the architects, engineers and CAs who certify their projects.
         </p>
@@ -32,11 +36,29 @@ export default function LoginPage() {
             />
           </div>
         </ActionForm>
+        <p className="login-links">
+          <Link href="/signup">New to Lekhara? Start your free month</Link>
+          <Link href="/forgot">Forgot your password?</Link>
+        </p>
       </div>
       <Suspense fallback={null}>
         <DemoAccounts />
       </Suspense>
     </main>
+  );
+}
+
+async function ResetNotice({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  if (sp.reset !== "1") return null;
+  return (
+    <p className="form-ok" role="status" style={{ marginTop: 12 }}>
+      Your password has been changed. Sign in with the new one.
+    </p>
   );
 }
 

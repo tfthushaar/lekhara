@@ -40,6 +40,14 @@ export function ActionForm({
           {state.error}
         </p>
       ) : null}
+      {state.ok ? (
+        <div className="form-ok" role="status">
+          <p>{state.ok}</p>
+          {state.link ? (
+            <input className="share-link" readOnly value={state.link} aria-label="Link to send" />
+          ) : null}
+        </div>
+      ) : null}
     </form>
   );
 }

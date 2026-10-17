@@ -52,11 +52,53 @@ export type Today =
       items: Obligation[];
     };
 
+export type Access = "active" | "trial" | "read_only";
+
 export type Me = {
   user: { id: string; name: string; email: string; firm: string | null };
   role_label: string;
   kind: "team" | "certifier";
   organizations: string[];
+  organization: {
+    id: string;
+    name: string;
+    access: Access;
+    trial_ends_on: string | null;
+    days_left: number | null;
+    is_sample: boolean;
+    can_add_projects: boolean;
+  } | null;
+  email_verified: boolean;
+};
+
+export type Firm = {
+  id: string;
+  name: string;
+  legal_name: string | null;
+  gstin: string | null;
+  state: string | null;
+  access: Access;
+  trial_ends_on: string | null;
+  days_left: number | null;
+  is_sample: boolean;
+  role: string;
+  can_manage: boolean;
+  is_owner: boolean;
+  members: { user_id: string; name: string; email: string; role: string; role_label: string; you: boolean }[];
+  certifiers: { user_id: string; name: string; email: string; firm: string | null; role_label: string; projects: string[] }[];
+  invitations: { id: string; email: string; role_label: string; expires_on: string }[];
+  projects: { id: string; name: string }[];
+  roles: Choice[];
+};
+
+export type InvitationInfo = {
+  firm: string;
+  email: string;
+  role: string;
+  role_label: string;
+  certifier: boolean;
+  projects: string[];
+  has_account: boolean;
 };
 
 export type DemoAccounts = {
@@ -77,6 +119,7 @@ export type ProjectCard = {
   possession_due_on: string | null;
   counts: Counts;
   next: Obligation | null;
+  sample: boolean;
 };
 
 export type Alert = { code: string; title: string; detail: string; amount: string | null };
@@ -115,7 +158,7 @@ export type ProjectDetail = {
   open_request_id: string | null;
   obligations: Obligation[];
   counts: Counts;
-  access: { team: boolean; certifies: string[] };
+  access: { sample: boolean; team: boolean; certifies: string[] };
 };
 
 export type MoneyLine = {
@@ -696,6 +739,16 @@ async function get<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+/** An invitation, read without signing in. Null once it has been used or has expired. */
+export async function invitationInfo(token: string): Promise<InvitationInfo | null> {
+  const response = await fetch(`${BASE}/invitations/${encodeURIComponent(token)}`, {
+    cache: "no-store",
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Lekhara API ${response.status} on an invitation`);
+  return response.json() as Promise<InvitationInfo>;
+}
+
 /** A shared data room, opened without signing in. Null once the link has closed. */
 export async function sharedRoom(token: string): Promise<SharedRoom | null> {
   const response = await fetch(`${BASE}/shared/${encodeURIComponent(token)}`, {
@@ -792,6 +845,7 @@ export const api = {
       `/documents?link_type=${encodeURIComponent(linkType)}&link_id=${encodeURIComponent(linkId)}`,
     ),
   room: (id: string) => get<RoomDetail>(`/rooms/${id}`),
+  firm: () => get<Firm>("/organization"),
   demand: (id: string) => get<DemandLetter>(`/demands/${id}`),
   tax: (id: string) => get<Tax>(`/projects/${id}/tax`),
   units: (id: string) => get<Units>(`/projects/${id}/units`),

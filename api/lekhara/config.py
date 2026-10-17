@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     storage_dir: str = "./storage"
     """Where the document vault keeps files on local disk."""
     max_upload_mb: int = 20
+    trial_days: int = 30
+    web_url: str = "http://localhost:3000"
+    """Where people open Lekhara; used in the links Lekhara emails."""
+    smtp_url: str | None = None
+    """smtp://user:password@host:587 or smtps://...; without it, emails go to the log."""
+    mail_from: str = "Lekhara <no-reply@lekhara.local>"
 
     def as_of(self) -> date:
         return self.today or date.today()

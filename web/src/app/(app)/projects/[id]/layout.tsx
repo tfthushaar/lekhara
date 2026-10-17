@@ -37,7 +37,10 @@ async function ProjectHeader({ params }: { params: Promise<{ id: string }> }) {
           <p className="crumb">
             <Link href="/projects">Projects</Link>
           </p>
-          <h1>{p.name}</h1>
+          <h1>
+            {p.name}
+            {p.access.sample ? <span className="tag tag-upcoming" style={{ marginLeft: 12, verticalAlign: "middle" }}>Sample, read-only</span> : null}
+          </h1>
           <p>
             {p.locality}, {p.city}. {p.land_structure}. K-RERA {p.krera_registration}
           </p>

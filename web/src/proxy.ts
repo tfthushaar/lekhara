@@ -15,6 +15,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Shared data rooms are opened by people outside the company, without signing in.
-  matcher: ["/((?!login|shared|_next/static|_next/image|favicon.ico).*)"],
+  // Sign-up, password resets, email checks, invitations and shared data rooms are opened
+  // without signing in.
+  matcher: [
+    "/((?!login|signup|forgot|reset|verify|invite|shared|_next/static|_next/image|favicon.ico).*)",
+  ],
 };

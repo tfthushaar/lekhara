@@ -838,6 +838,80 @@ h3 {
   margin-bottom: 32px;
 }
 
+/* Sign-up, trial and account pages */
+
+.form-ok {
+  margin-top: 12px;
+  font-size: 14px;
+  border-left: 3px solid var(--ink);
+  padding-left: 10px;
+}
+
+.banner {
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-2);
+  padding: 10px var(--gutter);
+  font-size: 14px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.banner-strong {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.banner-strong a {
+  color: var(--paper);
+}
+
+.table .inline-form,
+.banner .inline-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+}
+
+.inline-form select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.login-links {
+  margin-top: 16px;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.steps-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.steps-list li {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 @media print {
   .topbar,
   .no-print {

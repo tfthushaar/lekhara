@@ -98,4 +98,4 @@ One subscription for your whole firm, covering every project and everyone on you
 
 ## Availability
 
-Lekhara is in development. The escrow and certification flow, K-RERA deadlines, the real-estate tax checks, collections, registration and handover, disputes and orders, the document vault and the daily view work today. Self-serve sign-up, imports and exports are being built now. Lekhara will open to our first builders in Bengaluru as each part is ready, with other cities in Karnataka to follow.
+Lekhara is in development. The escrow and certification flow, K-RERA deadlines, the real-estate tax checks, collections, registration and handover, disputes and orders, the document vault and the daily view work today. You can sign up and start your free month today; imports and exports are being built now. Lekhara will open to our first builders in Bengaluru as each part is ready, with other cities in Karnataka to follow.

@@ -29,11 +29,25 @@ def _id() -> str:
     return uuid4().hex
 
 
+def utcnow() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
 class Organization(Base):
+    """A builder firm: one workspace and one subscription."""
+
     __tablename__ = "organizations"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
     name: Mapped[str] = mapped_column(String(200))
+    legal_name: Mapped[str | None] = mapped_column(String(200))
+    gstin: Mapped[str | None] = mapped_column(String(15))
+    created_on: Mapped[date | None] = mapped_column(Date)
+    access: Mapped[str] = mapped_column(String(16), default="active", server_default="active")
+    """trial, active (paid) or suspended."""
+    trial_ends_on: Mapped[date | None] = mapped_column(Date)
+    is_sample: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    """The sample projects every signed-in person can look at, read-only."""
 
     projects: Mapped[list["Project"]] = relationship(back_populates="organization")
 
@@ -410,10 +424,6 @@ class DisputePayment(Base):
 # Document vault
 
 
-def _utcnow() -> datetime:
-    return datetime.now(UTC).replace(tzinfo=None)
-
-
 class Document(Base):
     """One version of a document. Versions of the same document share a family id."""
 
@@ -445,7 +455,7 @@ class Document(Base):
     """text, no_text or unreadable."""
     archived_on: Mapped[date | None] = mapped_column(Date)
     uploaded_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
-    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class DocumentPage(Base):
@@ -508,7 +518,7 @@ class DataRoomVisit(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
     room_id: Mapped[str] = mapped_column(ForeignKey("data_rooms.id"), index=True)
-    at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     action: Mapped[str] = mapped_column(String(16))
     """open or download."""
     document_id: Mapped[str | None] = mapped_column(String(64))
@@ -528,6 +538,7 @@ class User(Base):
     """The certifier's firm, printed on every certificate they sign."""
     phone: Mapped[str | None] = mapped_column(String(32))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     memberships: Mapped[list["Membership"]] = relationship(back_populates="user")
@@ -572,6 +583,56 @@ class UserSession(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class OneTimeToken(Base):
+    """A link sent by email to confirm an address or reset a password. Only its hash is kept."""
+
+    __tablename__ = "one_time_tokens"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    purpose: Mapped[str] = mapped_column(String(16))
+    """verify_email or reset_password."""
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class Invitation(Base):
+    """An invitation to join a firm's team, or to certify some of its projects."""
+
+    __tablename__ = "invitations"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    email: Mapped[str] = mapped_column(String(320))
+    org_role: Mapped[str | None] = mapped_column(String(16))
+    certifier_role: Mapped[str | None] = mapped_column(String(16))
+    project_ids: Mapped[str | None] = mapped_column(String(2000))
+    """Comma-separated, for certifiers."""
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    invited_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class OutboundEmail(Base):
+    """Every email Lekhara sends, kept as a record of what was sent and whether it went."""
+
+    __tablename__ = "outbound_emails"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    to_address: Mapped[str] = mapped_column(String(320))
+    subject: Mapped[str] = mapped_column(String(300))
+    body: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    error: Mapped[str | None] = mapped_column(String(500))
 
 
 class AppendOnlyViolation(RuntimeError):

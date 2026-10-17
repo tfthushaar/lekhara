@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { ObligationRows } from "@/components/obligations";
@@ -78,6 +79,7 @@ async function TodayView() {
     );
   }
   const { summary } = today;
+  if (summary.projects === 0) return <Welcome />;
   const pick = (statuses: Status[]): Obligation[] =>
     today.items.filter((o) => statuses.includes(o.status));
 
@@ -114,5 +116,58 @@ async function TodayView() {
         </section>
       ))}
     </>
+  );
+}
+
+async function Welcome() {
+  const me = await api.me();
+  const org = me.organization;
+  return (
+    <section>
+      <h2>{`Welcome to Lekhara${org ? `, ${org.name}` : ""}`}</h2>
+      <p className="muted" style={{ marginTop: 6, maxWidth: 720 }}>
+        {org?.access === "trial"
+          ? `Your free month has started: ${org.days_left} days on your own projects. `
+          : ""}
+        Three steps and this page starts telling you what each project owes, and to whom.
+      </p>
+      <ol className="steps-list">
+        <li>
+          <div>
+            <p className="row-title">Add your first project</p>
+            <p className="row-detail">The name, K-RERA number and dates from its registration.</p>
+          </div>
+          {org?.can_add_projects && org.access !== "read_only" ? (
+            <Link href="/projects/new" className="button">
+              Add a project
+            </Link>
+          ) : null}
+        </li>
+        <li>
+          <div>
+            <p className="row-title">See what Lekhara does with real data</p>
+            <p className="row-detail">
+              Three sample Bengaluru projects, with escrow, collections, handover, disputes and
+              documents filled in. Look around; nothing there can be changed.
+            </p>
+          </div>
+          <Link href="/projects" className="button button-secondary">
+            Explore the samples
+          </Link>
+        </li>
+        <li>
+          <div>
+            <p className="row-title">Bring in your team and certifiers</p>
+            <p className="row-detail">
+              Accounts, finance, and the architect, engineer and CA who sign your withdrawals. One
+              subscription covers everyone.
+            </p>
+          </div>
+          <Link href="/settings" className="button button-secondary">
+            Invite people
+          </Link>
+        </li>
+      </ol>
+    </section>
   );
 }

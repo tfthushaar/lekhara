@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-17, with the commit "Update the plan to a self-serve subscription".
+Last updated: 2026-10-17, with the commit "Add self-serve sign-up, the free month and the team".
 
 ## What we are building
 
@@ -67,10 +67,21 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - Data rooms: the owner or finance shares chosen documents with a lender or investor through a link that closes on a chosen date (up to 90 days), can be replaced or closed at any time, and is shown only once (Lekhara keeps only a fingerprint of it). Outsiders open it without signing in; every opening and download is recorded.
   - Documents sections on each case and unit page. Demo files are generated as real PDFs so search works on them.
   - Tested end to end: a missing title deed filed from the checklist and found by searching its text, a new version of a fire NOC, a data room made, opened and downloaded from by an outsider, then closed; certifiers kept out.
+- Self-serve start (the first part of the self-serve foundation):
+  - Sign-up for a builder firm: name, firm, email and password. The firm's workspace and its one-month free trial start at once; no card is needed.
+  - Each firm's data is kept apart: a project, and everything filed under it, is visible only to the firm's team and to the certifiers invited to it. Tested across every project screen, case filing and upload.
+  - Sample projects: the three demo projects are a read-only sample every signed-in person can explore; nothing in them can be changed by anyone outside the sample firm.
+  - Adding a project from its K-RERA registration (name, number, dates, locality, land structure, GST regime, escrow bank).
+  - Email confirmation, forgotten-password reset (signs out every other session) and resending the confirmation. Emails are kept in an outbox and sent over SMTP when one is set up; until then they are written to the log.
+  - Settings: the firm's name, legal name and GSTIN (checked, with its state); the team and their roles; certifiers and their projects; invitations by email that also give the inviter a link to send on WhatsApp. Owner and finance invite; only an owner changes roles or removes people; the firm always keeps an owner.
+  - Accepting an invitation creates the account (or signs in an existing one) and joins the firm, or the chosen projects for an architect, engineer or CA.
+  - After the free month, an unpaid workspace becomes read-only: everything can still be seen and exported, nothing can be added or changed. Banners show the days left, the read-only state and an unconfirmed email.
+  - A welcome on Today for a firm with no projects yet: add a project, explore the samples, invite the team.
+  - Tested end to end: sign up, add a project, explore a sample, invite a colleague who accepts, confirm the email, reset a forgotten password.
 
 ## In progress
 
-- Self-serve foundation: workspaces that keep each builder firm's data apart, self-serve sign-up and the one-month free trial.
+- Add, edit and import for the core records, starting with units, buyers and payment plans.
 
 ## Left
 
@@ -78,7 +89,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 
 In this order:
 
-- Workspaces: each builder firm's data kept apart in every query and in the database itself, with tests. Self-serve sign-up (email, Google, phone code), the one-month free trial, invitations from the web, password reset.
+- Self-serve start, still to do: sign-in with Google and by phone code, limits on sign-ups and resets per network address, and row-level security in Postgres as a second wall between firms when production moves to Postgres.
 - Add, edit, archive and bulk-edit screens for every record that today comes only from the demo data: projects, units, buyers, payment plans, cost lines, budgets, commitments, bills, vendors, receipts, landowners and their payments, approvals, filings. A change history for every record.
 - Import centre: templates for every record type in English and Kannada, column mapping remembered per source, a preview with plain-language errors, safe re-imports, undo. Bank statements, CRM and Excel lists, and the founder's existing Tally file import module (details to come).
 - Export: every list to Excel and CSV in the import-template layout; a full workspace export (Excel, JSON and every document) at any time.

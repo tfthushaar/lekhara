@@ -159,20 +159,32 @@ class ProjectSnapshot:
     handover: HandoverPosition
 
 
-def organization(session: Session) -> Organization:
-    org = session.scalars(select(Organization).order_by(Organization.name)).first()
-    if org is None:
-        raise ServiceError("No organisation has been set up yet.", 404)
-    return org
+def access_state(org: Organization, as_of: date) -> str:
+    """active (paid, or the sample), trial, or read_only once the free month has ended unpaid."""
+    if org.is_sample or org.access == "active":
+        return "active"
+    if org.access == "trial" and org.trial_ends_on is not None and org.trial_ends_on >= as_of:
+        return "trial"
+    return "read_only"
 
 
-def projects(session: Session) -> list[Project]:
-    org = organization(session)
-    return list(
-        session.scalars(
-            select(Project).where(Project.organization_id == org.id).order_by(Project.name)
+def trial_days_left(org: Organization, as_of: date) -> int | None:
+    if access_state(org, as_of) != "trial":
+        return None
+    return (org.trial_ends_on - as_of).days
+
+
+def sample_projects(session: Session, exclude_organization_ids: set[str]) -> list[Project]:
+    return [
+        p
+        for p in session.scalars(
+            select(Project)
+            .join(Organization)
+            .where(Organization.is_sample.is_(True))
+            .order_by(Project.name)
         )
-    )
+        if p.organization_id not in exclude_organization_ids
+    ]
 
 
 def visible_projects(

@@ -11,19 +11,74 @@ from pydantic import BaseModel
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from lekhara import auth, services, views
+from lekhara import accounts, auth, services, views
 from lekhara.config import Settings, get_settings
 from lekhara.db import make_engine, make_sessionmaker
 from lekhara.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
 from lekhara.engines.obligations import ObligationStatus, sort_obligations
 from lekhara.migrate import upgrade
-from lekhara.models import Organization, PaymentMilestone, Project, Unit
+from lekhara.models import Organization, PaymentMilestone, Project, Unit, User
 from lekhara.money import ZERO
 from lekhara.rules import KARNATAKA
 from lekhara.services import ServiceError
 from lekhara.storage import LocalStorage
 
 DEMO_PASSWORD = "lekhara-demo"
+
+
+class Signup(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    password: str | None = None
+    firm: str | None = None
+
+
+class TokenBody(BaseModel):
+    token: str
+
+
+class Forgot(BaseModel):
+    email: str | None = None
+
+
+class Reset(BaseModel):
+    token: str
+    password: str | None = None
+
+
+class FirmUpdate(BaseModel):
+    name: str | None = None
+    legal_name: str | None = None
+    gstin: str | None = None
+
+
+class NewInvitation(BaseModel):
+    email: str | None = None
+    role: str | None = None
+    project_ids: list[str] = []
+
+
+class Acceptance(BaseModel):
+    name: str | None = None
+    password: str | None = None
+    firm: str | None = None
+
+
+class RoleChange(BaseModel):
+    role: str | None = None
+
+
+class NewProject(BaseModel):
+    name: str | None = None
+    krera_registration: str | None = None
+    registered_on: date | None = None
+    possession_due_on: date | None = None
+    locality: str | None = None
+    city: str | None = None
+    spv_name: str | None = None
+    land_structure: str | None = None
+    gst_regime: str | None = None
+    escrow_bank: str | None = None
 
 
 class Login(BaseModel):
@@ -199,7 +254,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         token = _bearer(authorization)
         if token is None:
             raise ServiceError("Sign in to continue.", 401)
-        principal = auth.principal_for(session, token)
+        principal = auth.principal_for(session, token, settings.as_of())
         if principal is None:
             raise ServiceError("Your session has ended. Sign in again.", 401)
         return principal
@@ -239,18 +294,35 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         return Response(status_code=204)
 
     @app.get("/auth/me")
-    def me(session: SessionDep, me: Me) -> dict:
+    def me(session: SessionDep, me: Me, on: AsOf) -> dict:
         organizations = [
             org.name
             for org in session.scalars(
                 select(Organization).where(Organization.id.in_(set(me.org_roles)))
             )
         ]
+        user = session.get(User, me.user_id)
+        firm = None
+        if me.org_roles:
+            org = accounts.current_org(session, me)
+            role = me.org_roles[org.id]
+            firm = {
+                "id": org.id,
+                "name": org.name,
+                "access": services.access_state(org, on),
+                "trial_ends_on": views.d(org.trial_ends_on),
+                "days_left": services.trial_days_left(org, on),
+                "is_sample": org.is_sample,
+                "can_add_projects": role
+                in (auth.OrgRole.OWNER, auth.OrgRole.FINANCE, auth.OrgRole.ACCOUNTS),
+            }
         return {
             "user": {"id": me.user_id, "name": me.name, "email": me.email, "firm": me.firm},
             "role_label": me.describe(),
             "kind": "certifier" if me.is_certifier_only else "team",
             "organizations": organizations,
+            "organization": firm,
+            "email_verified": user.email_verified_at is not None,
         }
 
     @app.get("/auth/demo")
@@ -265,6 +337,176 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
                 {"email": a.email, "name": a.name, "label": a.label} for a in DEMO_ACCOUNTS
             ],
         }
+
+    # Sign-up, email checks and passwords
+
+    @app.post("/auth/signup", status_code=201)
+    def signup(body: Signup, session: SessionDep, on: AsOf) -> dict:
+        token, user = accounts.signup(
+            session,
+            settings,
+            name=body.name,
+            email=body.email,
+            password=body.password,
+            firm=body.firm,
+            as_of=on,
+        )
+        return {"token": token, "user": {"id": user.id, "name": user.name, "email": user.email}}
+
+    @app.post("/auth/verify")
+    def verify(body: TokenBody, session: SessionDep) -> dict:
+        user = accounts.verify_email(session, body.token)
+        return {"email": user.email}
+
+    @app.post("/auth/verify/resend")
+    def resend_verification(session: SessionDep, me: Me) -> dict:
+        user = session.get(User, me.user_id)
+        if user.email_verified_at is None:
+            accounts.send_verification(session, settings, user)
+            session.commit()
+        return {"ok": True}
+
+    @app.post("/auth/forgot")
+    def forgot(body: Forgot, session: SessionDep) -> dict:
+        key = f"forgot:{(body.email or '').strip().casefold()}"
+        throttle.check(key)
+        throttle.failed(key)  # counts every request, so the form cannot be used to flood a mailbox
+        accounts.forgot_password(session, settings, body.email)
+        return {"ok": True}
+
+    @app.post("/auth/reset")
+    def reset(body: Reset, session: SessionDep) -> dict:
+        accounts.reset_password(session, body.token, body.password)
+        return {"ok": True}
+
+    # The firm, its team and its subscription
+
+    def firm_view(session: Session, me: auth.Principal, org: Organization, on: date) -> dict:
+        role = me.org_roles[org.id]
+        projects = list(
+            session.scalars(
+                select(Project).where(Project.organization_id == org.id).order_by(Project.name)
+            )
+        )
+        return {
+            "id": org.id,
+            "name": org.name,
+            "legal_name": org.legal_name,
+            "gstin": org.gstin,
+            "state": accounts.GSTIN_STATE.get((org.gstin or "")[:2]) if org.gstin else None,
+            "access": services.access_state(org, on),
+            "trial_ends_on": views.d(org.trial_ends_on),
+            "days_left": services.trial_days_left(org, on),
+            "is_sample": org.is_sample,
+            "role": role.value,
+            "can_manage": role in (auth.OrgRole.OWNER, auth.OrgRole.FINANCE),
+            "is_owner": role == auth.OrgRole.OWNER,
+            "members": [
+                {
+                    "user_id": u.id,
+                    "name": u.name,
+                    "email": u.email,
+                    "role": r,
+                    "role_label": accounts.ROLE_LABEL[r],
+                    "you": u.id == me.user_id,
+                }
+                for u, r in accounts.team(session, org)
+            ],
+            "certifiers": [
+                {
+                    "user_id": u.id,
+                    "name": u.name,
+                    "email": u.email,
+                    "firm": u.firm,
+                    "role_label": accounts.ROLE_LABEL[r],
+                    "projects": [p.name for p in ps],
+                }
+                for u, r, ps in accounts.certifiers(session, org)
+            ],
+            "invitations": [
+                {
+                    "id": i.id,
+                    "email": i.email,
+                    "role_label": accounts.ROLE_LABEL[i.org_role or i.certifier_role],
+                    "expires_on": views.d(i.expires_at.date()),
+                }
+                for i in accounts.pending_invitations(session, org)
+            ],
+            "projects": [{"id": p.id, "name": p.name} for p in projects],
+            "roles": [
+                {"value": value, "label": label} for value, label in accounts.ROLE_LABEL.items()
+            ],
+        }
+
+    @app.get("/organization")
+    def get_firm(session: SessionDep, me: Me, on: AsOf) -> dict:
+        return firm_view(session, me, accounts.current_org(session, me), on)
+
+    @app.put("/organization")
+    def update_firm(body: FirmUpdate, session: SessionDep, me: Me, on: AsOf) -> dict:
+        org = accounts.current_org(session, me)
+        accounts.require_manager(me, org, owner=True)
+        accounts.update_org(session, org, body.model_dump(exclude_unset=True))
+        return firm_view(session, me, org, on)
+
+    @app.post("/organization/invitations", status_code=201)
+    def invite(body: NewInvitation, session: SessionDep, me: Me) -> dict:
+        org = accounts.current_org(session, me)
+        row, link = accounts.invite(
+            session,
+            settings,
+            org,
+            me,
+            email=body.email,
+            role=body.role,
+            project_ids=body.project_ids,
+        )
+        return {"id": row.id, "link": link}
+
+    @app.post("/organization/invitations/{invitation_id}/cancel")
+    def cancel_invitation(invitation_id: str, session: SessionDep, me: Me) -> dict:
+        accounts.cancel_invitation(session, accounts.current_org(session, me), me, invitation_id)
+        return {"ok": True}
+
+    @app.put("/organization/members/{user_id}")
+    def change_role(user_id: str, body: RoleChange, session: SessionDep, me: Me) -> dict:
+        accounts.change_role(session, accounts.current_org(session, me), me, user_id, body.role)
+        return {"ok": True}
+
+    @app.post("/organization/members/{user_id}/remove")
+    def remove_member(user_id: str, session: SessionDep, me: Me) -> dict:
+        accounts.remove_member(session, accounts.current_org(session, me), me, user_id)
+        return {"ok": True}
+
+    @app.get("/invitations/{token}")
+    def get_invitation(token: str, session: SessionDep) -> dict:
+        row = accounts.invitation_by_token(session, token)
+        org = session.get(Organization, row.organization_id)
+        return {
+            "firm": org.name,
+            "email": row.email,
+            "role": row.org_role or row.certifier_role,
+            "role_label": accounts.ROLE_LABEL[row.org_role or row.certifier_role],
+            "certifier": row.certifier_role is not None,
+            "projects": [p.name for p in accounts.invitation_projects(session, row)],
+            "has_account": session.scalars(select(User).where(User.email == row.email)).first()
+            is not None,
+        }
+
+    @app.post("/invitations/{token}/accept")
+    def accept_invitation(token: str, body: Acceptance, session: SessionDep) -> dict:
+        session_token = accounts.accept_invitation(
+            session, settings, token, name=body.name, password=body.password, firm=body.firm
+        )
+        return {"token": session_token}
+
+    @app.post("/projects", status_code=201)
+    def create_project(body: NewProject, session: SessionDep, me: Me, on: AsOf) -> dict:
+        org = accounts.current_org(session, me)
+        if services.access_state(org, on) == "read_only":
+            raise ServiceError(auth.READ_ONLY, 402)
+        project = accounts.create_project(session, org, me, body.model_dump())
+        return {"id": project.id}
 
     # Today
 
@@ -342,7 +584,16 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.get("/projects")
     def list_projects(session: SessionDep, me: Me, on: AsOf) -> list[dict]:
-        return [views.project_card(services.snapshot(session, p, on)) for p in visible(session, me)]
+        own = [
+            {**views.project_card(services.snapshot(session, p, on)), "sample": False}
+            for p in visible(session, me)
+        ]
+        samples = [
+            {**views.project_card(services.snapshot(session, p, on)), "sample": True}
+            for p in services.sample_projects(session, set(me.org_roles))
+            if not me.is_certifier_only
+        ]
+        return own + samples
 
     @app.get("/projects/{project_id}")
     def project(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
@@ -356,6 +607,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
                 for status in ObligationStatus
             }
         detail["access"] = {
+            "sample": me.views_as_sample(p),
             "team": me.is_team(p),
             "certifies": [r.value for r in ROLE_ORDER if me.certifies(p, r)],
         }
