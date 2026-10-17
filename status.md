@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-17, with the commit "Use the full width of the window".
+Last updated: 2026-10-17, with the commit "Update the plan to a self-serve subscription".
 
 ## What we are building
 
@@ -11,7 +11,9 @@ Lekhara is an owner-side platform for Karnataka builders, in two layers:
 
 Lekhara connects read-only, reads documents with AI from several providers (with an India-only option), keeps two ledgers (obligations and money), and prepares every filing, certificate and pack before it is due. People sign; Lekhara prepares.
 
-Launch market: Bengaluru, then the rest of Karnataka, then other states. The full plan is v6 (kept outside the repository).
+Lekhara is sold as a self-serve monthly SaaS: one subscription per builder firm, covering all its projects and people, after a one-month free trial, paid through Razorpay. A builder signs up and uses it on their own data the same day, without our help. Every record can be imported from a file, fed from a connected source, or typed and edited in Lekhara, and everything can be exported at any time.
+
+Launch market: Bengaluru, then the rest of Karnataka, then other states. The full plan is v7.1 (kept outside the repository).
 
 ## Done
 
@@ -68,20 +70,27 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 
 ## In progress
 
-- Bank withdrawal pack (PDF); quarterly progress report and annual audit packs.
+- Self-serve foundation: workspaces that keep each builder firm's data apart, self-serve sign-up and the one-month free trial.
 
 ## Left
 
-### v1: pilot-ready (two founders)
+### v1: self-serve and pilot-ready (two founders)
 
-- Inviting people and managing access from the web (accounts are created in the database today), password reset, sign-in by WhatsApp code.
-- Integration of the founder's existing Tally file import module (details to come).
-- Mailbox connector (read-only), Excel and CRM imports.
+In this order:
+
+- Workspaces: each builder firm's data kept apart in every query and in the database itself, with tests. Self-serve sign-up (email, Google, phone code), the one-month free trial, invitations from the web, password reset.
+- Add, edit, archive and bulk-edit screens for every record that today comes only from the demo data: projects, units, buyers, payment plans, cost lines, budgets, commitments, bills, vendors, receipts, landowners and their payments, approvals, filings. A change history for every record.
+- Import centre: templates for every record type in English and Kannada, column mapping remembered per source, a preview with plain-language errors, safe re-imports, undo. Bank statements, CRM and Excel lists, and the founder's existing Tally file import module (details to come).
+- Export: every list to Excel and CSV in the import-template layout; a full workspace export (Excel, JSON and every document) at any time.
+- Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, a completeness meter per project, engines that work with partial data and say what is missing, a sample workspace, first-run help.
+- Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
+- A forwarding address per workspace for bills, notices and statements; a background job queue; S3-compatible file storage.
+- A review queue for anything imported or read by AI with doubt.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
-- Collections, next steps: importing receipts from the bank statement and the CRM, reminders through the team's own WhatsApp or email.
+- Collections, next steps: reminders through the team's own WhatsApp or email.
 - Registration and handover, next steps: recording the occupancy certificate and the conveyance from the web, possession letters, the association handover checklist.
-- Disputes, next steps: reading complaints and orders with AI (with the AI gateway), reply outlines for the lawyer, cancelling the unit when a refund is paid.
-- Document vault, next steps: reading scans and filing documents by themselves (with the AI gateway), documents arriving from the mailbox, an optional name and email gate for data room visitors, storage in an S3-compatible store for production.
+- Disputes, next steps: reading complaints and orders with AI, reply outlines for the lawyer, cancelling the unit when a refund is paid.
+- Document vault, next steps: reading scans and filing documents by themselves, an optional name and email gate for data room visitors.
 - Bank withdrawal pack (PDF); quarterly progress report and annual audit packs.
 - Form errors shown without JavaScript too (today the browser's own checks catch most cases; the server's message appears once the page has loaded its scripts).
 
@@ -90,6 +99,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - Home-loan disbursements, guarantees and insurance, approval conditions and environmental reports, vendor check.
 - Certifier practice workspace.
 - Buyer portal, payables on WhatsApp, contractor billing, approvals tracker, notices.
+- Mailbox connection (read-only) and documents sent on WhatsApp.
 - Kannada voice, the Monday briefing, back-office agents.
 
 ### v3
@@ -104,8 +114,12 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 
 ## Decisions taken
 
-- The product is called Lekhara (renamed from Horus on 2026-10-17), in the code as well as the copy: the Python package, `LEKHARA_` settings, the session cookie and the demo accounts. The GitHub repository is still named nova-horus.
-- Plan v6 approved on 2026-10-17 ("continue building").
+- The product is called Lekhara (renamed from Horus on 2026-10-17), in the code as well as the copy: the Python package, `LEKHARA_` settings, the session cookie and the demo accounts. The GitHub repository was renamed too: github.com/tfthushaar/lekhara.
+- Plan v7.1 on 2026-10-17 ("continue building"): Lekhara is a self-serve monthly SaaS, and the self-serve foundation comes first in v1.
+- Pricing: one subscription per builder firm, not per project; the amounts are to be decided.
+- A one-month free trial on the firm's own data.
+- Payments through Razorpay.
+- Every record can be imported, exported, and added or edited in Lekhara; typing is a first-class path, not a fallback.
 - Flagship: escrow withdrawal certification.
 - Two layers: features only Lekhara has, plus standard modules done better, each able to coexist with the customer's own tools.
 - Stack: Python and FastAPI for the API, Next.js for the web, Postgres in production (SQLite for local development).
@@ -117,5 +131,6 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 ## Working assumptions (change any time)
 
 - India-only AI processing is the default for every customer.
+- No payment details are asked for to start the free month.
 - The second segment after developers is certifier firms.
 - Land records and court data come from licensed partners, not our own collection.

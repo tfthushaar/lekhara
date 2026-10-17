@@ -64,8 +64,8 @@ If you already use other tools, keep them. Lekhara reads from them instead. If y
 
 ## How it works
 
-1. **Connect once.** Your accounts mailbox, your Tally data (from the files Tally already exports, with no plug-in to install), your ERP or CRM if you have one, and your bank statements.
-2. **Lekhara reads.** Agreements, approvals, bills, certificates and payments are read for you, including documents in Kannada. Nobody keys anything in.
+1. **Start in minutes.** Sign up and use Lekhara free for a month. Add your company from its GSTIN and each project from its K-RERA certificate, then drop in what you already have: Tally exports, bank statements, your CRM or Excel unit list, approvals. Nothing to install, and no call with us needed.
+2. **Lekhara reads.** Agreements, approvals, bills, certificates and payments are read for you, including documents in Kannada. You can still type in or correct anything yourself.
 3. **Lekhara prepares.** Filings, certificates, letters and packs are ready before they are due, with every figure traced to the document it came from.
 4. **People sign.** Your architect, engineer and CA review and sign from their own Lekhara access. Nothing is filed, signed or paid without the responsible person.
 
@@ -73,7 +73,13 @@ If you already use other tools, keep them. Lekhara reads from them instead. If y
 
 Lekhara tells you what needs you today, in order of what matters most. Approve what is ready, read the Monday briefing, and ask anything by voice in Kannada, Hindi or English.
 
-## Your data
+## Your data, in and out
+
+- **Bring it in any way you like.** Upload a file with a ready template for every kind of record, forward emails to your own Lekhara address, or type it in. The same file uploaded twice changes nothing, and an import can be undone.
+- **Edit anything.** Every record can be added, corrected or archived in Lekhara, one at a time or many at once, with a history of who changed what.
+- **Take it out at any time.** Every list exports to Excel, and your whole workspace, with every document, exports in one step.
+
+## Your data, kept safe
 
 - **Read-only.** Lekhara reads your systems and never changes them.
 - **Each person sees only what they need.** Your CA sees what they certify; a lender sees only what you share; a landowner sees only their own share.
@@ -86,6 +92,10 @@ Lekhara tells you what needs you today, in order of what matters most. Approve w
 - It never files, signs, submits or pays anything on its own.
 - It does not run your site: no labour attendance or site diaries.
 
+## Pricing
+
+One subscription for your whole firm, covering every project and everyone on your team. Your architect, engineer and CA join free. Your first month is free; after that, pay monthly by UPI AutoPay, card or bank mandate, with a GST invoice. Cancel any time, and take your data with you.
+
 ## Availability
 
-Lekhara is in development. The escrow and certification flow, K-RERA deadlines, the real-estate tax checks and the daily view work today. The rest is being built and will open to our first builders in Bengaluru as each part is ready, with other cities in Karnataka to follow.
+Lekhara is in development. The escrow and certification flow, K-RERA deadlines, the real-estate tax checks, collections, registration and handover, disputes and orders, the document vault and the daily view work today. Self-serve sign-up, imports and exports are being built now. Lekhara will open to our first builders in Bengaluru as each part is ready, with other cities in Karnataka to follow.
