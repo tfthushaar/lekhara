@@ -1,0 +1,15 @@
+# Local Postgres for development. The API uses SQLite unless HORUS_DATABASE_URL is set.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: horus
+      POSTGRES_PASSWORD: horus
+      POSTGRES_DB: horus
+    ports:
+      - "5432:5432"
+    volumes:
+      - horus-db:/var/lib/postgresql/data
+
+volumes:
+  horus-db:
