@@ -1,5 +1,9 @@
+import Link from "next/link";
 import { Suspense } from "react";
 
+import { createUnit } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
+import { UnitFields } from "@/components/unit-fields";
 import { api } from "@/lib/api";
 import { inr, pct } from "@/lib/format";
 
@@ -13,7 +17,7 @@ export default function UnitsPage({ params }: PageProps<"/projects/[id]/units">)
 
 async function UnitsView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const u = await api.units(id);
+  const [u, list] = await Promise.all([api.units(id), api.imports(id)]);
   const s = u.summary;
 
   return (
@@ -80,6 +84,32 @@ async function UnitsView({ params }: { params: Promise<{ id: string }> }) {
           <h2>Units</h2>
           <p>Whose each unit is, and whether it is priced near guidance value</p>
         </div>
+        <p className="chips" style={{ alignItems: "center" }}>
+          {list.can_import ? (
+            <Link href={`/projects/${id}/import`} className="button">
+              Import from Excel
+            </Link>
+          ) : null}
+          <a href={`/download/projects/${id}/exports/units.xlsx`} className="button button-secondary">
+            Download as Excel
+          </a>
+          <a href={`/download/projects/${id}/exports/units.csv`} className="link-action">
+            or CSV
+          </a>
+        </p>
+        {list.can_import ? (
+          <details className="disclosure">
+            <summary>Add a unit by hand</summary>
+            <ActionForm action={createUnit.bind(null, id)} label="Add the unit" pendingLabel="Adding">
+              <UnitFields prefix="new-unit" />
+            </ActionForm>
+          </details>
+        ) : null}
+        {u.units.length === 0 ? (
+          <p className="empty" style={{ marginTop: 16 }}>
+            No units yet. Import them from your sales sheet, or add them one by one.
+          </p>
+        ) : null}
         <table className="table">
           <thead>
             <tr>
@@ -95,8 +125,10 @@ async function UnitsView({ params }: { params: Promise<{ id: string }> }) {
           </thead>
           <tbody>
             {u.units.map((unit) => (
-              <tr key={unit.label}>
-                <td>{unit.label}</td>
+              <tr key={unit.id}>
+                <td>
+                  <Link href={`/units/${unit.id}`}>{unit.label}</Link>
+                </td>
                 <td>{unit.tower}</td>
                 <td className="right num">{unit.carpet_area_sqft.toLocaleString("en-IN")} sq ft</td>
                 <td>{unit.owner_share === "landowner" ? "Landowner" : "Yours"}</td>

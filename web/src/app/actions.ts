@@ -36,6 +36,99 @@ async function startSession(token: string): Promise<void> {
 }
 
 
+const UNIT_FIELDS = [
+  "label",
+  "tower",
+  "carpet_area_sqft",
+  "owner_share",
+  "list_price",
+  "guidance_value",
+  "buyer_name",
+  "buyer_phone",
+  "buyer_email",
+  "booked_on",
+  "agreement_value",
+];
+
+export async function createUnit(
+  projectId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send<{ id: string }>("POST", `/projects/${projectId}/units`, filled(form, UNIT_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Unit added." };
+}
+
+export async function updateUnit(
+  unitId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const result = await send("PUT", `/units/${unitId}`, filled(form, UNIT_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function markUnsold(unitId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/units/${unitId}/unsold`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function deleteUnit(unitId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send<{ project_id: string }>("POST", `/units/${unitId}/delete`);
+  if (!result.ok) return { error: result.error };
+  redirect(`/projects/${result.data.project_id}/units`);
+}
+
+export async function startImport(
+  projectId: string,
+  kind: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file first." };
+  const body = new FormData();
+  body.append("file", file, file.name);
+  const result = await sendForm<{ id: string }>(`/projects/${projectId}/imports/${kind}`, body);
+  if (!result.ok) return { error: result.error };
+  redirect(`/imports/${result.data.id}`);
+}
+
+export async function mapImport(
+  batchId: string,
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const mapping: Record<string, string | null> = {};
+  for (const [name, value] of form.entries()) {
+    if (name.startsWith("column_")) mapping[name.slice(7)] = String(value) || null;
+  }
+  const result = await send("PUT", `/imports/${batchId}/mapping`, { mapping });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function applyImport(batchId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/imports/${batchId}/apply`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function undoImport(batchId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/imports/${batchId}/undo`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function signUp(_previous: ActionState, form: FormData): Promise<ActionState> {
   const result = await send<{ token: string }>("POST", "/auth/signup", {
     name: text(form, "name"),

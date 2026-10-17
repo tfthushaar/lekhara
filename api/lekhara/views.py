@@ -1,5 +1,6 @@
 """JSON views for the web app. Money is sent as decimal strings, dates as ISO strings."""
 
+import json
 from datetime import date
 from decimal import Decimal
 
@@ -46,6 +47,7 @@ from lekhara.models import (
     WithdrawalRequest,
 )
 from lekhara.money import ZERO
+from lekhara.records import RECORD_TYPES
 from lekhara.rules import KARNATAKA, RuleNotFound, RulesPack
 from lekhara.services import ProjectSnapshot, RequestState
 
@@ -491,6 +493,7 @@ def units(s: ProjectSnapshot, rows: list[Unit], owners: list[Landowner]) -> dict
         ],
         "units": [
             {
+                "id": u.id,
                 "label": u.label,
                 "tower": u.tower,
                 "carpet_area_sqft": u.carpet_area_sqft,
@@ -1130,6 +1133,137 @@ def shared_room(room: DataRoom, docs: list[Document], project: Project) -> dict:
             }
             for doc in docs
         ],
+    }
+
+
+# Registers and the Import centre
+
+
+def unit_detail(
+    unit: Unit,
+    project: Project,
+    changes: list,
+    names: dict[str, str],
+    *,
+    can_edit: bool,
+    dependents: list[str],
+) -> dict:
+    record = RECORD_TYPES["units"]
+    labels = {f.key: f.label for f in record.fields}
+    return {
+        "id": unit.id,
+        "project_id": project.id,
+        "project_name": project.name,
+        "label": unit.label,
+        "tower": unit.tower,
+        "carpet_area_sqft": unit.carpet_area_sqft,
+        "owner_share": unit.owner_share,
+        "owner_share_label": "Landowner" if unit.owner_share == "landowner" else "Developer",
+        "list_price": m(unit.list_price),
+        "guidance_value": m(unit.guidance_value),
+        "buyer_name": unit.buyer_name,
+        "buyer_phone": unit.buyer_phone,
+        "buyer_email": unit.buyer_email,
+        "booked": unit.booked,
+        "booked_on": d(unit.booked_on),
+        "agreement_value": m(unit.agreement_value),
+        "can_edit": can_edit,
+        "can_delete": can_edit and not dependents,
+        "dependents": dependents,
+        "history": [
+            {
+                "at": c.at.replace(microsecond=0).isoformat(),
+                "action": c.action,
+                "source": c.source,
+                "by": names.get(c.user_id, "Lekhara"),
+                "changes": [
+                    {"field": labels.get(k, k), "before": b, "after": a}
+                    for k, (b, a) in json.loads(c.changes).items()
+                ],
+            }
+            for c in changes
+        ],
+    }
+
+
+def import_batch(
+    batch,
+    rows: list[dict] | None,
+    project: Project,
+    *,
+    can_edit: bool,
+    can_undo: bool,
+) -> dict:
+    record = RECORD_TYPES[batch.kind]
+    headers = json.loads(batch.headers)
+    body = json.loads(batch.rows)
+    mapping = {int(k): v for k, v in json.loads(batch.mapping).items()}
+    labels = {f.key: f.label for f in record.fields}
+
+    def sample(i: int) -> str:
+        return next((str(r[i]) for r in body[:20] if i < len(r) and r[i] != ""), "")
+
+    counts = {"add": 0, "update": 0, "unchanged": 0, "error": 0}
+    for r in rows or []:
+        counts[r["action"]] += 1
+    order = {"error": 0, "add": 1, "update": 2, "unchanged": 3}
+    shown = sorted(
+        (r for r in rows or [] if r["action"] != "unchanged"), key=lambda r: order[r["action"]]
+    )
+    return {
+        "id": batch.id,
+        "kind": batch.kind,
+        "title": record.title,
+        "filename": batch.filename,
+        "status": batch.status,
+        "project_id": project.id,
+        "project_name": project.name,
+        "created_at": batch.created_at.replace(microsecond=0).isoformat(),
+        "applied_at": batch.applied_at.replace(microsecond=0).isoformat()
+        if batch.applied_at
+        else None,
+        "can_edit": can_edit and batch.status == "preview",
+        "can_undo": can_undo,
+        "header_row": batch.header_row,
+        "total_rows": len(body),
+        "columns": [
+            {"index": i, "header": h, "field": mapping.get(i), "sample": sample(i)}
+            for i, h in enumerate(headers)
+        ],
+        "fields": [
+            {"value": f.key, "label": f.label, "required": f.required} for f in record.fields
+        ],
+        "missing_required": [
+            f.label for f in record.fields if f.required and f.key not in mapping.values()
+        ],
+        "counts": counts,
+        "rows": [
+            {
+                "row": r["row"],
+                "key": r["key"],
+                "action": r["action"],
+                "messages": r["messages"],
+                "changes": [
+                    {"field": labels.get(k, k), "before": b, "after": a}
+                    for k, (b, a) in r["changes"].items()
+                ],
+            }
+            for r in shown[:300]
+        ],
+        "result": json.loads(batch.result) if batch.result else None,
+    }
+
+
+def batch_row(batch) -> dict:
+    result = json.loads(batch.result) if batch.result else None
+    return {
+        "id": batch.id,
+        "title": RECORD_TYPES[batch.kind].title,
+        "filename": batch.filename,
+        "status": batch.status,
+        "created_at": batch.created_at.replace(microsecond=0).isoformat(),
+        "added": result["added"] if result else None,
+        "updated": result["updated"] if result else None,
     }
 
 

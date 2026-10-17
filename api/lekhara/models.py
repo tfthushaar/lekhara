@@ -183,6 +183,8 @@ class Unit(Base):
     agreement_value: Mapped[Decimal | None] = mapped_column(Money)
     guidance_value: Mapped[Decimal] = mapped_column(Money)
     buyer_name: Mapped[str | None] = mapped_column(String(200))
+    buyer_phone: Mapped[str | None] = mapped_column(String(32))
+    buyer_email: Mapped[str | None] = mapped_column(String(320))
     booked_on: Mapped[date | None] = mapped_column(Date)
 
 
@@ -635,6 +637,66 @@ class OutboundEmail(Base):
     error: Mapped[str | None] = mapped_column(String(500))
 
 
+class ImportBatch(Base):
+    """One file brought in through the Import centre: previewed, then applied, then perhaps
+    undone."""
+
+    __tablename__ = "import_batches"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(32))
+    filename: Mapped[str] = mapped_column(String(300))
+    status: Mapped[str] = mapped_column(String(16), default="preview")
+    """preview, applied or undone."""
+    headers: Mapped[str] = mapped_column(Text)
+    header_row: Mapped[int] = mapped_column(Integer)
+    rows: Mapped[str] = mapped_column(Text)
+    mapping: Mapped[str] = mapped_column(Text)
+    """Column index to field key, as JSON."""
+    result: Mapped[str | None] = mapped_column(Text)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime)
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class ImportMapping(Base):
+    """How a firm's file with these headers maps to Lekhara's fields, remembered for next
+    time."""
+
+    __tablename__ = "import_mappings"
+    __table_args__ = (UniqueConstraint("organization_id", "kind", "signature"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(32))
+    signature: Mapped[str] = mapped_column(String(64))
+    mapping: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class ChangeEntry(Base):
+    """One change to one record: who, when, from where, and each field before and after."""
+
+    __tablename__ = "change_entries"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    record_type: Mapped[str] = mapped_column(String(32))
+    record_id: Mapped[str] = mapped_column(String(64), index=True)
+    action: Mapped[str] = mapped_column(String(16))
+    """created, updated or deleted."""
+    changes: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(16))
+    """typed, import or undo."""
+    import_batch_id: Mapped[str | None] = mapped_column(String(64))
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class AppendOnlyViolation(RuntimeError):
     pass
 
@@ -645,6 +707,6 @@ def _forbid(_mapper, _connection, target) -> None:
     )
 
 
-for _model in (LedgerEntry, EscrowTxn, DisputePayment, DataRoomVisit):
+for _model in (LedgerEntry, EscrowTxn, DisputePayment, DataRoomVisit, ChangeEntry):
     event.listen(_model, "before_update", _forbid)
     event.listen(_model, "before_delete", _forbid)

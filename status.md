@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-17, with the commit "Add self-serve sign-up, the free month and the team".
+Last updated: 2026-10-17, with the commit "Add the Import centre for units and buyers".
 
 ## What we are building
 
@@ -78,10 +78,21 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - After the free month, an unpaid workspace becomes read-only: everything can still be seen and exported, nothing can be added or changed. Banners show the days left, the read-only state and an unconfirmed email.
   - A welcome on Today for a firm with no projects yet: add a project, explore the samples, invite the team.
   - Tested end to end: sign up, add a project, explore a sample, invite a colleague who accepts, confirm the email, reset a forgotten password.
+- Import centre and the units register (the first records that come in three ways):
+  - One definition per record type drives the add and edit forms, the template, the import and the export, so the four always agree.
+  - Import from Excel (.xlsx) or CSV: title rows above the column names are skipped; columns are matched by name and common aliases (Flat No, Customer Name, Sale Value and so on) and can be corrected before anything is saved; the mapping is remembered for the next file with the same columns.
+  - Cells are read the way builders write them: 1,20,00,000, 1.2 crore, 95 lakh, Rs. 95,00,000/-; dates day first in any common form.
+  - A preview of every row before anything changes: new, changed (field by field), already the same, or left out with the reason in plain words (a missing carpet area, a sold unit without its booking date, a unit twice in the file).
+  - Safe to repeat: units are matched on their number, the same file twice changes nothing, and blank cells never erase what is there. An applied import can be undone for 30 days, unless its units have changed since.
+  - Templates (Excel with a sheet explaining each column, and CSV) and exports in the same layout, so data can go out and come back; tested as a round trip.
+  - Units by hand: add, change, mark a cancelled booking unsold, delete one entered by mistake (refused once demands, payments, a handover record, a dispute or documents depend on it). Buyer phone and email are kept for reminders.
+  - A history of every change to a unit: who, when, whether typed, imported or undone, and each field before and after.
+  - The unit page works for every unit, sold or not; the handover steps appear once it is sold.
+  - Tested end to end: a new firm imports its sales sheet, reviews the preview, applies it, edits a unit, exports, is refused an undo after the edit, adds and deletes a unit.
 
 ## In progress
 
-- Add, edit and import for the core records, starting with units, buyers and payment plans.
+- Payment plans and buyer payments: edit the plan from templates, import receipts and bank statements.
 
 ## Left
 
@@ -90,9 +101,9 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 In this order:
 
 - Self-serve start, still to do: sign-in with Google and by phone code, limits on sign-ups and resets per network address, and row-level security in Postgres as a second wall between firms when production moves to Postgres.
-- Add, edit, archive and bulk-edit screens for every record that today comes only from the demo data: projects, units, buyers, payment plans, cost lines, budgets, commitments, bills, vendors, receipts, landowners and their payments, approvals, filings. A change history for every record.
-- Import centre: templates for every record type in English and Kannada, column mapping remembered per source, a preview with plain-language errors, safe re-imports, undo. Bank statements, CRM and Excel lists, and the founder's existing Tally file import module (details to come).
-- Export: every list to Excel and CSV in the import-template layout; a full workspace export (Excel, JSON and every document) at any time.
+- Add, edit, import and export for the remaining records that today come only from the demo data: payment plans, receipts, cost lines, budgets, commitments, bills, vendors, landowners and their payments, approvals, filings, and editing a project's own details; spreadsheet-style bulk editing; change history for each.
+- Import centre, still to do: bank statements and known CRM export formats, templates in Kannada, AI column mapping for unfamiliar sheets, and the founder's existing Tally file import module (details to come).
+- A full workspace export (Excel, JSON and every document) at any time.
 - Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, a completeness meter per project, engines that work with partial data and say what is missing, a sample workspace, first-run help.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
 - A forwarding address per workspace for bills, notices and statements; a background job queue; S3-compatible file storage.

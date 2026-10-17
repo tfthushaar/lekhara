@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from lekhara import accounts, auth, services, views
+from lekhara import accounts, auth, imports, registers, services, views
 from lekhara.config import Settings, get_settings
 from lekhara.db import make_engine, make_sessionmaker
 from lekhara.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
@@ -24,6 +24,24 @@ from lekhara.services import ServiceError
 from lekhara.storage import LocalStorage
 
 DEMO_PASSWORD = "lekhara-demo"
+
+
+class UnitBody(BaseModel):
+    label: str | None = None
+    tower: str | None = None
+    carpet_area_sqft: str | None = None
+    owner_share: str | None = None
+    list_price: str | None = None
+    guidance_value: str | None = None
+    buyer_name: str | None = None
+    buyer_phone: str | None = None
+    buyer_email: str | None = None
+    booked_on: str | None = None
+    agreement_value: str | None = None
+
+
+class MappingBody(BaseModel):
+    mapping: dict[str, str | None] = {}
 
 
 class Signup(BaseModel):
@@ -507,6 +525,167 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             raise ServiceError(auth.READ_ONLY, 402)
         project = accounts.create_project(session, org, me, body.model_dump())
         return {"id": project.id}
+
+    # Units and buyers: add, edit, delete, with history
+
+    def unit_for(session: Session, me: auth.Principal, unit_id: str, *, edit=False):
+        unit = services.get_unit(session, unit_id)
+        p = services.get_project(session, unit.project_id)
+        if edit:
+            auth.require_prepare(me, p)
+        else:
+            auth.require_team(me, p)
+        return unit, p
+
+    def unit_view(session: Session, me: auth.Principal, unit, p: Project) -> dict:
+        changes = registers.history(session, "unit", unit.id)
+        ids = {c.user_id for c in changes if c.user_id}
+        names = {u.id: u.name for u in session.scalars(select(User).where(User.id.in_(ids)))}
+        return views.unit_detail(
+            unit,
+            p,
+            changes,
+            names,
+            can_edit=me.can_prepare(p) and not me.views_as_sample(p),
+            dependents=registers.unit_dependents(session, unit),
+        )
+
+    @app.post("/projects/{project_id}/units", status_code=201)
+    def create_unit(project_id: str, body: UnitBody, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        values = registers.parse_unit_form(body.model_dump(exclude_unset=True))
+        unit = registers.create_unit(session, p, values, user_id=me.user_id)
+        session.commit()
+        return {"id": unit.id}
+
+    @app.get("/units/{unit_id}")
+    def get_unit(unit_id: str, session: SessionDep, me: Me) -> dict:
+        unit, p = unit_for(session, me, unit_id)
+        return unit_view(session, me, unit, p)
+
+    @app.put("/units/{unit_id}")
+    def update_unit(unit_id: str, body: UnitBody, session: SessionDep, me: Me) -> dict:
+        unit, p = unit_for(session, me, unit_id, edit=True)
+        values = registers.parse_unit_form(body.model_dump(exclude_unset=True))
+        registers.update_unit(session, p, unit, values, user_id=me.user_id)
+        session.commit()
+        return unit_view(session, me, unit, p)
+
+    @app.post("/units/{unit_id}/unsold")
+    def unit_unsold(unit_id: str, session: SessionDep, me: Me) -> dict:
+        unit, p = unit_for(session, me, unit_id, edit=True)
+        registers.clear_buyer(session, p, unit, user_id=me.user_id)
+        session.commit()
+        return unit_view(session, me, unit, p)
+
+    @app.post("/units/{unit_id}/delete")
+    def delete_unit(unit_id: str, session: SessionDep, me: Me) -> dict:
+        unit, p = unit_for(session, me, unit_id, edit=True)
+        registers.delete_unit(session, p, unit, user_id=me.user_id)
+        session.commit()
+        return {"project_id": p.id}
+
+    # The Import centre, templates and exports
+
+    def file_download(data: bytes, filename: str) -> Response:
+        media = (
+            "text/csv; charset=utf-8"
+            if filename.endswith(".csv")
+            else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        return Response(
+            content=data,
+            media_type=media,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Cache-Control": "private, no-store",
+            },
+        )
+
+    def split_name(name: str) -> tuple[str, str]:
+        kind, _, fmt = name.partition(".")
+        if fmt not in ("xlsx", "csv"):
+            raise ServiceError("Not found.", 404)
+        imports.record_type(kind)
+        return kind, fmt
+
+    @app.get("/imports/templates/{name}")
+    def import_template(name: str, me: Me) -> Response:
+        kind, fmt = split_name(name)
+        return file_download(imports.template(kind, fmt), f"lekhara-{kind}-template.{fmt}")
+
+    @app.get("/projects/{project_id}/exports/{name}")
+    def export_records(
+        project_id: str, name: str, session: SessionDep, me: Me, on: AsOf
+    ) -> Response:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        kind, fmt = split_name(name)
+        data = imports.export_units(session, p, fmt)
+        return file_download(data, f"{p.name} {kind} {on.isoformat()}.{fmt}".replace(" ", "-"))
+
+    @app.post("/projects/{project_id}/imports/{kind}", status_code=201)
+    def start_import(
+        project_id: str, kind: str, session: SessionDep, me: Me, file: UploadFile
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        data = file.file.read(settings.max_upload_mb * 1_000_000 + 1)
+        if len(data) > settings.max_upload_mb * 1_000_000:
+            raise ServiceError(f"Files can be up to {settings.max_upload_mb} MB.")
+        batch = imports.start(
+            session, p, kind, filename=file.filename or "import", data=data, user_id=me.user_id
+        )
+        return {"id": batch.id}
+
+    @app.get("/projects/{project_id}/imports")
+    def list_imports(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return {
+            "can_import": me.can_prepare(p) and not me.views_as_sample(p),
+            "imports": [views.batch_row(b) for b in imports.project_batches(session, p)],
+        }
+
+    def batch_for(session: Session, me: auth.Principal, batch_id: str, *, edit=False):
+        batch = imports.get_batch(session, batch_id)
+        p = services.get_project(session, batch.project_id)
+        if edit:
+            auth.require_prepare(me, p)
+        else:
+            auth.require_team(me, p)
+        return batch, p
+
+    def batch_view(session: Session, me: auth.Principal, batch, p: Project) -> dict:
+        rows = imports.evaluate(session, batch) if batch.status == "preview" else None
+        editable = me.can_prepare(p) and not me.views_as_sample(p)
+        return views.import_batch(
+            batch, rows, p, can_edit=editable, can_undo=editable and imports.can_undo(batch)
+        )
+
+    @app.get("/imports/{batch_id}")
+    def get_import(batch_id: str, session: SessionDep, me: Me) -> dict:
+        batch, p = batch_for(session, me, batch_id)
+        return batch_view(session, me, batch, p)
+
+    @app.put("/imports/{batch_id}/mapping")
+    def map_import(batch_id: str, body: MappingBody, session: SessionDep, me: Me) -> dict:
+        batch, p = batch_for(session, me, batch_id, edit=True)
+        imports.set_mapping(session, batch, body.mapping)
+        return batch_view(session, me, batch, p)
+
+    @app.post("/imports/{batch_id}/apply")
+    def apply_import(batch_id: str, session: SessionDep, me: Me) -> dict:
+        batch, p = batch_for(session, me, batch_id, edit=True)
+        imports.apply(session, batch, user_id=me.user_id)
+        return batch_view(session, me, batch, p)
+
+    @app.post("/imports/{batch_id}/undo")
+    def undo_import(batch_id: str, session: SessionDep, me: Me) -> dict:
+        batch, p = batch_for(session, me, batch_id, edit=True)
+        imports.undo(session, batch, user_id=me.user_id)
+        return batch_view(session, me, batch, p)
 
     # Today
 

@@ -350,6 +350,7 @@ export type Units = {
     tds_to_date: string;
   }[];
   units: {
+    id: string;
     label: string;
     tower: string;
     carpet_area_sqft: number;
@@ -708,6 +709,66 @@ export type SharedRoom = {
   }[];
 };
 
+export type FieldChange = { field: string; before: string | number | null; after: string | number | null };
+
+export type UnitDetail = {
+  id: string;
+  project_id: string;
+  project_name: string;
+  label: string;
+  tower: string;
+  carpet_area_sqft: number;
+  owner_share: string;
+  owner_share_label: string;
+  list_price: string;
+  guidance_value: string;
+  buyer_name: string | null;
+  buyer_phone: string | null;
+  buyer_email: string | null;
+  booked: boolean;
+  booked_on: string | null;
+  agreement_value: string | null;
+  can_edit: boolean;
+  can_delete: boolean;
+  dependents: string[];
+  history: { at: string; action: string; source: string; by: string; changes: FieldChange[] }[];
+};
+
+export type ImportBatch = {
+  id: string;
+  kind: string;
+  title: string;
+  filename: string;
+  status: "preview" | "applied" | "undone";
+  project_id: string;
+  project_name: string;
+  created_at: string;
+  applied_at: string | null;
+  can_edit: boolean;
+  can_undo: boolean;
+  header_row: number;
+  total_rows: number;
+  columns: { index: number; header: string; field: string | null; sample: string }[];
+  fields: { value: string; label: string; required: boolean }[];
+  missing_required: string[];
+  counts: { add: number; update: number; unchanged: number; error: number };
+  rows: { row: number; key: string | null; action: string; messages: string[]; changes: FieldChange[] }[];
+  result: { added: number; updated: number; unchanged: number; errors: number } | null;
+};
+
+export type ImportList = {
+  can_import: boolean;
+  imports: {
+    id: string;
+    title: string;
+    filename: string;
+    status: string;
+    created_at: string;
+    added: number | null;
+    updated: number | null;
+  }[];
+};
+
 export type Rules = {
   state: string;
   version: string;
@@ -846,6 +907,9 @@ export const api = {
     ),
   room: (id: string) => get<RoomDetail>(`/rooms/${id}`),
   firm: () => get<Firm>("/organization"),
+  unit: (id: string) => get<UnitDetail>(`/units/${id}`),
+  imports: (projectId: string) => get<ImportList>(`/projects/${projectId}/imports`),
+  importBatch: (id: string) => get<ImportBatch>(`/imports/${id}`),
   demand: (id: string) => get<DemandLetter>(`/demands/${id}`),
   tax: (id: string) => get<Tax>(`/projects/${id}/tax`),
   units: (id: string) => get<Units>(`/projects/${id}/units`),

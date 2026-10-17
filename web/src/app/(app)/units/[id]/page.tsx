@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { updateHandover } from "@/app/actions";
+import { deleteUnit, markUnsold, updateHandover, updateUnit } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { LinkedDocuments } from "@/components/documents";
 import { PrintButton } from "@/components/print-button";
-import { type UnitHandover, api } from "@/lib/api";
+import { UnitFields } from "@/components/unit-fields";
+import { type UnitDetail, type UnitHandover, api } from "@/lib/api";
 import { day, inr, inrFull } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Unit" };
@@ -24,10 +25,12 @@ function stepClass(u: UnitHandover, stage: string, done: boolean): string {
   return u.blocker === stage ? "step step-current" : "step";
 }
 
+const SOURCE: Record<string, string> = { typed: "typed in", import: "imported", undo: "import undone" };
+
 async function UnitView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const u = await api.unitHandover(id);
-  const base = `/projects/${u.project_id}`;
+  const unit = await api.unit(id);
+  const base = `/projects/${unit.project_id}`;
 
   return (
     <>
@@ -36,16 +39,133 @@ async function UnitView({ params }: { params: Promise<{ id: string }> }) {
           <p className="crumb">
             <Link href="/projects">Projects</Link>
             {"  /  "}
-            <Link href={base}>{u.project_name}</Link>
+            <Link href={base}>{unit.project_name}</Link>
             {"  /  "}
-            <Link href={`${base}/handover`}>Handover</Link>
+            <Link href={`${base}/units`}>Units</Link>
           </p>
-          <h1>Unit {u.label}</h1>
-          <p>{u.buyer ?? "Buyer not recorded"}</p>
+          <h1>Unit {unit.label}</h1>
+          <p>
+            {unit.booked ? `Sold to ${unit.buyer_name}` : "Not sold"}
+            {unit.tower ? `. ${unit.tower}` : ""}. {unit.carpet_area_sqft.toLocaleString("en-IN")} sq ft carpet.
+          </p>
         </div>
       </div>
 
+      <UnitDetails unit={unit} />
+
+      {unit.booked ? (
+        <Suspense fallback={<p className="loading">Loading the handover steps</p>}>
+          <HandoverView id={id} />
+        </Suspense>
+      ) : (
+        <Suspense fallback={null}>
+          <LinkedDocuments
+            linkType="unit"
+            linkId={unit.id}
+            category="agreement"
+            hint="The booking form, allotment letter and agreement for sale"
+          />
+        </Suspense>
+      )}
+    </>
+  );
+}
+
+function UnitDetails({ unit }: { unit: UnitDetail }) {
+  return (
+    <section className="no-print" style={{ marginBottom: 40 }}>
+      <div className="section-head">
+        <h2>Details</h2>
+        <p>Whose it is, its price and its buyer</p>
+      </div>
+      <ul className="calc" style={{ marginTop: 12, maxWidth: 640 }}>
+        <Fact label="Whose share" value={unit.owner_share_label} />
+        <Fact label="List price" value={inrFull(unit.list_price)} />
+        <Fact label="Guidance value" value={inrFull(unit.guidance_value)} />
+        {unit.booked ? (
+          <>
+            <Fact label="Buyer" value={unit.buyer_name ?? ""} />
+            <Fact label="Phone and email" value={[unit.buyer_phone, unit.buyer_email].filter(Boolean).join(", ") || "Not recorded"} />
+            <Fact label="Booked on" value={day(unit.booked_on)} />
+            <Fact label="Agreement value" value={inrFull(unit.agreement_value)} />
+          </>
+        ) : null}
+      </ul>
+      {unit.can_edit ? (
+        <>
+          <details className="disclosure">
+            <summary>Change the details</summary>
+            <ActionForm action={updateUnit.bind(null, unit.id)} label="Save the changes" pendingLabel="Saving">
+              <UnitFields unit={unit} prefix="edit-unit" />
+            </ActionForm>
+          </details>
+          {unit.booked ? (
+            <details className="disclosure">
+              <summary>The booking was cancelled</summary>
+              <p className="small muted" style={{ margin: "8px 0 12px", maxWidth: 640 }}>
+                Marks the unit unsold and clears the buyer. Not possible once demands have been
+                raised or money received.
+              </p>
+              <ActionForm action={markUnsold.bind(null, unit.id)} label="Mark as unsold" pendingLabel="Saving" secondary />
+            </details>
+          ) : null}
+          {unit.can_delete ? (
+            <details className="disclosure">
+              <summary>Delete this unit</summary>
+              <p className="small muted" style={{ margin: "8px 0 12px" }}>
+                For a unit entered by mistake. Its history is kept.
+              </p>
+              <ActionForm action={deleteUnit.bind(null, unit.id)} label="Delete the unit" pendingLabel="Deleting" secondary />
+            </details>
+          ) : null}
+        </>
+      ) : null}
+      {unit.history.length > 0 ? (
+        <details className="disclosure">
+          <summary>History ({unit.history.length})</summary>
+          <ul className="rows">
+            {unit.history.map((h, i) => (
+              <li key={`${h.at}-${i}`} className="row">
+                <div className="small muted">{h.at.replace("T", ", ").slice(0, 17)}</div>
+                <div>
+                  <p className="row-title">
+                    {`${h.action === "created" ? "Added" : h.action === "deleted" ? "Deleted" : "Changed"} by ${h.by}, ${SOURCE[h.source] ?? h.source}`}
+                  </p>
+                  {h.changes.map((c) => (
+                    <p key={c.field} className="row-detail">
+                      {`${c.field}: ${c.before ?? "blank"} to ${c.after ?? "blank"}`}
+                    </p>
+                  ))}
+                </div>
+                <div />
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <li>
+      <span className="muted">{label}</span>
+      <span>{value}</span>
+    </li>
+  );
+}
+
+async function HandoverView({ id }: { id: string }) {
+  const u = await api.unitHandover(id);
+
+  return (
+    <>
       <div className="no-print">
+        <div className="section-head">
+          <h2>Handover</h2>
+          <p>From the occupancy certificate to possession</p>
+        </div>
         <p className="status-line">{u.blocker_text}</p>
         <ol className="steps steps-8" style={{ marginBottom: 40 }}>
           {u.steps.map((s) => (
