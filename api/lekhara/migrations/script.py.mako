@@ -10,7 +10,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-import horus.db
+import lekhara.db
 ${imports if imports else ""}
 
 revision: str = ${repr(up_revision)}

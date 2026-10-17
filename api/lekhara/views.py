@@ -3,9 +3,9 @@
 from datetime import date
 from decimal import Decimal
 
-from horus import services
-from horus.engines.collections import CollectionsPosition
-from horus.engines.disputes import (
+from lekhara import services
+from lekhara.engines.collections import CollectionsPosition
+from lekhara.engines.disputes import (
     FORUM_LABEL,
     ORDER_LABEL,
     RELIEF_LABEL,
@@ -15,8 +15,8 @@ from horus.engines.disputes import (
     DisputesPosition,
     Event,
 )
-from horus.engines.documents import CATEGORY_LABEL, REQUIREMENTS, expiry_status
-from horus.engines.escrow import (
+from lekhara.engines.documents import CATEGORY_LABEL, REQUIREMENTS, expiry_status
+from lekhara.engines.escrow import (
     ROLE_CERTIFIES,
     ROLE_LABEL,
     ROLE_ORDER,
@@ -25,16 +25,16 @@ from horus.engines.escrow import (
     RequestStatus,
     can_submit,
 )
-from horus.engines.handover import (
+from lekhara.engines.handover import (
     BLOCKER_TEXT,
     STAGE_LABEL,
     STAGES,
     HandoverPosition,
     UnitReadiness,
 )
-from horus.engines.obligations import Area, Obligation, ObligationStatus
-from horus.engines.tax import MsmeStatus
-from horus.models import (
+from lekhara.engines.obligations import Area, Obligation, ObligationStatus
+from lekhara.engines.tax import MsmeStatus
+from lekhara.models import (
     DataRoom,
     DemandRow,
     DisputeCase,
@@ -45,9 +45,9 @@ from horus.models import (
     Unit,
     WithdrawalRequest,
 )
-from horus.money import ZERO
-from horus.rules import KARNATAKA, RuleNotFound, RulesPack
-from horus.services import ProjectSnapshot, RequestState
+from lekhara.money import ZERO
+from lekhara.rules import KARNATAKA, RuleNotFound, RulesPack
+from lekhara.services import ProjectSnapshot, RequestState
 
 
 def m(value: Decimal | None) -> str | None:
@@ -651,7 +651,7 @@ def demand_letter(
             {"label": "Total due", "value": _indian(total)},
         ],
         "due_on": d(demand.due_on),
-        "note": "Draft prepared by Horus. Your team sends it from your own address.",
+        "note": "Draft prepared by Lekhara. Your team sends it from your own address.",
     }
 
 

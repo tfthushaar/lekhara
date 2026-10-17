@@ -1,7 +1,7 @@
 """Demo data: a fictional developer with three Bengaluru projects.
 
 Every date is relative to `today`, so the demo always looks current. The three
-projects are built to show each part of Horus:
+projects are built to show each part of Lekhara:
 
 - Whitefield Residences: JDA area share. Money waiting in the RERA account,
   close to the 80% supplier limit, GST on development rights to plan for, two
@@ -13,7 +13,7 @@ projects are built to show each part of Horus:
   annual audit is overdue, TDS short on a landowner payment, overruns beyond
   contingency, and a withdrawal waiting for the CA's signature.
 
-Run: python -m horus.seed   (resets the database first)
+Run: python -m lekhara.seed   (resets the database first)
 """
 
 import random
@@ -26,13 +26,13 @@ from functools import lru_cache
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from horus.auth import hash_password
-from horus.config import get_settings
-from horus.db import Base, make_engine, make_sessionmaker
-from horus.engines.documents import REQUIREMENTS
-from horus.engines.tax import financial_year
-from horus.migrate import upgrade
-from horus.models import (
+from lekhara.auth import hash_password
+from lekhara.config import get_settings
+from lekhara.db import Base, make_engine, make_sessionmaker
+from lekhara.engines.documents import REQUIREMENTS
+from lekhara.engines.tax import financial_year
+from lekhara.migrate import upgrade
+from lekhara.models import (
     Bill,
     ChecklistWaiver,
     CostLineRow,
@@ -61,8 +61,8 @@ from horus.models import (
     WithdrawalCertificate,
     WithdrawalRequest,
 )
-from horus.pdf import write_pdf
-from horus.storage import LocalStorage, Storage
+from lekhara.pdf import write_pdf
+from lekhara.storage import LocalStorage, Storage
 
 CR = Decimal("10000000")
 LAKH = Decimal("100000")
@@ -76,7 +76,7 @@ def lakh(x: str) -> Decimal:
     return (Decimal(x) * LAKH).quantize(Decimal("0.01"))
 
 
-DEMO_PASSWORD = "horus-demo"
+DEMO_PASSWORD = "lekhara-demo"
 
 
 @dataclass(frozen=True)
@@ -90,25 +90,25 @@ class DemoAccount:
 
 
 DEMO_ACCOUNTS = (
-    DemoAccount("promoter@demo.horus", "Ravi Kumar", "Owner (promoter)", org_role="owner"),
-    DemoAccount("cfo@demo.horus", "Meera Rao", "Finance (CFO)", org_role="finance"),
-    DemoAccount("accounts@demo.horus", "Prakash N", "Accounts", org_role="accounts"),
+    DemoAccount("promoter@demo.lekhara", "Ravi Kumar", "Owner (promoter)", org_role="owner"),
+    DemoAccount("cfo@demo.lekhara", "Meera Rao", "Finance (CFO)", org_role="finance"),
+    DemoAccount("accounts@demo.lekhara", "Prakash N", "Accounts", org_role="accounts"),
     DemoAccount(
-        "architect@demo.horus",
+        "architect@demo.lekhara",
         "A. Kulkarni",
         "Architect",
         certifier_role="architect",
         firm="Studio Kaveri Architects",
     ),
     DemoAccount(
-        "engineer@demo.horus",
+        "engineer@demo.lekhara",
         "R. Hegde",
         "Engineer",
         certifier_role="engineer",
         firm="Sound Structures Consultants",
     ),
     DemoAccount(
-        "ca@demo.horus",
+        "ca@demo.lekhara",
         "S. Menon",
         "Chartered accountant",
         certifier_role="ca",
@@ -317,7 +317,7 @@ class Seeder:
         """Creates units, the demands raised on buyers and what they paid. Returns cash received.
 
         Progress milestones up to `raise_up_to_pct` have been demanded. A milestone certified
-        since then is left for Horus to show as ready to raise. Every `overdue_every`-th buyer
+        since then is left for Lekhara to show as ready to raise. Every `overdue_every`-th buyer
         has not paid their latest demand.
         """
         units: list[Unit] = []
@@ -1085,10 +1085,10 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
         row.signed_by_user_id = users[by_role[row.role].email].id
 
     # An open withdrawal on Sarjapur Greens: architect and engineer have signed; the CA has not.
-    from horus import services
+    from lekhara import services
 
     request = services.create_withdrawal(
-        session, sg, None, today, user_id=users["accounts@demo.horus"].id
+        session, sg, None, today, user_id=users["accounts@demo.lekhara"].id
     )
     request.created_on = sd.ago(3)
     for row in request.certificates:
@@ -1109,7 +1109,7 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
         )
     )
     at = lambda i: sg_units[min(i, len(sg_units) - 1)]  # noqa: E731
-    clerk = users["accounts@demo.horus"].id
+    clerk = users["accounts@demo.lekhara"].id
     sd.case(
         sg,
         at(72),
@@ -1262,9 +1262,9 @@ def _slug(title: str) -> str:
 
 def seed_documents(session: Session, storage: Storage, today: date, users: dict[str, User]):
     """Each project's papers in the vault: most present, some missing, some about to lapse."""
-    from horus import services
+    from lekhara import services
 
-    uploader = users["accounts@demo.horus"].id
+    uploader = users["accounts@demo.lekhara"].id
 
     def ago(n: int) -> date:
         return today - timedelta(days=n)
@@ -1488,7 +1488,7 @@ def seed_documents(session: Session, storage: Storage, today: date, users: dict[
             ],
         },
         as_of=today,
-        user_id=users["promoter@demo.horus"].id,
+        user_id=users["promoter@demo.lekhara"].id,
     )
     room.token_hash = services._token_hash(DEMO_ROOM_TOKEN)
     room.created_on = ago(6)

@@ -13,13 +13,13 @@ export default function RulesPage() {
         <div>
           <h1>Rules</h1>
           <p>
-            Every rate, limit and deadline Horus uses, with its legal basis and how settled it is.
+            Every rate, limit and deadline Lekhara uses, with its legal basis and how settled it is.
           </p>
         </div>
       </div>
       <div className="notice" style={{ marginBottom: 32 }}>
         Rules marked To confirm or Unsettled must be checked by your CA or lawyer before you rely
-        on figures based on them. Horus settings are not law; they control when Horus warns you.
+        on figures based on them. Lekhara settings are not law; they control when Lekhara warns you.
       </div>
       <Suspense fallback={<p className="loading">Loading the rules</p>}>
         <RulesTable />
@@ -61,7 +61,7 @@ async function RulesTable() {
                   className={
                     r.source_quality === "official"
                       ? "tag tag-pass"
-                      : r.source_quality === "horus_default"
+                      : r.source_quality === "lekhara_default"
                         ? "tag tag-done"
                         : r.source_quality === "secondary"
                           ? "tag tag-upcoming"

@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal as D
 
-from horus.engines.collections import (
+from lekhara.engines.collections import (
     BookedUnit,
     Demand,
     Milestone,
@@ -11,7 +11,7 @@ from horus.engines.collections import (
     milestone_reached,
     new_demand,
 )
-from horus.rules import KARNATAKA
+from lekhara.rules import KARNATAKA
 
 TODAY = date(2026, 10, 17)
 RATE = D("0.1095")  # SBI MCLR 8.95% + 2%, from the rules pack

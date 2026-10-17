@@ -97,7 +97,7 @@ async function WithdrawalView({ params }: { params: Promise<{ id: string }> }) {
       <section>
         <div className="section-head">
           <h2>Certificates</h2>
-          <p>Prepared by Horus from the books. Each certifier reviews, changes if needed, and signs.</p>
+          <p>Prepared by Lekhara from the books. Each certifier reviews, changes if needed, and signs.</p>
         </div>
         <div className="grid-3">
           {w.certificates.map((c) => (

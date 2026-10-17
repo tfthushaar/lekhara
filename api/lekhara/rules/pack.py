@@ -24,8 +24,8 @@ class SourceQuality(StrEnum):
     UNVERIFIED = "unverified"
     """A single secondary source or a reported figure; must be confirmed before use."""
 
-    HORUS_DEFAULT = "horus_default"
-    """A Horus setting, not a legal rule. Customers can change it."""
+    LEKHARA_DEFAULT = "lekhara_default"
+    """A Lekhara setting, not a legal rule. Customers can change it."""
 
 
 @dataclass(frozen=True)

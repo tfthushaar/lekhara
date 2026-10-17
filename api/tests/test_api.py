@@ -3,8 +3,8 @@ from decimal import Decimal as D
 import pytest
 from sqlalchemy import select
 
-from horus.db import make_sessionmaker
-from horus.models import AppendOnlyViolation, LedgerEntry
+from lekhara.db import make_sessionmaker
+from lekhara.models import AppendOnlyViolation, LedgerEntry
 
 WF = "whitefield-residences"
 HB = "hebbal-heights"
@@ -246,7 +246,7 @@ def test_demand_letter(owner) -> None:
     ]
     assert letter["lines"][2]["value"].startswith("₹")
     assert any("Form 26QB" in p for p in letter["paragraphs"])
-    assert letter["note"].startswith("Draft prepared by Horus")
+    assert letter["note"].startswith("Draft prepared by Lekhara")
 
 
 def test_certifiers_cannot_see_collections(ca) -> None:

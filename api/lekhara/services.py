@@ -15,7 +15,7 @@ from uuid import uuid4
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from horus.engines.collections import (
+from lekhara.engines.collections import (
     BookedUnit,
     CollectionsPosition,
     Milestone,
@@ -24,9 +24,9 @@ from horus.engines.collections import (
     collections_position,
     new_demand,
 )
-from horus.engines.collections import Demand as DemandIn
-from horus.engines.disputes import OPEN as DISPUTE_OPEN
-from horus.engines.disputes import (
+from lekhara.engines.collections import Demand as DemandIn
+from lekhara.engines.disputes import OPEN as DISPUTE_OPEN
+from lekhara.engines.disputes import (
     RUNNING,
     CaseIn,
     CasePosition,
@@ -39,8 +39,8 @@ from horus.engines.disputes import (
     case_position,
     disputes_position,
 )
-from horus.engines.disputes import Payment as DisputePaymentIn
-from horus.engines.documents import (
+from lekhara.engines.disputes import Payment as DisputePaymentIn
+from lekhara.engines.documents import (
     CATEGORY_LABEL,
     LINK_TYPES,
     REQUIREMENTS,
@@ -55,7 +55,7 @@ from horus.engines.documents import (
     record_check,
     snippets,
 )
-from horus.engines.escrow import (
+from lekhara.engines.escrow import (
     ROLE_ORDER,
     AccountTxn,
     Certificate,
@@ -71,11 +71,11 @@ from horus.engines.escrow import (
     escrow_position,
     request_status,
 )
-from horus.engines.handover import HandoverPosition, UnitHandoverIn, handover_position
-from horus.engines.money import Category, CostLine, Entry, EntryKind, ProjectPosition, ReraHead
-from horus.engines.money import project_position as money_position
-from horus.engines.obligations import Obligation, ProjectFacts, project_obligations
-from horus.engines.tax import (
+from lekhara.engines.handover import HandoverPosition, UnitHandoverIn, handover_position
+from lekhara.engines.money import Category, CostLine, Entry, EntryKind, ProjectPosition, ReraHead
+from lekhara.engines.money import project_position as money_position
+from lekhara.engines.obligations import Obligation, ProjectFacts, project_obligations
+from lekhara.engines.tax import (
     CessPosition,
     DelayExposure,
     DevelopmentRightsGst,
@@ -98,7 +98,7 @@ from horus.engines.tax import (
     msme_clock,
     procurement_meter,
 )
-from horus.models import (
+from lekhara.models import (
     Bill,
     ChecklistWaiver,
     CostLineRow,
@@ -127,10 +127,10 @@ from horus.models import (
     WithdrawalCertificate,
     WithdrawalRequest,
 )
-from horus.money import ZERO
-from horus.pdf import read_pages
-from horus.rules import KARNATAKA, RulesPack
-from horus.storage import Storage
+from lekhara.money import ZERO
+from lekhara.pdf import read_pages
+from lekhara.rules import KARNATAKA, RulesPack
+from lekhara.storage import Storage
 
 
 class ServiceError(Exception):
@@ -934,7 +934,7 @@ def add_order(
         raise ServiceError("Enter the amount the order directs.")
     if amount is None and kind in RUNNING and row.unit_id is None:
         raise ServiceError(
-            "Enter the amount. Horus works out refunds and interest only for a buyer's unit."
+            "Enter the amount. Lekhara works out refunds and interest only for a buyer's unit."
         )
     order = DisputeOrder(
         case_id=row.id,
@@ -1050,7 +1050,7 @@ def _file_type(filename: str, data: bytes) -> str:
     ext = Path(filename).suffix.lower()
     if ext not in ALLOWED_TYPES:
         raise ServiceError(
-            "Horus takes PDFs, Word and Excel files, photos (PNG or JPEG) and text files."
+            "Lekhara takes PDFs, Word and Excel files, photos (PNG or JPEG) and text files."
         )
     if ext in _SIGNATURES and not data.startswith(_SIGNATURES[ext]):
         raise ServiceError(f"This file does not look like a {ext[1:].upper()} file.")

@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Sign in" };
 export default function LoginPage() {
   return (
     <main className="login">
-      <p className="wordmark login-wordmark">Horus</p>
+      <p className="wordmark login-wordmark">Lekhara</p>
       <div className="login-card">
         <h1>Sign in</h1>
         <p className="muted" style={{ marginTop: 6, marginBottom: 24 }}>

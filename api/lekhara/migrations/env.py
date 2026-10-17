@@ -1,10 +1,10 @@
-"""Alembic environment. Run through `python -m horus.migrate` or the alembic CLI."""
+"""Alembic environment. Run through `python -m lekhara.migrate` or the alembic CLI."""
 
 from alembic import context
 
-import horus.models  # noqa: F401  (registers every table on the metadata)
-from horus.config import get_settings
-from horus.db import Base, make_engine
+import lekhara.models  # noqa: F401  (registers every table on the metadata)
+from lekhara.config import get_settings
+from lekhara.db import Base, make_engine
 
 config = context.config
 target_metadata = Base.metadata
@@ -12,7 +12,7 @@ target_metadata = Base.metadata
 OPTIONS = {
     "target_metadata": target_metadata,
     "render_as_batch": True,  # SQLite needs batch mode to alter tables
-    "user_module_prefix": "horus.db.",  # renders Money and Percent columns correctly
+    "user_module_prefix": "lekhara.db.",  # renders Money and Percent columns correctly
     "compare_type": True,
 }
 

@@ -1,8 +1,8 @@
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 
-from horus.db import Base, make_engine
-from horus.migrate import upgrade
+from lekhara.db import Base, make_engine
+from lekhara.migrate import upgrade
 
 
 def test_migrations_build_the_same_schema_as_the_models(tmp_path) -> None:
@@ -25,7 +25,7 @@ def test_upgrade_keeps_existing_data(tmp_path) -> None:
     from alembic import command
     from alembic.script import ScriptDirectory
 
-    from horus.migrate import alembic_config
+    from lekhara.migrate import alembic_config
 
     engine = make_engine(f"sqlite:///{tmp_path / 'existing.db'}")
     cfg = alembic_config()

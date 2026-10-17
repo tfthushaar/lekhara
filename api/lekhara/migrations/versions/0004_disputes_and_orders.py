@@ -10,7 +10,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-import horus.db
+import lekhara.db
 
 revision: str = "ab3ca80343cf"
 down_revision: str | None = "923f869d2dc3"
@@ -30,7 +30,7 @@ def upgrade() -> None:
         sa.Column("relief", sa.String(length=32), nullable=False),
         sa.Column("complainant", sa.String(length=200), nullable=False),
         sa.Column("summary", sa.String(length=2000), nullable=True),
-        sa.Column("claim_amount", horus.db.Money(), nullable=True),
+        sa.Column("claim_amount", lekhara.db.Money(), nullable=True),
         sa.Column("filed_on", sa.Date(), nullable=True),
         sa.Column("notice_received_on", sa.Date(), nullable=True),
         sa.Column("reply_due_on", sa.Date(), nullable=True),
@@ -38,8 +38,8 @@ def upgrade() -> None:
         sa.Column("next_hearing_on", sa.Date(), nullable=True),
         sa.Column("status", sa.String(length=16), nullable=False),
         sa.Column("lawyer", sa.String(length=200), nullable=True),
-        sa.Column("settlement_offered", horus.db.Money(), nullable=True),
-        sa.Column("settlement_agreed", horus.db.Money(), nullable=True),
+        sa.Column("settlement_offered", lekhara.db.Money(), nullable=True),
+        sa.Column("settlement_agreed", lekhara.db.Money(), nullable=True),
         sa.Column("appealed_on", sa.Date(), nullable=True),
         sa.Column("closed_on", sa.Date(), nullable=True),
         sa.Column("created_by_user_id", sa.String(length=64), nullable=True),
@@ -97,7 +97,7 @@ def upgrade() -> None:
         sa.Column("ordered_on", sa.Date(), nullable=False),
         sa.Column("received_on", sa.Date(), nullable=True),
         sa.Column("kind", sa.String(length=32), nullable=False),
-        sa.Column("amount", horus.db.Money(), nullable=True),
+        sa.Column("amount", lekhara.db.Money(), nullable=True),
         sa.Column("comply_by", sa.Date(), nullable=True),
         sa.Column("summary", sa.String(length=2000), nullable=True),
         sa.Column("recorded_by_user_id", sa.String(length=64), nullable=True),
@@ -119,7 +119,7 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=64), nullable=False),
         sa.Column("case_id", sa.String(length=64), nullable=False),
         sa.Column("paid_on", sa.Date(), nullable=False),
-        sa.Column("amount", horus.db.Money(), nullable=False),
+        sa.Column("amount", lekhara.db.Money(), nullable=False),
         sa.Column("reference", sa.String(length=200), nullable=True),
         sa.Column("recorded_by_user_id", sa.String(length=64), nullable=True),
         sa.ForeignKeyConstraint(

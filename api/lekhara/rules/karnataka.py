@@ -1,21 +1,21 @@
 """Karnataka rules pack, version 1.
 
 Every entry states its legal basis and source quality. Entries marked unverified
-or unsettled must be confirmed by the customer's CA or lawyer before Horus
+or unsettled must be confirmed by the customer's CA or lawyer before Lekhara
 figures based on them are relied on.
 """
 
 from datetime import date
 from decimal import Decimal
 
-from horus.rules.pack import Rule, RulesPack, SourceQuality
+from lekhara.rules.pack import Rule, RulesPack, SourceQuality
 
 RERA_IN_FORCE = date(2017, 5, 1)
 GST_SCHEME_2019 = date(2019, 4, 1)
 LABOUR_CODES = date(2025, 11, 21)
 CPA_2019 = date(2020, 7, 20)
 ALWAYS = date(2000, 1, 1)
-"""Horus settings are not law; they apply on any date."""
+"""Lekhara settings are not law; they apply on any date."""
 
 _RERA_ACT = "Real Estate (Regulation and Development) Act, 2016"
 _KRERA_RULES = "Karnataka Real Estate (Regulation and Development) Rules"
@@ -43,7 +43,7 @@ _rules = (
         confirm_against="K-RERA withdrawal certificate format",
         effective_from=RERA_IN_FORCE,
         note=(
-            "Some states use cost incurred, others cost incurred and paid. Horus uses the "
+            "Some states use cost incurred, others cost incurred and paid. Lekhara uses the "
             "stricter of the two until the K-RERA format is confirmed."
         ),
     ),
@@ -69,18 +69,18 @@ _rules = (
     Rule(
         key="escrow.figure_tolerance",
         value=Decimal("0.005"),
-        title="How far certificate figures may differ from the books before Horus flags them",
-        basis="Horus setting",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        title="How far certificate figures may differ from the books before Lekhara flags them",
+        basis="Lekhara setting",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),
     Rule(
         key="escrow.progress_gap_points",
         value=Decimal("10"),
-        title="Gap between cost incurred and certified progress that Horus flags",
-        basis="Horus setting, mirroring the K-RERA audit cross-check",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        title="Gap between cost incurred and certified progress that Lekhara flags",
+        basis="Lekhara setting, mirroring the K-RERA audit cross-check",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),
@@ -88,17 +88,17 @@ _rules = (
         key="escrow.certificate_window_days",
         value=30,
         title="Maximum days between the three certificates in one withdrawal",
-        basis="Horus setting",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        basis="Lekhara setting",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="The escrow bank's practice",
         effective_from=ALWAYS,
     ),
     Rule(
         key="escrow.min_suggested_withdrawal",
         value=Decimal("1000000"),
-        title="Drawable amount at which Horus suggests starting a withdrawal",
-        basis="Horus setting",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        title="Drawable amount at which Lekhara suggests starting a withdrawal",
+        basis="Lekhara setting",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),
@@ -166,7 +166,7 @@ _rules = (
         source_quality=SourceQuality.UNVERIFIED,
         confirm_against="Karnataka RERA Rules and the agreement for sale",
         effective_from=RERA_IN_FORCE,
-        note="Horus charges the same rate the promoter owes buyers on delay (SBI MCLR plus 2%).",
+        note="Lekhara charges the same rate the promoter owes buyers on delay (SBI MCLR plus 2%).",
     ),
     Rule(
         key="rera.s17_conveyance_months",
@@ -321,8 +321,8 @@ _rules = (
         key="it.assumed_tax_rate",
         value=Decimal("0.2517"),
         title="Tax rate used only to estimate tax on deemed income",
-        basis="Horus setting",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        basis="Lekhara setting",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Your company's actual tax rate",
         effective_from=ALWAYS,
     ),
@@ -374,9 +374,9 @@ _rules = (
     Rule(
         key="it.msme.warning_days",
         value=7,
-        title="Days before the MSME deadline when Horus warns",
-        basis="Horus setting",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        title="Days before the MSME deadline when Lekhara warns",
+        basis="Lekhara setting",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),
@@ -394,9 +394,9 @@ _rules = (
     Rule(
         key="money.cost_ahead_points",
         value=Decimal("10"),
-        title="Points by which cost incurred may lead certified progress before Horus warns",
-        basis="Horus setting, mirroring the K-RERA audit cross-check",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        title="Points by which cost incurred may lead certified progress before Lekhara warns",
+        basis="Lekhara setting, mirroring the K-RERA audit cross-check",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),
@@ -482,36 +482,36 @@ _rules = (
     Rule(
         key="obligations.due_soon_days",
         value=14,
-        title="Days before a deadline when Horus marks it as due soon",
-        basis="Horus setting",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        title="Days before a deadline when Lekhara marks it as due soon",
+        basis="Lekhara setting",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),
     Rule(
         key="obligations.headroom_warning_points",
         value=Decimal("5"),
-        title="Points above the 80% minimum at which Horus starts showing purchase headroom",
-        basis="Horus setting",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        title="Points above the 80% minimum at which Lekhara starts showing purchase headroom",
+        basis="Lekhara setting",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),
     Rule(
         key="disputes.hearing_notice_days",
         value=30,
-        title="Days before a hearing when Horus starts showing it on Today",
-        basis="Horus setting",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        title="Days before a hearing when Lekhara starts showing it on Today",
+        basis="Lekhara setting",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),
     Rule(
         key="documents.expiry_notice_days",
         value=60,
-        title="Days before a document expires when Horus starts showing it on Today",
-        basis="Horus setting",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        title="Days before a document expires when Lekhara starts showing it on Today",
+        basis="Lekhara setting",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),
@@ -519,17 +519,17 @@ _rules = (
         key="documents.room_max_days",
         value=90,
         title="Longest a data room link stays open",
-        basis="Horus setting",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        basis="Lekhara setting",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),
     Rule(
         key="money.contingency_low_share",
         value=Decimal("0.25"),
-        title="Remaining share of contingency below which Horus warns",
-        basis="Horus setting",
-        source_quality=SourceQuality.HORUS_DEFAULT,
+        title="Remaining share of contingency below which Lekhara warns",
+        basis="Lekhara setting",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
         confirm_against="Not a legal rule",
         effective_from=ALWAYS,
     ),

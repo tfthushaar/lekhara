@@ -1,7 +1,7 @@
 """Disputes and orders: every case brought against a project, and what it could cost.
 
 Before an order, a case is costed from what the buyer actually paid, using the same
-interest rule the promoter owes on delay. Once an order is passed, Horus works out
+interest rule the promoter owes on delay. Once an order is passed, Lekhara works out
 what it directs (interest keeps running until it is paid), the date to comply by,
 and the last day to appeal with the deposit an appeal needs first.
 """
@@ -11,8 +11,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 from enum import StrEnum
 
-from horus.money import ZERO, rupees
-from horus.rules import RulesPack
+from lekhara.money import ZERO, rupees
+from lekhara.rules import RulesPack
 
 
 class Forum(StrEnum):
@@ -118,7 +118,7 @@ ORDER_LABEL = {
 }
 
 RUNNING = frozenset({OrderKind.REFUND, OrderKind.DELAY_INTEREST})
-"""Orders whose amount Horus works out from the buyer's payments, to the day."""
+"""Orders whose amount Lekhara works out from the buyer's payments, to the day."""
 
 
 @dataclass(frozen=True)
@@ -172,7 +172,7 @@ class OrderIn:
     ordered_on: date
     kind: OrderKind
     amount: Decimal | None = None
-    """A fixed sum. For refund and delay-interest orders, leave empty and Horus works it out."""
+    """A fixed sum. For refund and delay-interest orders, leave empty and Lekhara works it out."""
     comply_by: date | None = None
     received_on: date | None = None
     """When the copy of the order was received; the appeal time runs from then."""

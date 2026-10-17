@@ -1,8 +1,8 @@
 from datetime import date
 from decimal import Decimal as D
 
-from horus.engines.money import Category, CostLine, Entry, EntryKind, ReraHead, project_position
-from horus.engines.tax import (
+from lekhara.engines.money import Category, CostLine, Entry, EntryKind, ReraHead, project_position
+from lekhara.engines.tax import (
     GstRegime,
     LandownerPayment,
     MsmeCategory,
@@ -21,7 +21,7 @@ from horus.engines.tax import (
     msme_clock,
     procurement_meter,
 )
-from horus.rules import KARNATAKA
+from lekhara.rules import KARNATAKA
 
 TODAY = date(2026, 10, 17)
 

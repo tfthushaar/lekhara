@@ -8,7 +8,7 @@ is allowed in proportion to the cost of the project already incurred:
 minus what has already been withdrawn, and never more than the account holds.
 Three people certify each withdrawal: the architect (physical completion), the
 engineer (development cost incurred) and the CA (total cost incurred and the
-amount withdrawable). Horus prepares the drafts from the books and checks that
+amount withdrawable). Lekhara prepares the drafts from the books and checks that
 the figures agree with each other before anything goes to the bank.
 """
 
@@ -17,9 +17,9 @@ from datetime import date, timedelta
 from decimal import Decimal
 from enum import StrEnum
 
-from horus.engines.money import ProjectPosition
-from horus.money import ZERO, percent
-from horus.rules import RulesPack
+from lekhara.engines.money import ProjectPosition
+from lekhara.money import ZERO, percent
+from lekhara.rules import RulesPack
 
 
 class TxnKind(StrEnum):

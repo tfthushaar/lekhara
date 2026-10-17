@@ -2,7 +2,7 @@
 
 Text is read page by page so that a search result can say which page it came from.
 The writer makes simple text-only A4 pages in Helvetica: enough for demo documents
-and for packs Horus prepares. It handles Latin-1 text only.
+and for packs Lekhara prepares. It handles Latin-1 text only.
 """
 
 import textwrap
@@ -65,7 +65,7 @@ def write_pdf(pages: list[list[str]], *, title: str = "") -> bytes:
             f"<< /Length {len(stream)} >>\nstream\n".encode() + stream + b"\nendstream"
         )
     objects[2] = f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(pages)} >>".encode()
-    objects[4] = f"<< /Title ({_escape(title)}) /Producer (Horus) >>".encode("latin-1")
+    objects[4] = f"<< /Title ({_escape(title)}) /Producer (Lekhara) >>".encode("latin-1")
 
     out = BytesIO()
     out.write(b"%PDF-1.4\n")

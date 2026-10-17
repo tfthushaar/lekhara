@@ -4,8 +4,8 @@ from decimal import Decimal as D
 import pytest
 from sqlalchemy import select
 
-from horus.db import make_sessionmaker
-from horus.engines.disputes import (
+from lekhara.db import make_sessionmaker
+from lekhara.engines.disputes import (
     CaseIn,
     CaseStatus,
     Forum,
@@ -15,8 +15,8 @@ from horus.engines.disputes import (
     Relief,
     case_position,
 )
-from horus.models import AppendOnlyViolation, DisputePayment
-from horus.rules import KARNATAKA
+from lekhara.models import AppendOnlyViolation, DisputePayment
+from lekhara.rules import KARNATAKA
 
 TODAY = date(2026, 10, 17)
 SG = "sarjapur-greens"

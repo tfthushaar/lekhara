@@ -3,7 +3,7 @@ from decimal import Decimal as D
 
 import pytest
 
-from horus.engines.money import (
+from lekhara.engines.money import (
     Category,
     CostLine,
     Entry,
@@ -11,7 +11,7 @@ from horus.engines.money import (
     ReraHead,
     project_position,
 )
-from horus.rules import KARNATAKA
+from lekhara.rules import KARNATAKA
 
 TODAY = date(2026, 10, 17)
 

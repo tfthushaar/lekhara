@@ -77,7 +77,7 @@ async function RoomView({
           <p className="strong">The link to send</p>
           <input className="share-link" readOnly value={`${site}/shared/${token}`} aria-label="Link to the data room" />
           <p className="small">
-            Copy it now. For safety Horus keeps only a fingerprint of the link, so it cannot be
+            Copy it now. For safety Lekhara keeps only a fingerprint of the link, so it cannot be
             shown again. Making a new link stops this one working.
           </p>
         </div>

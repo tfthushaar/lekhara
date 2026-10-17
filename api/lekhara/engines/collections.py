@@ -15,8 +15,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 from enum import StrEnum
 
-from horus.money import ZERO, rupees
-from horus.rules import RulesPack
+from lekhara.money import ZERO, rupees
+from lekhara.rules import RulesPack
 
 
 class Trigger(StrEnum):

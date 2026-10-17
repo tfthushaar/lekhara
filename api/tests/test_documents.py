@@ -4,19 +4,19 @@ import pytest
 from conftest import signed_in
 from fastapi.testclient import TestClient
 
-from horus.app import create_app
-from horus.config import Settings
-from horus.db import Base, make_engine, make_sessionmaker
-from horus.engines.documents import (
+from lekhara.app import create_app
+from lekhara.config import Settings
+from lekhara.db import Base, make_engine, make_sessionmaker
+from lekhara.engines.documents import (
     REQUIREMENTS,
     HeldDocument,
     checklist,
     record_check,
     snippets,
 )
-from horus.pdf import read_pages, write_pdf
-from horus.seed import DEMO_ROOM_TOKEN, seed
-from horus.storage import LocalStorage
+from lekhara.pdf import read_pages, write_pdf
+from lekhara.seed import DEMO_ROOM_TOKEN, seed
+from lekhara.storage import LocalStorage
 
 TODAY = date(2026, 10, 17)
 SG = "sarjapur-greens"
@@ -121,12 +121,12 @@ def vault(tmp_path):
 
 @pytest.fixture
 def boss(vault) -> TestClient:
-    return signed_in(vault, "promoter@demo.horus")
+    return signed_in(vault, "promoter@demo.lekhara")
 
 
 @pytest.fixture
 def clerk(vault) -> TestClient:
-    return signed_in(vault, "accounts@demo.horus")
+    return signed_in(vault, "accounts@demo.lekhara")
 
 
 def pdf(text: str) -> bytes:
@@ -307,6 +307,6 @@ def test_data_rooms(vault, boss, clerk) -> None:
 
 
 def test_certifiers_cannot_see_the_vault(vault) -> None:
-    ca = signed_in(vault, "ca@demo.horus")
+    ca = signed_in(vault, "ca@demo.lekhara")
     assert ca.get(f"/projects/{SG}/documents").status_code == 403
     assert ca.get(f"/projects/{SG}/documents/search", params={"q": "deed"}).status_code == 403

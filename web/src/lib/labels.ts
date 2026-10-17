@@ -13,5 +13,5 @@ export const SOURCE_QUALITY: Record<Rules["rules"][number]["source_quality"], st
   secondary: "Secondary",
   unsettled: "Unsettled",
   unverified: "To confirm",
-  horus_default: "Horus setting",
+  lekhara_default: "Lekhara setting",
 };

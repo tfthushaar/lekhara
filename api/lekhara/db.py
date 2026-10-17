@@ -6,7 +6,7 @@ from sqlalchemy import BigInteger, Engine, Integer, MetaData, StaticPool, create
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.types import TypeDecorator
 
-from horus.money import from_paise, to_paise
+from lekhara.money import from_paise, to_paise
 
 # Every constraint gets a predictable name, so migrations can alter or drop it on any database.
 NAMING_CONVENTION = {

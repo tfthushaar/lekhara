@@ -46,7 +46,7 @@ async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
                 pendingLabel="Preparing the certificates"
               />
               <p className="muted small" style={{ marginTop: 10 }}>
-                Horus prepares the architect&apos;s, engineer&apos;s and CA&apos;s certificates from
+                Lekhara prepares the architect&apos;s, engineer&apos;s and CA&apos;s certificates from
                 your books. Each of them reviews and signs before anything goes to the bank.
               </p>
             </div>
@@ -59,7 +59,7 @@ async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
         </div>
 
         <div>
-          <h2 style={{ marginBottom: 8 }}>How Horus worked this out</h2>
+          <h2 style={{ marginBottom: 8 }}>How Lekhara worked this out</h2>
           <ul className="calc">
             {e.steps.map((s) => (
               <li key={s.label}>

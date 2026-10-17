@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from horus.rules import KARNATAKA, Rule, RuleNotFound, RulesPack, SourceQuality
+from lekhara.rules import KARNATAKA, Rule, RuleNotFound, RulesPack, SourceQuality
 
 
 def _rule(value: str, start: date, end: date | None = None) -> Rule:
@@ -64,8 +64,8 @@ def test_karnataka_core_values() -> None:
     assert KARNATAKA.value("it.msme.days_with_agreement", today) == 45
 
 
-def test_horus_settings_apply_on_any_date() -> None:
+def test_lekhara_settings_apply_on_any_date() -> None:
     old = date(2018, 1, 1)
     for rule in KARNATAKA.rules:
-        if rule.source_quality == SourceQuality.HORUS_DEFAULT:
+        if rule.source_quality == SourceQuality.LEKHARA_DEFAULT:
             assert rule.applies_on(old), rule.key

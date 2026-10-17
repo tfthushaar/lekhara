@@ -1,7 +1,7 @@
 [project]
-name = "horus-api"
+name = "lekhara-api"
 version = "0.1.0"
-description = "Horus API: obligations, money truth and escrow engines for Karnataka real estate projects"
+description = "Lekhara API: obligations, money truth and escrow engines for Karnataka real estate projects"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.143",
@@ -23,10 +23,10 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["horus*"]
+include = ["lekhara*"]
 
 [tool.setuptools.package-data]
-horus = ["migrations/script.py.mako", "migrations/versions/*.py"]
+lekhara = ["migrations/script.py.mako", "migrations/versions/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -39,4 +39,4 @@ target-version = "py312"
 select = ["E", "F", "I", "B", "UP", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
-"horus/migrations/versions/*" = ["E501"]
+"lekhara/migrations/versions/*" = ["E501"]

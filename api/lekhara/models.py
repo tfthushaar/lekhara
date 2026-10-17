@@ -22,7 +22,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from horus.db import Base, Money, Percent
+from lekhara.db import Base, Money, Percent
 
 
 def _id() -> str:
@@ -388,7 +388,7 @@ class DisputeOrder(Base):
     received_on: Mapped[date | None] = mapped_column(Date)
     kind: Mapped[str] = mapped_column(String(32))
     amount: Mapped[Decimal | None] = mapped_column(Money)
-    """A fixed sum. Empty for refund and delay-interest orders, which Horus works out."""
+    """A fixed sum. Empty for refund and delay-interest orders, which Lekhara works out."""
     comply_by: Mapped[date | None] = mapped_column(Date)
     summary: Mapped[str | None] = mapped_column(String(2000))
     recorded_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))

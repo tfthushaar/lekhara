@@ -5,11 +5,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="HORUS_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="LEKHARA_", env_file=".env", extra="ignore")
 
-    database_url: str = "sqlite:///./horus.db"
+    database_url: str = "sqlite:///./lekhara.db"
     today: date | None = None
-    """Fixes the date Horus treats as today. For demos and tests only."""
+    """Fixes the date Lekhara treats as today. For demos and tests only."""
     auto_migrate: bool = True
     """Bring the database schema up to date when the API starts."""
     demo: bool = False

@@ -11,9 +11,9 @@ from datetime import date, timedelta
 from decimal import Decimal
 from enum import StrEnum
 
-from horus.engines.money import Category, ProjectPosition
-from horus.money import ZERO, percent, rupees
-from horus.rules import RuleNotFound, RulesPack
+from lekhara.engines.money import Category, ProjectPosition
+from lekhara.money import ZERO, percent, rupees
+from lekhara.rules import RuleNotFound, RulesPack
 
 
 class GstRegime(StrEnum):

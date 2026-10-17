@@ -205,7 +205,7 @@ function NewCase({ r, projectId }: { r: Disputes; projectId: string }) {
       <details className="disclosure">
         <summary>Record a new case</summary>
         <p className="small muted" style={{ marginBottom: 12 }}>
-          From the notice or the complaint. Choose the unit and Horus fills in the buyer and works
+          From the notice or the complaint. Choose the unit and Lekhara fills in the buyer and works
           out what the case could cost from what they paid.
         </p>
         <ActionForm

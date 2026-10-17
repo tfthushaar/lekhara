@@ -380,7 +380,7 @@ function OrderRow({ o, appealed }: { o: CaseOrder; appealed: string | null }) {
         <p className="row-detail">
           Dated {day(o.ordered_on)}
           {o.comply_by ? `. Comply by ${day(o.comply_by)}` : ""}.
-          {o.worked_out ? " Horus works out the amount from the buyer's payments, to today; interest runs until it is paid." : ""}
+          {o.worked_out ? " Lekhara works out the amount from the buyer's payments, to today; interest runs until it is paid." : ""}
         </p>
         {o.summary ? <p className="row-detail">{o.summary}</p> : null}
         {o.appeal_by && !settled && !appealed ? (
@@ -407,7 +407,7 @@ function SettlementSection({ c }: { c: CaseDetail }) {
     <section className="section">
       <div className="section-head">
         <h2>Settlement</h2>
-        <p>Settling can cost less than fighting; Horus shows the difference</p>
+        <p>Settling can cost less than fighting; Lekhara shows the difference</p>
       </div>
       {amount ? (
         <ul className="calc" style={{ marginTop: 12, maxWidth: 640 }}>

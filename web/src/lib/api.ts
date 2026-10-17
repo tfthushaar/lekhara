@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { SESSION_COOKIE } from "@/lib/session-cookie";
 
-const BASE = process.env.HORUS_API_URL ?? "http://localhost:8000";
+const BASE = process.env.LEKHARA_API_URL ?? "http://localhost:8000";
 
 export type Status = "overdue" | "due_soon" | "at_risk" | "opportunity" | "upcoming" | "done";
 export type Area =
@@ -674,7 +674,7 @@ export type Rules = {
     value: string;
     display: string;
     basis: string;
-    source_quality: "official" | "secondary" | "unsettled" | "unverified" | "horus_default";
+    source_quality: "official" | "secondary" | "unsettled" | "unverified" | "lekhara_default";
     confirm_against: string;
     note: string;
   }[];
@@ -692,7 +692,7 @@ async function get<T>(path: string): Promise<T> {
   });
   if (response.status === 401) redirect("/login");
   if (response.status === 404 || response.status === 403) notFound();
-  if (!response.ok) throw new Error(`Horus API ${response.status} on ${path}`);
+  if (!response.ok) throw new Error(`Lekhara API ${response.status} on ${path}`);
   return response.json() as Promise<T>;
 }
 
@@ -702,7 +702,7 @@ export async function sharedRoom(token: string): Promise<SharedRoom | null> {
     cache: "no-store",
   });
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`Horus API ${response.status} on a shared room`);
+  if (!response.ok) throw new Error(`Lekhara API ${response.status} on a shared room`);
   return response.json() as Promise<SharedRoom>;
 }
 
@@ -757,7 +757,7 @@ export async function send<T>(
       error: typeof detail === "string" ? detail : "Some of the details entered are not valid.",
     };
   } catch {
-    return { ok: false, error: "Horus could not complete that. Try again." };
+    return { ok: false, error: "Lekhara could not complete that. Try again." };
   }
 }
 

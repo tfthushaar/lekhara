@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Horus", template: "%s | Horus" },
+  title: { default: "Lekhara", template: "%s | Lekhara" },
   description: "Outside obligations for Karnataka real estate projects",
 };
 

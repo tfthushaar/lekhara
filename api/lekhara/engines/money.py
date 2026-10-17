@@ -17,8 +17,8 @@ from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
-from horus.money import ZERO, percent
-from horus.rules import RulesPack
+from lekhara.money import ZERO, percent
+from lekhara.rules import RulesPack
 
 
 class Category(StrEnum):

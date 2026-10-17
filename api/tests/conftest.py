@@ -3,10 +3,10 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from horus.app import create_app
-from horus.config import Settings
-from horus.db import Base, make_engine, make_sessionmaker
-from horus.seed import DEMO_PASSWORD, seed
+from lekhara.app import create_app
+from lekhara.config import Settings
+from lekhara.db import Base, make_engine, make_sessionmaker
+from lekhara.seed import DEMO_PASSWORD, seed
 
 TODAY = date(2026, 10, 17)
 
@@ -50,29 +50,29 @@ def signed_in(app, email: str) -> TestClient:
 
 @pytest.fixture
 def owner(app) -> TestClient:
-    return signed_in(app, "promoter@demo.horus")
+    return signed_in(app, "promoter@demo.lekhara")
 
 
 @pytest.fixture
 def cfo(app) -> TestClient:
-    return signed_in(app, "cfo@demo.horus")
+    return signed_in(app, "cfo@demo.lekhara")
 
 
 @pytest.fixture
 def accounts(app) -> TestClient:
-    return signed_in(app, "accounts@demo.horus")
+    return signed_in(app, "accounts@demo.lekhara")
 
 
 @pytest.fixture
 def architect(app) -> TestClient:
-    return signed_in(app, "architect@demo.horus")
+    return signed_in(app, "architect@demo.lekhara")
 
 
 @pytest.fixture
 def engineer(app) -> TestClient:
-    return signed_in(app, "engineer@demo.horus")
+    return signed_in(app, "engineer@demo.lekhara")
 
 
 @pytest.fixture
 def ca(app) -> TestClient:
-    return signed_in(app, "ca@demo.horus")
+    return signed_in(app, "ca@demo.lekhara")

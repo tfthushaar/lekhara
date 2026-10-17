@@ -2,7 +2,7 @@ from dataclasses import replace
 from datetime import date
 from decimal import Decimal as D
 
-from horus.engines.escrow import (
+from lekhara.engines.escrow import (
     AccountTxn,
     CertifierRole,
     CheckStatus,
@@ -16,8 +16,8 @@ from horus.engines.escrow import (
     ongoing_project_deposit_share,
     request_status,
 )
-from horus.engines.money import Category, CostLine, Entry, EntryKind, ReraHead, project_position
-from horus.rules import KARNATAKA
+from lekhara.engines.money import Category, CostLine, Entry, EntryKind, ReraHead, project_position
+from lekhara.rules import KARNATAKA
 
 TODAY = date(2026, 10, 17)
 

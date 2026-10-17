@@ -1,13 +1,13 @@
 from datetime import date
 from decimal import Decimal as D
 
-from horus.engines.handover import (
+from lekhara.engines.handover import (
     Stage,
     UnitHandoverIn,
     handover_position,
     registration_cost,
 )
-from horus.rules import KARNATAKA
+from lekhara.rules import KARNATAKA
 
 TODAY = date(2026, 10, 17)
 SG = "sarjapur-greens"

@@ -1,6 +1,6 @@
 """Sign-in, sessions and who may do what.
 
-Two kinds of people use Horus:
+Two kinds of people use Lekhara:
 
 - The developer's own team, through a membership of the organisation:
   owner, finance, accounts or viewer.
@@ -23,9 +23,9 @@ from enum import StrEnum
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from horus.engines.escrow import CertifierRole
-from horus.models import Membership, Project, ProjectAccess, User, UserSession
-from horus.services import ServiceError
+from lekhara.engines.escrow import CertifierRole
+from lekhara.models import Membership, Project, ProjectAccess, User, UserSession
+from lekhara.services import ServiceError
 
 SESSION_DAYS = 14
 _SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 1

@@ -10,7 +10,7 @@ export default function ErrorPage({ error, retry }: { error: unknown; retry: () 
   return (
     <div className="page-head">
       <div>
-        <h1>Horus could not load this page</h1>
+        <h1>Lekhara could not load this page</h1>
         <p>The data service did not answer. Check that it is running, then try again.</p>
         <p style={{ marginTop: 20 }}>
           <button type="button" className="button" onClick={() => retry()}>

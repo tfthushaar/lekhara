@@ -14,7 +14,7 @@ export default function SharedPage({ params }: PageProps<"/shared/[token]">) {
   return (
     <main className="main">
       <div className="shared-head">
-        <span className="wordmark">Horus</span>
+        <span className="wordmark">Lekhara</span>
       </div>
       <Suspense fallback={<p className="loading">Opening the documents</p>}>
         <SharedView params={params} />

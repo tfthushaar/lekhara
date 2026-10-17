@@ -11,7 +11,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="topbar">
         <div className="topbar-inner">
           <Link href="/" className="wordmark">
-            Horus
+            Lekhara
           </Link>
           <Suspense fallback={<PlainNav />}>
             <Nav />

@@ -1,10 +1,10 @@
 from datetime import date
 from decimal import Decimal as D
 
-from horus.engines.escrow import AccountTxn, TxnKind, escrow_position
-from horus.engines.money import Category, CostLine, Entry, EntryKind, ReraHead, project_position
-from horus.engines.obligations import ObligationStatus, ProjectFacts, project_obligations
-from horus.engines.tax import (
+from lekhara.engines.escrow import AccountTxn, TxnKind, escrow_position
+from lekhara.engines.money import Category, CostLine, Entry, EntryKind, ReraHead, project_position
+from lekhara.engines.obligations import ObligationStatus, ProjectFacts, project_obligations
+from lekhara.engines.tax import (
     GstRegime,
     Purchase,
     bocw_cess,
@@ -12,7 +12,7 @@ from horus.engines.tax import (
     development_rights_gst,
     procurement_meter,
 )
-from horus.rules import KARNATAKA
+from lekhara.rules import KARNATAKA
 
 TODAY = date(2026, 10, 17)
 

@@ -1,5 +1,5 @@
-from horus.auth import LoginThrottle, hash_password, verify_password
-from horus.seed import DEMO_PASSWORD
+from lekhara.auth import LoginThrottle, hash_password, verify_password
+from lekhara.seed import DEMO_PASSWORD
 
 WF = "whitefield-residences"
 SG = "sarjapur-greens"
@@ -25,7 +25,7 @@ def test_everything_but_health_and_rules_needs_sign_in(client) -> None:
 
 def test_wrong_password_is_refused(client) -> None:
     response = client.post(
-        "/auth/login", json={"email": "promoter@demo.horus", "password": "guess"}
+        "/auth/login", json={"email": "promoter@demo.lekhara", "password": "guess"}
     )
     assert response.status_code == 401
     assert response.json()["detail"] == "That email and password do not match."
@@ -46,7 +46,7 @@ def test_repeated_failures_are_throttled() -> None:
 
 def test_email_is_case_insensitive(client) -> None:
     response = client.post(
-        "/auth/login", json={"email": "  Promoter@Demo.Horus ", "password": DEMO_PASSWORD}
+        "/auth/login", json={"email": "  Promoter@Demo.Lekhara ", "password": DEMO_PASSWORD}
     )
     assert response.status_code == 200
 
@@ -71,7 +71,7 @@ def test_logout_ends_the_session(owner) -> None:
 def test_demo_accounts_are_listed_only_in_demo_mode(client) -> None:
     body = client.get("/auth/demo").json()
     assert body["password"] == DEMO_PASSWORD
-    assert {a["email"] for a in body["accounts"]} >= {"promoter@demo.horus", "ca@demo.horus"}
+    assert {a["email"] for a in body["accounts"]} >= {"promoter@demo.lekhara", "ca@demo.lekhara"}
 
 
 def test_certifier_today_lists_certificates_to_sign(ca, architect) -> None:

@@ -11,19 +11,19 @@ from datetime import date, timedelta
 from decimal import Decimal
 from enum import StrEnum
 
-from horus.engines.collections import CollectionsPosition
-from horus.engines.disputes import (
+from lekhara.engines.collections import CollectionsPosition
+from lekhara.engines.disputes import (
     FORUM_LABEL,
     RELIEF_LABEL,
     RUNNING,
     DisputesPosition,
     Forum,
 )
-from horus.engines.documents import OWED_TO as DOCUMENT_OWED_TO
-from horus.engines.documents import Expiring
-from horus.engines.escrow import EscrowPosition
-from horus.engines.handover import BLOCKER_TEXT, HandoverPosition, Stage
-from horus.engines.tax import (
+from lekhara.engines.documents import OWED_TO as DOCUMENT_OWED_TO
+from lekhara.engines.documents import Expiring
+from lekhara.engines.escrow import EscrowPosition
+from lekhara.engines.handover import BLOCKER_TEXT, HandoverPosition, Stage
+from lekhara.engines.tax import (
     CessPosition,
     DelayExposure,
     DevelopmentRightsGst,
@@ -34,8 +34,8 @@ from horus.engines.tax import (
     TdsShortfall,
     financial_year,
 )
-from horus.money import ZERO
-from horus.rules import RuleNotFound, RulesPack
+from lekhara.money import ZERO
+from lekhara.rules import RuleNotFound, RulesPack
 
 
 class ObligationStatus(StrEnum):
@@ -178,7 +178,7 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
             exposure=False,
             title="Money is waiting in the RERA account",
             detail=(
-                "Cost incurred allows a withdrawal now. Horus has prepared the three "
+                "Cost incurred allows a withdrawal now. Lekhara has prepared the three "
                 "certificates for your architect, engineer and CA."
             ),
             owed_to="Escrow bank",

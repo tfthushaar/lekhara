@@ -10,7 +10,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-import horus.db
+import lekhara.db
 
 revision: str = "a3d2a9b047ce"
 down_revision: str | None = None
@@ -86,8 +86,8 @@ def upgrade() -> None:
         sa.Column("possession_due_on", sa.Date(), nullable=True),
         sa.Column("statutory_auditor_firm", sa.String(length=200), nullable=True),
         sa.Column("escrow_bank", sa.String(length=200), nullable=True),
-        sa.Column("development_rights_value", horus.db.Money(), nullable=True),
-        sa.Column("cess_paid", horus.db.Money(), nullable=False),
+        sa.Column("development_rights_value", lekhara.db.Money(), nullable=True),
+        sa.Column("cess_paid", lekhara.db.Money(), nullable=False),
         sa.ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],
@@ -133,7 +133,7 @@ def upgrade() -> None:
         sa.Column("bill_no", sa.String(length=64), nullable=False),
         sa.Column("bill_date", sa.Date(), nullable=False),
         sa.Column("accepted_on", sa.Date(), nullable=False),
-        sa.Column("taxable_value", horus.db.Money(), nullable=False),
+        sa.Column("taxable_value", lekhara.db.Money(), nullable=False),
         sa.Column("is_cement", sa.Boolean(), nullable=False),
         sa.Column("excluded", sa.Boolean(), nullable=False),
         sa.Column("rcm_paid", sa.Boolean(), nullable=False),
@@ -157,8 +157,8 @@ def upgrade() -> None:
         sa.Column("name", sa.String(length=200), nullable=False),
         sa.Column("category", sa.String(length=32), nullable=False),
         sa.Column("rera_head", sa.String(length=32), nullable=False),
-        sa.Column("original_budget", horus.db.Money(), nullable=False),
-        sa.Column("revised_budget", horus.db.Money(), nullable=False),
+        sa.Column("original_budget", lekhara.db.Money(), nullable=False),
+        sa.Column("revised_budget", lekhara.db.Money(), nullable=False),
         sa.Column("position", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(
             ["project_id"], ["projects.id"], name=op.f("fk_cost_lines_project_id_projects")
@@ -173,7 +173,7 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=64), nullable=False),
         sa.Column("project_id", sa.String(length=64), nullable=False),
         sa.Column("kind", sa.String(length=32), nullable=False),
-        sa.Column("amount", horus.db.Money(), nullable=False),
+        sa.Column("amount", lekhara.db.Money(), nullable=False),
         sa.Column("txn_date", sa.Date(), nullable=False),
         sa.Column("reference", sa.String(length=200), nullable=True),
         sa.ForeignKeyConstraint(
@@ -208,8 +208,8 @@ def upgrade() -> None:
         sa.Column("project_id", sa.String(length=64), nullable=False),
         sa.Column("name", sa.String(length=200), nullable=False),
         sa.Column("share_type", sa.String(length=16), nullable=False),
-        sa.Column("share_pct", horus.db.Percent(), nullable=False),
-        sa.Column("refundable_deposit", horus.db.Money(), nullable=False),
+        sa.Column("share_pct", lekhara.db.Percent(), nullable=False),
+        sa.Column("refundable_deposit", lekhara.db.Money(), nullable=False),
         sa.ForeignKeyConstraint(
             ["project_id"], ["projects.id"], name=op.f("fk_landowners_project_id_projects")
         ),
@@ -222,7 +222,7 @@ def upgrade() -> None:
         "progress_certificates",
         sa.Column("id", sa.String(length=64), nullable=False),
         sa.Column("project_id", sa.String(length=64), nullable=False),
-        sa.Column("completion_pct", horus.db.Percent(), nullable=False),
+        sa.Column("completion_pct", lekhara.db.Percent(), nullable=False),
         sa.Column("as_of", sa.Date(), nullable=False),
         sa.Column("certified_by", sa.String(length=200), nullable=False),
         sa.ForeignKeyConstraint(
@@ -269,9 +269,9 @@ def upgrade() -> None:
         sa.Column("carpet_area_sqft", sa.Integer(), nullable=False),
         sa.Column("owner_share", sa.String(length=16), nullable=False),
         sa.Column("booked", sa.Boolean(), nullable=False),
-        sa.Column("list_price", horus.db.Money(), nullable=False),
-        sa.Column("agreement_value", horus.db.Money(), nullable=True),
-        sa.Column("guidance_value", horus.db.Money(), nullable=False),
+        sa.Column("list_price", lekhara.db.Money(), nullable=False),
+        sa.Column("agreement_value", lekhara.db.Money(), nullable=True),
+        sa.Column("guidance_value", lekhara.db.Money(), nullable=False),
         sa.Column("buyer_name", sa.String(length=200), nullable=True),
         sa.Column("booked_on", sa.Date(), nullable=True),
         sa.ForeignKeyConstraint(
@@ -286,11 +286,11 @@ def upgrade() -> None:
         "withdrawal_requests",
         sa.Column("id", sa.String(length=64), nullable=False),
         sa.Column("project_id", sa.String(length=64), nullable=False),
-        sa.Column("amount", horus.db.Money(), nullable=False),
+        sa.Column("amount", lekhara.db.Money(), nullable=False),
         sa.Column("created_on", sa.Date(), nullable=False),
         sa.Column("submitted_on", sa.Date(), nullable=True),
         sa.Column("released_on", sa.Date(), nullable=True),
-        sa.Column("released_amount", horus.db.Money(), nullable=True),
+        sa.Column("released_amount", lekhara.db.Money(), nullable=True),
         sa.Column("bank_reference", sa.String(length=200), nullable=True),
         sa.Column("rejected_on", sa.Date(), nullable=True),
         sa.Column("rejection_reason", sa.String(length=500), nullable=True),
@@ -326,9 +326,9 @@ def upgrade() -> None:
         "landowner_payments",
         sa.Column("id", sa.String(length=64), nullable=False),
         sa.Column("landowner_id", sa.String(length=64), nullable=False),
-        sa.Column("amount", horus.db.Money(), nullable=False),
+        sa.Column("amount", lekhara.db.Money(), nullable=False),
         sa.Column("paid_on", sa.Date(), nullable=False),
-        sa.Column("tds_deducted", horus.db.Money(), nullable=False),
+        sa.Column("tds_deducted", lekhara.db.Money(), nullable=False),
         sa.Column("monetary_consideration", sa.Boolean(), nullable=False),
         sa.Column("note", sa.String(length=200), nullable=True),
         sa.ForeignKeyConstraint(
@@ -349,7 +349,7 @@ def upgrade() -> None:
         sa.Column("project_id", sa.String(length=64), nullable=False),
         sa.Column("cost_line_id", sa.String(length=64), nullable=False),
         sa.Column("kind", sa.String(length=32), nullable=False),
-        sa.Column("amount", horus.db.Money(), nullable=False),
+        sa.Column("amount", lekhara.db.Money(), nullable=False),
         sa.Column("entry_date", sa.Date(), nullable=False),
         sa.Column("reference", sa.String(length=200), nullable=True),
         sa.Column(
@@ -378,9 +378,9 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=64), nullable=False),
         sa.Column("project_id", sa.String(length=64), nullable=False),
         sa.Column("unit_id", sa.String(length=64), nullable=False),
-        sa.Column("amount", horus.db.Money(), nullable=False),
+        sa.Column("amount", lekhara.db.Money(), nullable=False),
         sa.Column("received_on", sa.Date(), nullable=False),
-        sa.Column("tds_deducted", horus.db.Money(), nullable=False),
+        sa.Column("tds_deducted", lekhara.db.Money(), nullable=False),
         sa.ForeignKeyConstraint(
             ["project_id"], ["projects.id"], name=op.f("fk_receipts_project_id_projects")
         ),
@@ -399,10 +399,10 @@ def upgrade() -> None:
         sa.Column("signer_name", sa.String(length=200), nullable=True),
         sa.Column("signer_firm", sa.String(length=200), nullable=True),
         sa.Column("issued_on", sa.Date(), nullable=True),
-        sa.Column("completion_pct", horus.db.Percent(), nullable=True),
-        sa.Column("development_cost_incurred", horus.db.Money(), nullable=True),
-        sa.Column("total_cost_incurred", horus.db.Money(), nullable=True),
-        sa.Column("withdrawable_amount", horus.db.Money(), nullable=True),
+        sa.Column("completion_pct", lekhara.db.Percent(), nullable=True),
+        sa.Column("development_cost_incurred", lekhara.db.Money(), nullable=True),
+        sa.Column("total_cost_incurred", lekhara.db.Money(), nullable=True),
+        sa.Column("withdrawable_amount", lekhara.db.Money(), nullable=True),
         sa.Column("signed_by_user_id", sa.String(length=64), nullable=True),
         sa.ForeignKeyConstraint(
             ["request_id"],

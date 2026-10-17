@@ -10,7 +10,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-import horus.db
+import lekhara.db
 
 revision: str = "19a0b652b25a"
 down_revision: str | None = "a3d2a9b047ce"
@@ -26,9 +26,9 @@ def upgrade() -> None:
         sa.Column("project_id", sa.String(length=64), nullable=False),
         sa.Column("sequence", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=200), nullable=False),
-        sa.Column("share_pct", horus.db.Percent(), nullable=False),
+        sa.Column("share_pct", lekhara.db.Percent(), nullable=False),
         sa.Column("trigger", sa.String(length=16), nullable=False),
-        sa.Column("progress_pct", horus.db.Percent(), nullable=True),
+        sa.Column("progress_pct", lekhara.db.Percent(), nullable=True),
         sa.Column("due_days", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(
             ["project_id"], ["projects.id"], name=op.f("fk_payment_milestones_project_id_projects")
@@ -46,11 +46,11 @@ def upgrade() -> None:
         sa.Column("project_id", sa.String(length=64), nullable=False),
         sa.Column("unit_id", sa.String(length=64), nullable=False),
         sa.Column("milestone_id", sa.String(length=64), nullable=False),
-        sa.Column("amount", horus.db.Money(), nullable=False),
-        sa.Column("gst", horus.db.Money(), nullable=False),
+        sa.Column("amount", lekhara.db.Money(), nullable=False),
+        sa.Column("gst", lekhara.db.Money(), nullable=False),
         sa.Column("raised_on", sa.Date(), nullable=False),
         sa.Column("due_on", sa.Date(), nullable=False),
-        sa.Column("certified_progress_pct", horus.db.Percent(), nullable=True),
+        sa.Column("certified_progress_pct", lekhara.db.Percent(), nullable=True),
         sa.Column("created_by_user_id", sa.String(length=64), nullable=True),
         sa.ForeignKeyConstraint(
             ["created_by_user_id"], ["users.id"], name=op.f("fk_demands_created_by_user_id_users")

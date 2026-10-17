@@ -11,19 +11,19 @@ from pydantic import BaseModel
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from horus import auth, services, views
-from horus.config import Settings, get_settings
-from horus.db import make_engine, make_sessionmaker
-from horus.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
-from horus.engines.obligations import ObligationStatus, sort_obligations
-from horus.migrate import upgrade
-from horus.models import Organization, PaymentMilestone, Project, Unit
-from horus.money import ZERO
-from horus.rules import KARNATAKA
-from horus.services import ServiceError
-from horus.storage import LocalStorage
+from lekhara import auth, services, views
+from lekhara.config import Settings, get_settings
+from lekhara.db import make_engine, make_sessionmaker
+from lekhara.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
+from lekhara.engines.obligations import ObligationStatus, sort_obligations
+from lekhara.migrate import upgrade
+from lekhara.models import Organization, PaymentMilestone, Project, Unit
+from lekhara.money import ZERO
+from lekhara.rules import KARNATAKA
+from lekhara.services import ServiceError
+from lekhara.storage import LocalStorage
 
-DEMO_PASSWORD = "horus-demo"
+DEMO_PASSWORD = "lekhara-demo"
 
 
 class Login(BaseModel):
@@ -178,7 +178,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     session_factory = make_sessionmaker(engine)
     throttle = auth.LoginThrottle()
 
-    app = FastAPI(title="Horus API", version="0.1.0")
+    app = FastAPI(title="Lekhara API", version="0.1.0")
     app.state.settings = settings
     app.state.session_factory = session_factory
     app.state.storage = LocalStorage(settings.storage_dir)
@@ -257,7 +257,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     def demo_accounts(session: SessionDep) -> dict:
         if not settings.demo:
             raise ServiceError("Not found.", 404)
-        from horus.seed import DEMO_ACCOUNTS
+        from lekhara.seed import DEMO_ACCOUNTS
 
         return {
             "password": DEMO_PASSWORD,
@@ -316,7 +316,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
                         "project_name": project.name,
                         "title": f"Review and sign the {auth.CERTIFIER_LABEL[role].lower()}'s "
                         "certificate",
-                        "detail": "A withdrawal from the RERA account is waiting for you. Horus "
+                        "detail": "A withdrawal from the RERA account is waiting for you. Lekhara "
                         "has prepared the figures from the developer's books.",
                         "owed_to": project.organization.name,
                         "status": ObligationStatus.DUE_SOON.value,
@@ -879,7 +879,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
 
 def __getattr__(name: str):
-    # `uvicorn horus.app:app` builds the app lazily, so importing this module stays cheap.
+    # `uvicorn lekhara.app:app` builds the app lazily, so importing this module stays cheap.
     if name == "app":
         return create_app()
     raise AttributeError(name)
