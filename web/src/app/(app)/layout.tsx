@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { resendVerification, signOut } from "@/app/actions";
+import { acceptTerms, resendVerification, signOut } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { Nav, PlainNav } from "@/components/nav";
 import { api } from "@/lib/api";
@@ -26,6 +26,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <Banners />
       </Suspense>
       <main className="main">{children}</main>
+      <footer className="footer">
+        <Link href="/legal/terms">Terms of service</Link>
+        <Link href="/legal/privacy">Privacy notice</Link>
+        <Link href="/legal/data-processing">Data processing terms</Link>
+      </footer>
     </>
   );
 }
@@ -35,6 +40,24 @@ async function Banners() {
   const org = me.organization;
   return (
     <>
+      {!me.terms_accepted ? (
+        <div className="banner banner-strong" role="status">
+          <span>
+            {"We have updated our "}
+            <Link href="/legal/terms">terms of service</Link>
+            {" and "}
+            <Link href="/legal/privacy">privacy notice</Link>
+            {". Please read them and accept to go on using Lekhara."}
+          </span>
+          <ActionForm action={acceptTerms} label="I accept" pendingLabel="Saving" secondary className="inline-form" />
+        </div>
+      ) : null}
+      {org && org.delete_after ? (
+        <div className="banner banner-strong" role="status">
+          <span>{`This firm's account is closing: its data will be deleted after ${org.delete_after}. Download everything before then.`}</span>
+          <Link href="/settings">Settings</Link>
+        </div>
+      ) : null}
       {org && org.access === "read_only" ? (
         <div className="banner banner-strong" role="status">
           <span>

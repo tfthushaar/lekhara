@@ -15,9 +15,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Sign-up, password resets, email checks, invitations and shared data rooms are opened
-  // without signing in.
+  // Sign-up, password resets, email checks, invitations, shared data rooms and the legal
+  // pages are opened without signing in.
   matcher: [
-    "/((?!login|signup|forgot|reset|verify|invite|shared|_next/static|_next/image|favicon.ico).*)",
+    "/((?!login|signup|forgot|reset|verify|invite|shared|legal|_next/static|_next/image|favicon.ico).*)",
   ],
 };

@@ -42,6 +42,7 @@ def firm(app, engine) -> tuple[TestClient, str]:
     r = client.post(
         "/auth/signup",
         json={
+            "accept_terms": True,
             "name": "Anil",
             "email": "anil@kaverihomes.in",
             "password": PASSWORD,

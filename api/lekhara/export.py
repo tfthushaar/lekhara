@@ -25,6 +25,8 @@ from sqlalchemy.orm import Session
 
 from lekhara.db import Money, Percent
 from lekhara.models import (
+    Acceptance,
+    AccessEvent,
     BankAccount,
     BankPayer,
     Bill,
@@ -184,6 +186,8 @@ SHEETS = [
     Sheet("Team", Membership, lambda s: Membership.organization_id == s.org),
     Sheet("Certifiers", ProjectAccess, lambda s: ProjectAccess.project_id.in_(s.projects)),
     Sheet("Change history", ChangeEntry, lambda s: ChangeEntry.organization_id == s.org),
+    Sheet("Access log", AccessEvent, lambda s: AccessEvent.organization_id == s.org),
+    Sheet("Terms accepted", Acceptance, lambda s: Acceptance.organization_id == s.org),
 ]
 
 

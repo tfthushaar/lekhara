@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     secret_key: str | None = None
     """Seals secrets kept for firms, such as statement passwords. Set it in production."""
     worker: bool = True
+    company_name: str = "Lekhara"
+    """The legal entity that runs Lekhara, as named in the terms and on invoices."""
+    company_address: str = "Bengaluru, Karnataka, India"
+    grievance_officer: str = "The grievance officer"
+    grievance_email: str = "grievance@lekhara.local"
     """Run background jobs (incoming mail, connectors) inside the API process."""
 
     def as_of(self) -> date:

@@ -29,7 +29,13 @@ def firm(app, email="anil@kaverihomes.in") -> tuple[TestClient, str]:
     client = TestClient(app)
     r = client.post(
         "/auth/signup",
-        json={"name": "Anil", "email": email, "password": PASSWORD, "firm": "Kaveri Homes"},
+        json={
+            "accept_terms": True,
+            "name": "Anil",
+            "email": email,
+            "password": PASSWORD,
+            "firm": "Kaveri Homes",
+        },
     )
     client.headers["Authorization"] = f"Bearer {r.json()['token']}"
     project = client.post(
@@ -312,7 +318,13 @@ def test_who_can_change_suppliers_and_bills(app, architect, owner) -> None:
     other = TestClient(app)
     r = other.post(
         "/auth/signup",
-        json={"name": "B", "email": "b@other.in", "password": PASSWORD, "firm": "Other"},
+        json={
+            "accept_terms": True,
+            "name": "B",
+            "email": "b@other.in",
+            "password": PASSWORD,
+            "firm": "Other",
+        },
     )
     other.headers["Authorization"] = f"Bearer {r.json()['token']}"
     assert other.get(f"/suppliers/{sid}").status_code == 404

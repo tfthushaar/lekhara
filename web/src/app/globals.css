@@ -954,6 +954,50 @@ h3 {
   min-width: 180px;
 }
 
+/* Legal pages and the footer that links them */
+
+.legal article {
+  max-width: 760px;
+}
+
+.legal article h2 {
+  font-size: 17px;
+  margin: 28px 0 8px;
+}
+
+.legal article p,
+.legal article li {
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.legal article ul {
+  padding-left: 20px;
+}
+
+.legal-contact {
+  max-width: 760px;
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding: 24px var(--gutter) 40px;
+  border-top: 1px solid var(--line);
+  margin-top: 64px;
+  font-size: 13px;
+}
+
+.footer a {
+  color: var(--ink-3);
+}
+
 /* A page's opening line: what the page is for */
 
 .lead {

@@ -599,6 +599,7 @@ export async function signUp(_previous: ActionState, form: FormData): Promise<Ac
     firm: text(form, "firm"),
     email: text(form, "email"),
     password: String(form.get("password") ?? ""),
+    accept_terms: form.get("accept_terms") === "yes",
   });
   if (!result.ok) return { error: result.error };
   await startSession(result.data.token);
@@ -644,10 +645,39 @@ export async function acceptInvitation(
     name: text(form, "name") || null,
     firm: text(form, "firm") || null,
     password: String(form.get("password") ?? ""),
+    accept_terms: form.get("accept_terms") === "yes",
   });
   if (!result.ok) return { error: result.error };
   await startSession(result.data.token);
   redirect("/");
+}
+
+export async function acceptTerms(_previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", "/auth/accept-terms");
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function deleteAccount(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", "/auth/delete-account", { password: String(form.get("password") ?? "") });
+  if (!result.ok) return { error: result.error };
+  (await cookies()).delete(SESSION_COOKIE);
+  redirect("/login");
+}
+
+export async function closeFirm(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", "/organization/close", { confirm: text(form, "confirm") });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "The firm's account will close. Download everything before then." };
+}
+
+export async function keepFirm(_previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", "/organization/keep");
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "The firm's account stays open." };
 }
 
 export async function updateFirm(_previous: ActionState, form: FormData): Promise<ActionState> {

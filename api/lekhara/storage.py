@@ -5,6 +5,7 @@ is stored once and a stored file can never change under its key. Local disk toda
 an S3-compatible store in production implements the same two methods.
 """
 
+import contextlib
 import hashlib
 import os
 import re
@@ -18,6 +19,8 @@ class Storage(Protocol):
     def put(self, data: bytes) -> str: ...
 
     def get(self, key: str) -> bytes: ...
+
+    def delete(self, key: str) -> None: ...
 
 
 class LocalStorage:
@@ -41,3 +44,8 @@ class LocalStorage:
 
     def get(self, key: str) -> bytes:
         return self._path(key).read_bytes()
+
+    def delete(self, key: str) -> None:
+        """Remove a file no record uses any more."""
+        with contextlib.suppress(FileNotFoundError, ValueError):
+            self._path(key).unlink()

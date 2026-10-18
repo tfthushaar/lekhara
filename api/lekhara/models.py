@@ -47,6 +47,9 @@ class Organization(Base):
     """trial, active (paid) or suspended."""
     trial_ends_on: Mapped[date | None] = mapped_column(Date)
     is_sample: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    closing_on: Mapped[date | None] = mapped_column(Date)
+    """When an owner asked to close the firm's account; its data is deleted after a wait."""
+    delete_after: Mapped[date | None] = mapped_column(Date)
     """The sample projects every signed-in person can look at, read-only."""
 
     projects: Mapped[list["Project"]] = relationship(back_populates="organization")
@@ -964,6 +967,40 @@ class GstImport(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime)
     undone_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class Acceptance(Base):
+    """A person accepting a version of Lekhara's terms, privacy notice or data processing
+    terms. Kept as evidence, so it survives the person's account being deleted."""
+
+    __tablename__ = "acceptances"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    organization_id: Mapped[str | None] = mapped_column(String(64))
+    document: Mapped[str] = mapped_column(String(32))
+    """terms, privacy or data_processing."""
+    version: Mapped[str] = mapped_column(String(32))
+    accepted_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    ip: Mapped[str | None] = mapped_column(String(64))
+
+
+class AccessEvent(Base):
+    """A sign-in, an export, a download, a change to who may do what: kept at least 180 days
+    (CERT-In), and on its own, so it outlives the people and firms it names."""
+
+    __tablename__ = "access_events"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    organization_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    user_id: Mapped[str | None] = mapped_column(String(64))
+    who: Mapped[str | None] = mapped_column(String(320))
+    """The person's email at the time, for reading the log later."""
+    action: Mapped[str] = mapped_column(String(48))
+    detail: Mapped[str | None] = mapped_column(String(300))
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(300))
 
 
 class Job(Base):

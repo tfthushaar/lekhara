@@ -189,9 +189,16 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - The units list has filters (tower, sold or not, the landowner's, priced below guidance) and a search by unit or buyer, and shows fifty at a time.
   - Long tables on review pages (every transaction in a statement, every invoice in a GST return, what a Tally file holds) and forms in Settings open on request; columns with nothing in them are left out.
 
+- Legal foundations, from the research into Indian law for a SaaS (the DPDP Act and Rules 2025, the IT Act and SPDI Rules, the CERT-In Directions, consumer law on dark patterns; the full research is outside the repository):
+  - Terms of service, a privacy notice and data processing terms (Lekhara as the builder's data processor for buyers', landowners' and suppliers' personal data), in plain words, open without signing in and linked from every page. The company's name, address and grievance officer come from settings. They need a lawyer's review before launch.
+  - Signing up, and joining by invitation, mean ticking that you agree (never pre-ticked); the version and time are recorded for each person, and the owner or finance accept the data processing terms for the firm. When the documents change, everyone is asked to read and accept them again.
+  - An access log of sign-ins (and failed ones), exports, documents opened, invitations, role changes and people removed, with the address and browser they came from, kept a year (CERT-In asks for 180 days in India); the owner and finance see it in Settings, and it is part of the firm's export.
+  - Anyone can delete their own account (their name and email are taken out; what they did stays under "A former user"), except a firm's only owner. An owner can close the firm's account: everything stays readable and downloadable for 30 days and the closing can be undone; then a daily job deletes all of the firm's projects, records, documents and files and takes out the people who worked only for it, keeping the access log.
+  - Tested end to end: the three documents open without signing in, sign-up refused without agreeing, the access log in Settings, a firm closed and kept open, and the only owner unable to delete their account.
+
 ## In progress
 
-- Research: Indian law for running Lekhara as a SaaS (data protection, IT Act and CERT-In, GST on the subscription, recurring payments, consumer and contract law, professional rules for CAs and lawyers, AI), and what the product and the company must do to comply.
+- Billing to the rules: one Razorpay subscription per firm; nothing charged without a mandate the builder sets up; the price with GST shown before paying; reminders before the free month ends; pre-debit notices; cancelling in one click, as easy as subscribing; a GST invoice for every payment.
 
 ## Left
 

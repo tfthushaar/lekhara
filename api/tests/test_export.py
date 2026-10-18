@@ -16,7 +16,13 @@ def firm(app, email="anil@kaverihomes.in") -> tuple[TestClient, str]:
     client = TestClient(app)
     r = client.post(
         "/auth/signup",
-        json={"name": "Anil", "email": email, "password": PASSWORD, "firm": "Kaveri Homes"},
+        json={
+            "accept_terms": True,
+            "name": "Anil",
+            "email": email,
+            "password": PASSWORD,
+            "firm": "Kaveri Homes",
+        },
     )
     client.headers["Authorization"] = f"Bearer {r.json()['token']}"
     project = client.post(

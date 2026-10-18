@@ -33,6 +33,16 @@ export default function SignupPage() {
             <label htmlFor="password">Password (at least 10 characters)</label>
             <input id="password" name="password" type="password" autoComplete="new-password" minLength={10} required />
           </div>
+          <div className="checks" style={{ marginTop: 4 }}>
+            <label>
+              <input type="checkbox" name="accept_terms" value="yes" required />
+              <span className="small">
+                I agree to the <a href="/legal/terms" target="_blank">terms of service</a>, the{" "}
+                <a href="/legal/privacy" target="_blank">privacy notice</a> and, for my firm, the{" "}
+                <a href="/legal/data-processing" target="_blank">data processing terms</a>.
+              </span>
+            </label>
+          </div>
         </ActionForm>
         <p className="login-links">
           <span>

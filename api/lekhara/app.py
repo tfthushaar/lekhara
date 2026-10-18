@@ -23,6 +23,7 @@ from lekhara import (
     imports,
     inbound,
     jobs,
+    legal,
     purchases,
     registers,
     review,
@@ -44,6 +45,7 @@ from lekhara.models import (
     InboundItem,
     InboundMessage,
     Landowner,
+    Membership,
     Organization,
     PaymentMilestone,
     Project,
@@ -220,6 +222,7 @@ class Signup(BaseModel):
     email: str | None = None
     password: str | None = None
     firm: str | None = None
+    accept_terms: bool | None = None
 
 
 class TokenBody(BaseModel):
@@ -251,6 +254,15 @@ class Acceptance(BaseModel):
     name: str | None = None
     password: str | None = None
     firm: str | None = None
+    accept_terms: bool | None = None
+
+
+class PasswordCheck(BaseModel):
+    password: str | None = None
+
+
+class CloseFirm(BaseModel):
+    confirm: str | None = None
 
 
 class RoleChange(BaseModel):
@@ -444,6 +456,27 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     def as_of() -> date:
         return settings.as_of()
 
+    def client(request: Request) -> tuple[str | None, str | None]:
+        forwarded = (
+            request.headers.get("x-lekhara-client-ip")
+            or (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+        )
+        ip = forwarded or (request.client.host if request.client else None)
+        agent = request.headers.get("x-lekhara-user-agent") or request.headers.get("user-agent")
+        return ip, agent
+
+    def log(session: Session, request: Request, action: str, *, me=None, user=None,
+            organization_id=None, detail=None) -> None:  # fmt: skip
+        ip, agent = client(request)
+        if user is None and me is not None:
+            user = session.get(User, me.user_id)
+        if organization_id is None and me is not None and me.org_roles:
+            organization_id = next(iter(me.org_roles))
+        legal.record(
+            session, action, user=user, organization_id=organization_id, detail=detail, ip=ip,
+            user_agent=agent,
+        )  # fmt: skip
+
     SessionDep = Annotated[Session, Depends(get_session)]
     AsOf = Annotated[date, Depends(as_of)]
 
@@ -479,8 +512,17 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     # Sign-in
 
     @app.post("/auth/login")
-    def login(body: Login, session: SessionDep) -> dict:
-        token, user = auth.login(session, body.email, body.password, throttle)
+    def login(body: Login, session: SessionDep, request: Request) -> dict:
+        try:
+            token, user = auth.login(session, body.email, body.password, throttle)
+        except ServiceError:
+            session.rollback()
+            log(session, request, "sign_in_failed", detail=(body.email or "")[:200])
+            raise
+        orgs = list(
+            session.scalars(select(Membership.organization_id).where(Membership.user_id == user.id))
+        )
+        log(session, request, "sign_in", user=user, organization_id=orgs[0] if orgs else None)
         return {"token": token, "user": {"id": user.id, "name": user.name, "email": user.email}}
 
     @app.post("/auth/logout", status_code=204)
@@ -512,6 +554,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
                 "trial_ends_on": views.d(org.trial_ends_on),
                 "days_left": services.trial_days_left(org, on),
                 "is_sample": org.is_sample,
+                "delete_after": views.d(org.delete_after),
                 "can_add_projects": role
                 in (auth.OrgRole.OWNER, auth.OrgRole.FINANCE, auth.OrgRole.ACCOUNTS),
             }
@@ -522,6 +565,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             "organizations": organizations,
             "organization": firm,
             "email_verified": user.email_verified_at is not None,
+            "terms_accepted": legal.accepted(session, me.user_id),
         }
 
     @app.get("/auth/demo")
@@ -540,7 +584,8 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     # Sign-up, email checks and passwords
 
     @app.post("/auth/signup", status_code=201)
-    def signup(body: Signup, session: SessionDep, on: AsOf) -> dict:
+    def signup(body: Signup, session: SessionDep, on: AsOf, request: Request) -> dict:
+        legal.require_acceptance(body.accept_terms)
         token, user = accounts.signup(
             session,
             settings,
@@ -550,6 +595,12 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             firm=body.firm,
             as_of=on,
         )
+        org_id = session.scalars(
+            select(Membership.organization_id).where(Membership.user_id == user.id)
+        ).first()
+        legal.accept(session, user, organization_id=org_id, ip=client(request)[0], manager=True)
+        session.commit()
+        log(session, request, "signed_up", user=user, organization_id=org_id)
         return {"token": token, "user": {"id": user.id, "name": user.name, "email": user.email}}
 
     @app.post("/auth/verify")
@@ -574,9 +625,72 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         return {"ok": True}
 
     @app.post("/auth/reset")
-    def reset(body: Reset, session: SessionDep) -> dict:
+    def reset(body: Reset, session: SessionDep, request: Request) -> dict:
         accounts.reset_password(session, body.token, body.password)
+        log(session, request, "password_reset")
         return {"ok": True}
+
+    # The law: terms accepted, the access log, deleting an account, closing a firm
+
+    @app.get("/legal")
+    def legal_info() -> dict:
+        return legal.public_info(settings)
+
+    @app.post("/auth/accept-terms")
+    def accept_terms(session: SessionDep, me: Me, request: Request) -> dict:
+        user = session.get(User, me.user_id)
+        org_id = next(iter(me.org_roles), None)
+        manager = me.org_roles.get(org_id) in (auth.OrgRole.OWNER, auth.OrgRole.FINANCE)
+        legal.accept(session, user, organization_id=org_id, ip=client(request)[0], manager=manager)
+        session.commit()
+        log(session, request, "terms_accepted", user=user, organization_id=org_id,
+            detail=legal.VERSION)  # fmt: skip
+        return {"ok": True}
+
+    @app.post("/auth/delete-account")
+    def delete_account(body: PasswordCheck, session: SessionDep, me: Me, request: Request) -> dict:
+        user = session.get(User, me.user_id)
+        if not auth.verify_password(body.password or "", user.password_hash):
+            raise ServiceError("That password is not right.", 400)
+        legal.delete_account(session, user, ip=client(request)[0])
+        return {"ok": True}
+
+    @app.get("/organization/access-log")
+    def access_log(session: SessionDep, me: Me) -> dict:
+        org = accounts.current_org(session, me)
+        accounts.require_manager(me, org)
+        return {
+            "keep_days": legal.LOG_DAYS,
+            "events": [
+                {
+                    "at": e.at.replace(microsecond=0).isoformat(),
+                    "who": e.who,
+                    "action": e.action,
+                    "detail": e.detail,
+                    "ip": e.ip,
+                }
+                for e in legal.events_for(session, org.id)
+            ],
+        }
+
+    @app.post("/organization/close")
+    def close_firm(
+        body: CloseFirm, session: SessionDep, me: Me, on: AsOf, request: Request
+    ) -> dict:
+        org = accounts.current_org(session, me)
+        accounts.require_manager(me, org, owner=True)
+        legal.close_firm(
+            session, org, confirm=body.confirm or "", as_of=on, user=session.get(User, me.user_id),
+            ip=client(request)[0],
+        )  # fmt: skip
+        return firm_view(session, me, org, on)
+
+    @app.post("/organization/keep")
+    def keep_firm(session: SessionDep, me: Me, on: AsOf, request: Request) -> dict:
+        org = accounts.current_org(session, me)
+        accounts.require_manager(me, org, owner=True)
+        legal.keep_firm(session, org, user=session.get(User, me.user_id), ip=client(request)[0])
+        return firm_view(session, me, org, on)
 
     # The firm, its team and its subscription
 
@@ -597,6 +711,8 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             "trial_ends_on": views.d(org.trial_ends_on),
             "days_left": services.trial_days_left(org, on),
             "is_sample": org.is_sample,
+            "closing_on": views.d(org.closing_on),
+            "delete_after": views.d(org.delete_after),
             "role": role.value,
             "can_manage": role in (auth.OrgRole.OWNER, auth.OrgRole.FINANCE),
             "is_owner": role == auth.OrgRole.OWNER,
@@ -649,11 +765,14 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         return firm_view(session, me, org, on)
 
     @app.get("/organization/export")
-    def export_workspace(session: SessionDep, me: Me, on: AsOf) -> StreamingResponse:
+    def export_workspace(
+        session: SessionDep, me: Me, on: AsOf, request: Request
+    ) -> StreamingResponse:
         """Everything the firm has, at any time, even when the workspace is read-only."""
         org = accounts.current_org(session, me)
         accounts.require_manager(me, org)
         done = export.workspace(session, app.state.storage, org, as_of=on, user_id=me.user_id)
+        log(session, request, "workspace_exported", me=me, organization_id=org.id)
         ascii_name = done.filename.encode("ascii", "replace").decode().replace("?", "-")
         return StreamingResponse(
             done.chunks(),
@@ -666,7 +785,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         )
 
     @app.post("/organization/invitations", status_code=201)
-    def invite(body: NewInvitation, session: SessionDep, me: Me) -> dict:
+    def invite(body: NewInvitation, session: SessionDep, me: Me, request: Request) -> dict:
         org = accounts.current_org(session, me)
         row, link = accounts.invite(
             session,
@@ -677,6 +796,8 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             role=body.role,
             project_ids=body.project_ids,
         )
+        log(session, request, "invitation_sent", me=me, organization_id=org.id,
+            detail=f"{body.email} as {body.role}")  # fmt: skip
         return {"id": row.id, "link": link}
 
     @app.post("/organization/invitations/{invitation_id}/cancel")
@@ -685,13 +806,21 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         return {"ok": True}
 
     @app.put("/organization/members/{user_id}")
-    def change_role(user_id: str, body: RoleChange, session: SessionDep, me: Me) -> dict:
+    def change_role(
+        user_id: str, body: RoleChange, session: SessionDep, me: Me, request: Request
+    ) -> dict:
         accounts.change_role(session, accounts.current_org(session, me), me, user_id, body.role)
+        person = session.get(User, user_id)
+        log(session, request, "role_changed", me=me,
+            detail=f"{person.email if person else user_id} to {body.role}")  # fmt: skip
         return {"ok": True}
 
     @app.post("/organization/members/{user_id}/remove")
-    def remove_member(user_id: str, session: SessionDep, me: Me) -> dict:
+    def remove_member(user_id: str, session: SessionDep, me: Me, request: Request) -> dict:
+        person = session.get(User, user_id)
+        email = person.email if person else user_id
         accounts.remove_member(session, accounts.current_org(session, me), me, user_id)
+        log(session, request, "member_removed", me=me, detail=email)
         return {"ok": True}
 
     @app.get("/invitations/{token}")
@@ -710,10 +839,29 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         }
 
     @app.post("/invitations/{token}/accept")
-    def accept_invitation(token: str, body: Acceptance, session: SessionDep) -> dict:
+    def accept_invitation(
+        token: str, body: Acceptance, session: SessionDep, request: Request
+    ) -> dict:
+        invitation = accounts.invitation_by_token(session, token)
+        new_account = (
+            session.scalars(select(User).where(User.email == invitation.email)).first() is None
+        )
+        if new_account:
+            legal.require_acceptance(body.accept_terms)
         session_token = accounts.accept_invitation(
             session, settings, token, name=body.name, password=body.password, firm=body.firm
         )
+        principal = auth.principal_for(session, session_token, settings.as_of())
+        user = session.get(User, principal.user_id)
+        if new_account or body.accept_terms:
+            manager = invitation.org_role in (auth.OrgRole.OWNER.value, auth.OrgRole.FINANCE.value)
+            legal.accept(
+                session, user, organization_id=invitation.organization_id,
+                ip=client(request)[0], manager=manager,
+            )  # fmt: skip
+            session.commit()
+        log(session, request, "invitation_accepted", user=user,
+            organization_id=invitation.organization_id)  # fmt: skip
         return {"token": session_token}
 
     @app.post("/projects", status_code=201)
@@ -2185,10 +2333,13 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.get("/documents/{document_id}/file")
     def document_file(
-        document_id: str, session: SessionDep, me: Me, inline: bool = False
+        document_id: str, session: SessionDep, me: Me, request: Request, inline: bool = False
     ) -> Response:
         doc = document_for(session, me, document_id)
-        return file_response(doc, services.read_file(app.state.storage, doc), inline)
+        data = services.read_file(app.state.storage, doc)
+        log(session, request, "document_opened", me=me, organization_id=doc.organization_id,
+            detail=doc.title)  # fmt: skip
+        return file_response(doc, data, inline)
 
     @app.post("/projects/{project_id}/checklist/{requirement}/waive")
     def waive_requirement(

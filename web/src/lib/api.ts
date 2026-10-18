@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { SESSION_COOKIE } from "@/lib/session-cookie";
@@ -67,9 +67,11 @@ export type Me = {
     trial_ends_on: string | null;
     days_left: number | null;
     is_sample: boolean;
+    delete_after: string | null;
     can_add_projects: boolean;
   } | null;
   email_verified: boolean;
+  terms_accepted: boolean;
 };
 
 export type Firm = {
@@ -82,6 +84,8 @@ export type Firm = {
   trial_ends_on: string | null;
   days_left: number | null;
   is_sample: boolean;
+  closing_on: string | null;
+  delete_after: string | null;
   role: string;
   can_manage: boolean;
   is_owner: boolean;
@@ -843,6 +847,22 @@ export type ConnectorList = { can_edit: boolean; connectors: ConnectorRow[] };
 /** Where a connector on a builder's computer reaches the API. */
 export const PUBLIC_API_URL = process.env.LEKHARA_PUBLIC_API_URL ?? BASE;
 
+export type LegalInfo = {
+  version: string;
+  company_name: string;
+  company_address: string;
+  grievance_officer: string;
+  grievance_email: string;
+  close_after_days: number;
+  log_days: number;
+  sub_processors: { what: string; who: string }[];
+};
+
+export type AccessLog = {
+  keep_days: number;
+  events: { at: string; who: string | null; action: string; detail: string | null; ip: string | null }[];
+};
+
 export type ReviewQueue = {
   count: number;
   items: {
@@ -1213,7 +1233,15 @@ export type Rules = {
 
 async function authHeaders(): Promise<Record<string, string>> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  // Who is asking, for the access log Lekhara keeps (CERT-In asks for 180 days of it).
+  const incoming = await headers();
+  const ip = (incoming.get("x-forwarded-for") ?? incoming.get("x-real-ip") ?? "").split(",")[0].trim();
+  const agent = incoming.get("user-agent") ?? "";
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(ip ? { "X-Lekhara-Client-IP": ip } : {}),
+    ...(agent ? { "X-Lekhara-User-Agent": agent.slice(0, 300) } : {}),
+  };
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -1342,6 +1370,8 @@ export const api = {
   purchases: (projectId: string) => get<Purchases>(`/projects/${projectId}/purchases`),
   inbound: (projectId: string) => get<Inbound>(`/projects/${projectId}/inbound`),
   review: () => get<ReviewQueue>("/review"),
+  legal: () => get<LegalInfo>("/legal"),
+  accessLog: () => get<AccessLog>("/organization/access-log"),
   gstImports: (projectId: string) => get<GstList>(`/projects/${projectId}/gst`),
   gst: (id: string) => get<GstReview>(`/gst/${id}`),
   connectors: (projectId: string) => get<ConnectorList>(`/projects/${projectId}/connectors`),

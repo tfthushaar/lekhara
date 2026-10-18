@@ -3,6 +3,9 @@ import { Suspense } from "react";
 
 import {
   addSender,
+  closeFirm,
+  deleteAccount,
+  keepFirm,
   addStatementPassword,
   cancelInvitation,
   changeRole,
@@ -85,6 +88,8 @@ async function SettingsView() {
           <p className="small">The owner or finance can download it.</p>
         )}
       </section>
+
+      <YourAccount f={f} />
 
       <Suspense fallback={<p className="loading">Loading email settings</p>}>
         <EmailIn />
@@ -363,5 +368,119 @@ async function EmailIn() {
         </div>
       </div>
     </section>
+  );
+}
+
+function YourAccount({ f }: { f: Firm }) {
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>Your account and your firm&apos;s data</h2>
+        <p>
+          <a href="/legal/privacy" className="link-action">
+            Privacy notice
+          </a>
+        </p>
+      </div>
+      {f.delete_after ? (
+        <p className="notice" style={{ marginTop: 16 }}>
+          {`The firm's account is closing: its data will be deleted after ${f.delete_after}. Download everything before then.`}
+        </p>
+      ) : null}
+      {f.can_manage ? (
+        <Suspense fallback={null}>
+          <AccessLogView />
+        </Suspense>
+      ) : null}
+      <details className="disclosure">
+        <summary>Delete my account</summary>
+        <p className="small muted" style={{ maxWidth: 640 }}>
+          Your name and email are taken out of Lekhara and you are signed out. What you did stays in the records, under
+          &quot;A former user&quot;. If you are the firm&apos;s only owner, make someone else an owner first.
+        </p>
+        <ActionForm action={deleteAccount} label="Delete my account" pendingLabel="Deleting" secondary>
+          <div className="field" style={{ maxWidth: 360 }}>
+            <label htmlFor="delete-password">Your password</label>
+            <input id="delete-password" name="password" type="password" autoComplete="current-password" required />
+          </div>
+        </ActionForm>
+      </details>
+      {f.is_owner && !f.is_sample ? (
+        f.delete_after ? (
+          <div style={{ marginTop: 16 }}>
+            <ActionForm action={keepFirm} label="Keep the firm's account open" pendingLabel="Saving" secondary />
+          </div>
+        ) : (
+          <details className="disclosure">
+            <summary>Close the firm&apos;s account</summary>
+            <p className="small muted" style={{ maxWidth: 640 }}>
+              Everything stays readable and downloadable for 30 days, and can be kept by changing your mind. After that, all
+              of the firm&apos;s projects, records and documents are deleted, and the people who worked only for it are
+              taken out.
+            </p>
+            <ActionForm action={closeFirm} label="Close the firm's account" pendingLabel="Closing" secondary>
+              <div className="field" style={{ maxWidth: 360 }}>
+                <label htmlFor="close-confirm">{`Type ${f.name} to confirm`}</label>
+                <input id="close-confirm" name="confirm" autoComplete="off" required />
+              </div>
+            </ActionForm>
+          </details>
+        )
+      ) : null}
+    </section>
+  );
+}
+
+const ACTION_LABEL: Record<string, string> = {
+  sign_in: "Signed in",
+  sign_in_failed: "Failed sign-in",
+  signed_up: "Signed up",
+  password_reset: "Reset the password",
+  terms_accepted: "Accepted the terms",
+  workspace_exported: "Downloaded everything",
+  document_opened: "Opened a document",
+  invitation_sent: "Invited someone",
+  invitation_accepted: "Joined",
+  role_changed: "Changed a role",
+  member_removed: "Removed someone",
+  account_deleted: "Deleted their account",
+  firm_close_requested: "Asked to close the firm",
+  firm_close_cancelled: "Kept the firm open",
+};
+
+async function AccessLogView() {
+  const log = await api.accessLog();
+  return (
+    <details className="disclosure">
+      <summary>{`Access log (${log.events.length} recent)`}</summary>
+      <p className="small muted">{`Sign-ins, downloads and changes to who may do what, kept ${log.keep_days} days.`}</p>
+      {log.events.length === 0 ? (
+        <p className="empty">Nothing yet.</p>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Who</th>
+              <th>What</th>
+              <th>From</th>
+            </tr>
+          </thead>
+          <tbody>
+            {log.events.slice(0, 100).map((e, i) => (
+              <tr key={`${e.at}-${i}`}>
+                <td className="nowrap">{e.at.replace("T", ", ").slice(0, 17)}</td>
+                <td>{e.who ?? ""}</td>
+                <td>
+                  {ACTION_LABEL[e.action] ?? e.action}
+                  {e.detail ? <span className="small muted">{` ${e.detail}`}</span> : null}
+                </td>
+                <td className="small muted">{e.ip ?? ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </details>
   );
 }

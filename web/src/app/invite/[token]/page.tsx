@@ -79,6 +79,17 @@ async function Invitation({ params }: { params: Promise<{ token: string }> }) {
             required
           />
         </div>
+        {invite.has_account ? null : (
+          <div className="checks" style={{ marginTop: 4 }}>
+            <label>
+              <input type="checkbox" name="accept_terms" value="yes" required />
+              <span className="small">
+                I agree to the <a href="/legal/terms" target="_blank">terms of service</a> and the{" "}
+                <a href="/legal/privacy" target="_blank">privacy notice</a>.
+              </span>
+            </label>
+          </div>
+        )}
       </ActionForm>
     </>
   );

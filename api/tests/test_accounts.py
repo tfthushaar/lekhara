@@ -15,7 +15,14 @@ PASSWORD = "a-long-password"
 def join(app, *, email: str, firm: str = "Kaveri Homes", name: str = "Anil") -> TestClient:
     client = TestClient(app)
     r = client.post(
-        "/auth/signup", json={"name": name, "email": email, "password": PASSWORD, "firm": firm}
+        "/auth/signup",
+        json={
+            "accept_terms": True,
+            "name": name,
+            "email": email,
+            "password": PASSWORD,
+            "firm": firm,
+        },
     )
     assert r.status_code == 201, r.text
     client.headers["Authorization"] = f"Bearer {r.json()['token']}"
@@ -67,10 +74,25 @@ def test_signing_up_starts_a_free_month(app) -> None:
 def test_signup_checks_its_input(app) -> None:
     client = TestClient(app)
     base = {"name": "A", "email": "a@b.in", "password": PASSWORD, "firm": "F"}
-    assert client.post("/auth/signup", json={**base, "password": "short"}).status_code == 400
-    assert client.post("/auth/signup", json={**base, "email": "not-an-email"}).status_code == 400
-    assert client.post("/auth/signup", json={**base, "firm": " "}).status_code == 400
-    taken = client.post("/auth/signup", json={**base, "email": "Promoter@demo.lekhara"})
+    assert (
+        client.post(
+            "/auth/signup", json={"accept_terms": True, **base, "password": "short"}
+        ).status_code
+        == 400
+    )
+    assert (
+        client.post(
+            "/auth/signup", json={"accept_terms": True, **base, "email": "not-an-email"}
+        ).status_code
+        == 400
+    )
+    assert (
+        client.post("/auth/signup", json={"accept_terms": True, **base, "firm": " "}).status_code
+        == 400
+    )
+    taken = client.post(
+        "/auth/signup", json={"accept_terms": True, **base, "email": "Promoter@demo.lekhara"}
+    )
     assert taken.status_code == 409
 
 
@@ -182,7 +204,8 @@ def test_inviting_the_team_and_a_certifier(app, engine) -> None:
         False,
     )
     accepted = public.post(
-        f"/invitations/{token}/accept", json={"name": "Ravi", "password": PASSWORD}
+        f"/invitations/{token}/accept",
+        json={"accept_terms": True, "name": "Ravi", "password": PASSWORD},
     )
     assert accepted.status_code == 200, accepted.text
     ravi = TestClient(app, headers={"Authorization": f"Bearer {accepted.json()['token']}"})
@@ -206,7 +229,12 @@ def test_inviting_the_team_and_a_certifier(app, engine) -> None:
     token = r.json()["link"].rsplit("/", 1)[1]
     accepted = public.post(
         f"/invitations/{token}/accept",
-        json={"name": "Shobha", "password": PASSWORD, "firm": "Shobha and Co"},
+        json={
+            "accept_terms": True,
+            "name": "Shobha",
+            "password": PASSWORD,
+            "firm": "Shobha and Co",
+        },
     )
     ca = TestClient(app, headers={"Authorization": f"Bearer {accepted.json()['token']}"})
     detail = ca.get(f"/projects/{project}").json()
@@ -241,7 +269,8 @@ def test_managing_the_team(app) -> None:
     r = owner.post("/organization/invitations", json={"email": "f@k.in", "role": "finance"})
     token = r.json()["link"].rsplit("/", 1)[1]
     accepted = TestClient(app).post(
-        f"/invitations/{token}/accept", json={"name": "F", "password": PASSWORD}
+        f"/invitations/{token}/accept",
+        json={"accept_terms": True, "name": "F", "password": PASSWORD},
     )
     finance = TestClient(app, headers={"Authorization": f"Bearer {accepted.json()['token']}"})
     assert (

@@ -31,8 +31,10 @@ from lekhara.config import get_settings
 from lekhara.db import Base, make_engine, make_sessionmaker
 from lekhara.engines.documents import REQUIREMENTS
 from lekhara.engines.tax import financial_year
+from lekhara.legal import VERSION
 from lekhara.migrate import upgrade
 from lekhara.models import (
+    Acceptance,
     Bill,
     ChecklistWaiver,
     Commitment,
@@ -146,6 +148,13 @@ def seed_people(session: Session, org: Organization, projects: list[Project]) ->
                         user_id=user.id, project_id=project.id, role=account.certifier_role
                     )
                 )
+        # The demo accounts have accepted the current terms, as a real account would have.
+        for document in ("terms", "privacy"):
+            session.add(
+                Acceptance(
+                    user_id=user.id, organization_id=org.id, document=document, version=VERSION
+                )
+            )
     session.flush()
     return users
 
