@@ -34,6 +34,7 @@ from lekhara.config import Settings, get_settings
 from lekhara.db import make_engine, make_sessionmaker
 from lekhara.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
 from lekhara.engines.obligations import ObligationStatus, sort_obligations
+from lekhara.gst import service as gst
 from lekhara.migrate import upgrade
 from lekhara.models import (
     Bill,
@@ -167,6 +168,10 @@ class ConnectorLink(BaseModel):
 class ConnectorBeat(BaseModel):
     state: str | None = None
     company: str | None = None
+
+
+class GstOptions(BaseModel):
+    add_missing: bool | None = None
 
 
 class StatementOptions(BaseModel):
@@ -1667,6 +1672,67 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             vouchers=await part("vouchers"),
             company=str(form.get("company") or "") or None,
         )
+
+    # GSTR-2B from the GST portal
+
+    def gst_for(session: Session, me: auth.Principal, import_id: str, *, edit=False):
+        row = gst.get_import(session, import_id)
+        p = services.get_project(session, row.project_id)
+        if edit:
+            auth.require_prepare(me, p)
+        else:
+            auth.require_team(me, p)
+        return row, p
+
+    def gst_view(session: Session, me: auth.Principal, row, p: Project) -> dict:
+        ret, plan = gst.review(session, app.state.storage, row)
+        editable = me.can_prepare(p) and not me.views_as_sample(p)
+        return views.gst_review(row, ret, plan, p, can_edit=editable, can_undo=gst.can_undo(row))
+
+    @app.post("/projects/{project_id}/gst", status_code=201)
+    def upload_gst(project_id: str, session: SessionDep, me: Me, file: UploadFile) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        data = file.file.read(settings.max_upload_mb * 1_000_000 + 1)
+        if len(data) > settings.max_upload_mb * 1_000_000:
+            raise ServiceError(f"Files can be up to {settings.max_upload_mb} MB.")
+        row = gst.upload(
+            session, app.state.storage, p, filename=file.filename or "gstr2b", data=data,
+            user_id=me.user_id,
+        )  # fmt: skip
+        return {"id": row.id}
+
+    @app.get("/projects/{project_id}/gst")
+    def list_gst(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return {
+            "can_import": me.can_prepare(p) and not me.views_as_sample(p),
+            "imports": [views.gst_row(r) for r in gst.project_imports(session, p)],
+        }
+
+    @app.get("/gst/{import_id}")
+    def get_gst(import_id: str, session: SessionDep, me: Me) -> dict:
+        row, p = gst_for(session, me, import_id)
+        return gst_view(session, me, row, p)
+
+    @app.put("/gst/{import_id}/options")
+    def gst_options(import_id: str, body: GstOptions, session: SessionDep, me: Me) -> dict:
+        row, p = gst_for(session, me, import_id, edit=True)
+        gst.set_options(session, row, body.model_dump(exclude_unset=True))
+        return gst_view(session, me, row, p)
+
+    @app.post("/gst/{import_id}/apply")
+    def apply_gst(import_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        row, p = gst_for(session, me, import_id, edit=True)
+        gst.apply(session, app.state.storage, row, as_of=on, user_id=me.user_id)
+        return gst_view(session, me, row, p)
+
+    @app.post("/gst/{import_id}/undo")
+    def undo_gst(import_id: str, session: SessionDep, me: Me) -> dict:
+        row, p = gst_for(session, me, import_id, edit=True)
+        gst.undo(session, row, user_id=me.user_id)
+        return gst_view(session, me, row, p)
 
     # Today
 

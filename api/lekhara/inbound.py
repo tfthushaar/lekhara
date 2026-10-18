@@ -308,7 +308,11 @@ def messages_of(session: Session, project: Project, limit: int = 20) -> list[Inb
 
 
 def classify(filename: str, data: bytes) -> str:
-    """tally, sheet, pdf or document."""
+    """tally, gst, sheet, pdf or document."""
+    from lekhara.gst.reader import looks_like
+
+    if looks_like(filename, data):
+        return "gst"
     kind = detect(filename, data)
     if kind in ("xml", "json"):
         head = decode(data[:20000]).casefold()
@@ -445,6 +449,13 @@ def route(
     item.kind = kind
     if kind == "tally":
         _tally(session, storage, settings, project, item, data)
+    elif kind == "gst":
+        from lekhara.gst import service as gst
+
+        row = gst.upload(session, storage, project, filename=item.filename, data=data, user_id=None)
+        item.result_type, item.result_id = "gst_import", row.id
+        item.status = "review"
+        item.note = f"A {row.form} with {row.invoices} invoices: check it against your bills."
     elif kind == "sheet":
         if _statement(session, storage, settings, project, item, data):
             return

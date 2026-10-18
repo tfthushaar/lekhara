@@ -314,12 +314,15 @@ async function EmailIn() {
             </ul>
           )}
           {e.can_edit ? (
-            <ActionForm action={addSender} label="Trust this sender" pendingLabel="Adding" secondary>
-              <div className="field">
-                <label htmlFor="sender-address">Email address or @domain</label>
-                <input id="sender-address" name="address" placeholder="statements@bank.example" required />
-              </div>
-            </ActionForm>
+            <details className="disclosure">
+              <summary>Add a trusted sender</summary>
+              <ActionForm action={addSender} label="Trust this sender" pendingLabel="Adding" secondary>
+                <div className="field">
+                  <label htmlFor="sender-address">Email address or @domain</label>
+                  <input id="sender-address" name="address" placeholder="statements@bank.example" required />
+                </div>
+              </ActionForm>
+            </details>
           ) : null}
         </div>
         <div>
@@ -343,16 +346,19 @@ async function EmailIn() {
             </ul>
           )}
           {e.can_edit ? (
-            <ActionForm action={addStatementPassword} label="Keep the password" pendingLabel="Keeping it" secondary>
-              <div className="field">
-                <label htmlFor="password-label">For which account or bank</label>
-                <input id="password-label" name="label" placeholder="HDFC collection account" required />
-              </div>
-              <div className="field">
-                <label htmlFor="password-value">Password</label>
-                <input id="password-value" name="password" type="password" autoComplete="off" required />
-              </div>
-            </ActionForm>
+            <details className="disclosure">
+              <summary>Add a statement password</summary>
+              <ActionForm action={addStatementPassword} label="Keep the password" pendingLabel="Keeping it" secondary>
+                <div className="field">
+                  <label htmlFor="password-label">For which account or bank</label>
+                  <input id="password-label" name="label" placeholder="HDFC collection account" required />
+                </div>
+                <div className="field">
+                  <label htmlFor="password-value">Password</label>
+                  <input id="password-value" name="password" type="password" autoComplete="off" required />
+                </div>
+              </ActionForm>
+            </details>
           ) : null}
         </div>
       </div>

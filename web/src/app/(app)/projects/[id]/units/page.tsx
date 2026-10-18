@@ -7,18 +7,43 @@ import { UnitFields } from "@/components/unit-fields";
 import { api } from "@/lib/api";
 import { inr, pct } from "@/lib/format";
 
-export default function UnitsPage({ params }: PageProps<"/projects/[id]/units">) {
+export default function UnitsPage({ params, searchParams }: PageProps<"/projects/[id]/units">) {
   return (
     <Suspense fallback={<p className="loading">Loading units and landowners</p>}>
-      <UnitsView params={params} />
+      <UnitsView params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function UnitsView({ params }: { params: Promise<{ id: string }> }) {
+const PAGE = 50;
+
+async function UnitsView({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
+  const query = await searchParams;
+  const one = (key: string) => (typeof query[key] === "string" ? (query[key] as string) : "");
+  const [tower, status, search, all] = [one("tower"), one("status"), one("q").trim(), one("all") === "1"];
   const [u, list] = await Promise.all([api.units(id), api.imports(id)]);
   const s = u.summary;
+  const towers = [...new Set(u.units.map((x) => x.tower).filter(Boolean))].sort();
+  const needle = search.toLowerCase();
+  const shown = u.units.filter(
+    (x) =>
+      (!tower || x.tower === tower) &&
+      (!status ||
+        (status === "sold" && x.booked) ||
+        (status === "unsold" && !x.booked && x.owner_share !== "landowner") ||
+        (status === "landowner" && x.owner_share === "landowner") ||
+        (status === "below" && x.below_guidance)) &&
+      (!needle || x.label.toLowerCase().includes(needle) || (x.buyer_name ?? "").toLowerCase().includes(needle)),
+  );
+  const filtered = Boolean(tower || status || needle);
+  const visible = all ? shown : shown.slice(0, PAGE);
 
   return (
     <>
@@ -130,6 +155,46 @@ async function UnitsView({ params }: { params: Promise<{ id: string }> }) {
             No units yet. Import them from your sales sheet, or add them one by one.
           </p>
         ) : null}
+        {u.units.length > 0 ? (
+          <form method="get" className="filters">
+            <div className="field">
+              <label htmlFor="units-q">Unit or buyer</label>
+              <input id="units-q" name="q" defaultValue={search} placeholder="A-0101 or a name" />
+            </div>
+            {towers.length > 1 ? (
+              <div className="field">
+                <label htmlFor="units-tower">Tower</label>
+                <select id="units-tower" name="tower" defaultValue={tower}>
+                  <option value="">All towers</option>
+                  {towers.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            <div className="field">
+              <label htmlFor="units-status">Which</label>
+              <select id="units-status" name="status" defaultValue={status}>
+                <option value="">All units</option>
+                <option value="sold">Sold</option>
+                <option value="unsold">Not sold</option>
+                <option value="landowner">Landowner&apos;s</option>
+                <option value="below">Priced below guidance</option>
+              </select>
+            </div>
+            <button type="submit" className="button button-secondary">
+              Show
+            </button>
+            {filtered ? (
+              <Link href={`/projects/${id}/units`} className="link-action">
+                Clear
+              </Link>
+            ) : null}
+          </form>
+        ) : null}
+        {filtered ? <p className="small muted">{`${shown.length} of ${u.units.length} units`}</p> : null}
         <table className="table">
           <thead>
             <tr>
@@ -144,7 +209,7 @@ async function UnitsView({ params }: { params: Promise<{ id: string }> }) {
             </tr>
           </thead>
           <tbody>
-            {u.units.map((unit) => (
+            {visible.map((unit) => (
               <tr key={unit.id}>
                 <td>
                   <Link href={`/units/${unit.id}`}>{unit.label}</Link>
@@ -160,6 +225,16 @@ async function UnitsView({ params }: { params: Promise<{ id: string }> }) {
             ))}
           </tbody>
         </table>
+        {!all && shown.length > PAGE ? (
+          <p className="small" style={{ marginTop: 12 }}>
+            <Link
+              href={`/projects/${id}/units?${new URLSearchParams({ ...(tower && { tower }), ...(status && { status }), ...(search && { q: search }), all: "1" })}`}
+              className="link-action"
+            >
+              {`Show all ${shown.length} units`}
+            </Link>
+          </p>
+        ) : null}
       </section>
     </>
   );

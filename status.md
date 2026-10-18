@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Add the Lekhara Connector for Tally".
+Last updated: 2026-10-18, with the commit "Add GSTR-2B checks".
 
 ## What we are building
 
@@ -174,9 +174,24 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - A firm whose free month has ended unpaid takes no new data from its connectors.
   - Tested with a stand-in Tally on the real program: linking with a code from the Import page, a sync brought in, the next one sending nothing, the computer shown as connected, choices in the review queue, and the connector stopped once unlinked. To be tested against TallyPrime itself at a design partner.
 
+- GSTR-2B from the GST portal:
+  - Upload or forward the GSTR-2B downloaded from the portal (JSON or Excel), or a GSTR-2A (JSON). Lekhara reads the suppliers' invoices and notes in it, whichever layout, and checks them against the project's bills, matching on the supplier's GSTIN (or name, for a supplier without one in Lekhara) and the invoice number however it is written.
+  - It shows the invoices that agree, those whose amounts differ, bills in Lekhara for the month that the supplier has not reported (their credit, and their standing as from a registered supplier for the 80% test, are at risk until the supplier files), invoices the GST system has with no bill in Lekhara, suppliers whose GSTIN Lekhara lacks, credit and debit notes, and invoices on which credit is not available. A return for another GSTIN than the firm's is flagged.
+  - Bringing it in fills in suppliers' GSTINs, adds suppliers who are not in Lekhara, and, if chosen, adds the missing invoices as bills (off by default for firms whose bills come from Tally, so nothing is counted twice or looks unpaid). Undo takes it out again within 30 days.
+  - A return waiting to be checked is in the review queue; one forwarded to the project's email address comes in for checking.
+  - Built to the layouts the portal gives and tested on sample returns in them; to be tested against real downloads from design partners. Fetching GSTR-2B by itself through a GST Suvidha Provider needs a GSP account and is still to do.
+  - Tested end to end: a GSTR-2B checked against bills with an unreported bill, a supplier's GSTIN and missing invoices found, shown in the review queue, and brought in.
+
+- A tidier frontend, so pages stay clean as features are added:
+  - The Import page is a short list of ways in (Tally, bank statement, GST portal, units, buyer payments, suppliers and bills), one line each until opened for its steps and upload, with the project's email address above and one list of everything brought in below, newest first.
+  - Project tabs: the work (Overview, Escrow, Collections, Handover, Disputes, Tax, Documents) as tabs, and the records (Units, Suppliers, Budget, Import, Set-up) as a quieter group on the right, so Import is always one click away.
+  - Today shows everything that needs you now in full and the first three of each other group, with the rest a click away; a project's Overview shows what is late, due soon or at risk, with money waiting, what is coming up and the cost lines folded away.
+  - The units list has filters (tower, sold or not, the landowner's, priced below guidance) and a search by unit or buyer, and shows fifty at a time.
+  - Long tables on review pages (every transaction in a statement, every invoice in a GST return, what a Tally file holds) and forms in Settings open on request; columns with nothing in them are left out.
+
 ## In progress
 
-- GSTR-2B from the GST portal: the builder downloads GSTR-2B (the suppliers' invoices the GST system holds for them) as JSON or Excel and uploads or forwards it; Lekhara checks each supplier's GSTIN and registration, fills in suppliers and their bills, and flags bills in Lekhara or Tally that the GST system does not have (input credit at risk) and invoices it has that Lekhara does not. Then the same through a GST Suvidha Provider, with the builder's one-time password about once a month.
+- Research: Indian law for running Lekhara as a SaaS (data protection, IT Act and CERT-In, GST on the subscription, recurring payments, consumer and contract law, professional rules for CAs and lawyers, AI), and what the product and the company must do to comply.
 
 ## Left
 
@@ -191,7 +206,7 @@ In this order:
 - Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, engines that work with partial data and say what is missing, first-run help.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
 - S3-compatible file storage.
-- Automatic feeds, decided on 2026-10-18 (everything except what needs a bank partnership), still to do: Sell.Do and other CRMs by API; the GST portal (GSTR-2B files, then through a GSP with an OTP about once a month). Bank APIs and the Account Aggregator wait.
+- Automatic feeds, decided on 2026-10-18 (everything except what needs a bank partnership), still to do: Sell.Do and other CRMs by API; GSTR-2B fetched through a GSP (an OTP about once a month), once there is a GSP account. Bank APIs and the Account Aggregator wait.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
 - Collections, next steps: reminders through the team's own WhatsApp or email.
 - Registration and handover, next steps: possession letters, the association handover checklist.

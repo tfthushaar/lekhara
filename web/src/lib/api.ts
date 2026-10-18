@@ -363,6 +363,7 @@ export type Units = {
     agreement_value: string | null;
     guidance_value: string;
     below_guidance: boolean;
+    buyer_name: string | null;
   }[];
 };
 
@@ -781,6 +782,49 @@ export type ImportList = {
   }[];
 };
 
+export type GstRow = {
+  id: string;
+  filename: string;
+  form: string;
+  gstin: string | null;
+  period: string | null;
+  period_label: string | null;
+  invoices: number;
+  status: "review" | "applied" | "undone";
+  created_at: string;
+};
+
+export type GstList = { can_import: boolean; imports: GstRow[] };
+
+export type GstReview = GstRow & {
+  project_id: string;
+  project_name: string;
+  can_edit: boolean;
+  can_undo: boolean;
+  add_missing: boolean;
+  counts: Record<string, number>;
+  alerts: TallyAlert[];
+  lines: {
+    supplier_gstin: string;
+    supplier_name: string | null;
+    number: string;
+    date: string | null;
+    kind: "invoice" | "credit_note" | "debit_note";
+    taxable: string;
+    gst: string;
+    value: string;
+    itc_available: boolean | null;
+    reverse_charge: boolean;
+    outcome: "matched" | "differs" | "missing" | "note";
+    note: string;
+    bill_id: string | null;
+  }[];
+  unreported: { bill_id: string; supplier: string; bill_no: string; bill_date: string; taxable: string }[];
+  new_suppliers: { gstin: string; name: string }[];
+  gstin_updates: { vendor_id: string; name: string; gstin: string }[];
+  result: { gstins: string[]; suppliers: string[]; bills: string[] } | null;
+};
+
 export type ConnectorRow = {
   id: string;
   kind: string;
@@ -804,7 +848,7 @@ export type ReviewQueue = {
   items: {
     project_id: string;
     project_name: string;
-    kind: "bank" | "tally" | "sheet" | "mail";
+    kind: "bank" | "tally" | "sheet" | "mail" | "gst";
     title: string;
     detail: string;
     href: string;
@@ -1298,6 +1342,8 @@ export const api = {
   purchases: (projectId: string) => get<Purchases>(`/projects/${projectId}/purchases`),
   inbound: (projectId: string) => get<Inbound>(`/projects/${projectId}/inbound`),
   review: () => get<ReviewQueue>("/review"),
+  gstImports: (projectId: string) => get<GstList>(`/projects/${projectId}/gst`),
+  gst: (id: string) => get<GstReview>(`/gst/${id}`),
   connectors: (projectId: string) => get<ConnectorList>(`/projects/${projectId}/connectors`),
   inboundSettings: () => get<InboundSettings>("/organization/inbound"),
   bill: (id: string) => get<BillDetail>(`/bills/${id}`),

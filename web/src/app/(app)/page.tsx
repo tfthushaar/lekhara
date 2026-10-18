@@ -114,13 +114,23 @@ async function TodayView() {
         </div>
       </div>
 
-      {SECTIONS.map((section) => (
+      {SECTIONS.map((section, i) => (
         <section key={section.title} className="section">
           <div className="section-head">
             <h2>{section.title}</h2>
             <p>{section.note}</p>
           </div>
-          <ObligationRows items={pick(section.statuses)} today={today.as_of} empty={section.empty} />
+          <ObligationRows
+            items={i === 0 ? pick(section.statuses) : pick(section.statuses).slice(0, 3)}
+            today={today.as_of}
+            empty={section.empty}
+          />
+          {i > 0 && pick(section.statuses).length > 3 ? (
+            <details className="disclosure">
+              <summary>{`${pick(section.statuses).length - 3} more`}</summary>
+              <ObligationRows items={pick(section.statuses).slice(3)} today={today.as_of} />
+            </details>
+          ) : null}
         </section>
       ))}
     </>

@@ -157,14 +157,12 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
       ) : null}
 
       <section className="section">
-        <div className="section-head">
-          <h2>Every transaction</h2>
-          <p>
+        <details className="disclosure">
+          <summary>{`Every transaction in the statement (${s.lines.length})`}</summary>
+          <p className="small muted">
             {`Read from the columns ${Object.values(s.columns).join(", ")}`}
-            {s.reversed_order ? "; the bank listed the newest first, so Lekhara put them in order" : ""}
+            {s.reversed_order ? "; the bank listed the newest first, so Lekhara put them in order" : ""}.
           </p>
-        </div>
-        <div>
           <table className="table" style={{ marginTop: 12 }}>
             <thead>
               <tr>
@@ -200,7 +198,7 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </details>
       </section>
 
       {s.can_apply ? (

@@ -341,6 +341,37 @@ export async function unlinkConnector(connectorId: string, _previous: ActionStat
   return {};
 }
 
+export async function uploadGst(projectId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose the GSTR-2B downloaded from the GST portal." };
+  const body = new FormData();
+  body.append("file", file, file.name);
+  const result = await sendForm<{ id: string }>(`/projects/${projectId}/gst`, body);
+  if (!result.ok) return { error: result.error };
+  redirect(`/gst/${result.data.id}`);
+}
+
+export async function gstChoices(importId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("PUT", `/gst/${importId}/options`, { add_missing: form.get("add_missing") === "yes" });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function applyGst(importId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/gst/${importId}/apply`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function undoGst(importId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/gst/${importId}/undo`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function uploadStatement(
   projectId: string,
   _previous: ActionState,

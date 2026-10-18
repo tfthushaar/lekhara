@@ -19,6 +19,8 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
   const setup = project.access.team ? await api.setup(id) : null;
   const next = setup?.items.find((i) => i.key === setup.summary.next);
   const m = project.money;
+  const urgent = project.obligations.filter((o) => ["overdue", "due_soon", "at_risk"].includes(o.status));
+  const later = project.obligations.filter((o) => !urgent.includes(o));
   const over = Number(m.anticipated_final_cost) - Number(m.budget);
   const sum = (key: "budget" | "committed" | "incurred" | "paid" | "anticipated_final_cost") =>
     String(money.lines.reduce((total, line) => total + Number(line[key]), 0));
@@ -94,22 +96,19 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
           <h2>What this project owes</h2>
           <p>To K-RERA, the escrow bank, tax authorities, buyers and landowners</p>
         </div>
-        <ObligationRows
-          items={project.obligations}
-          today={m.as_of}
-          showProject={false}
-          empty="Nothing is owed right now."
-        />
+        <ObligationRows items={urgent} today={m.as_of} showProject={false} empty="Nothing is late or due soon." />
+        {later.length > 0 ? (
+          <details className="disclosure">
+            <summary>{`Money waiting and coming up (${later.length})`}</summary>
+            <ObligationRows items={later} today={m.as_of} showProject={false} />
+          </details>
+        ) : null}
       </section>
 
       <section className="section">
-        <div className="section-head">
-          <h2>Cost lines</h2>
-          <p>
-            Final cost is the larger of budget, committed and incurred. Contingency covers overruns
-            first.
-          </p>
-        </div>
+        <details className="disclosure">
+          <summary>{`Cost lines (${money.lines.length}): budget, committed, incurred, paid and final cost`}</summary>
+          <p className="small muted">Final cost is the larger of budget, committed and incurred. Contingency covers overruns first.</p>
         <table className="table">
           <thead>
             <tr>
@@ -147,6 +146,7 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
             </tr>
           </tfoot>
         </table>
+        </details>
       </section>
     </>
   );

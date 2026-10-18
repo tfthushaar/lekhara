@@ -939,6 +939,33 @@ class Connector(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class GstImport(Base):
+    """A GSTR-2B (or GSTR-2A) downloaded from the GST portal: the suppliers' invoices the GST
+    system holds for the firm, checked against the project's bills."""
+
+    __tablename__ = "gst_imports"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    filename: Mapped[str] = mapped_column(String(300))
+    storage_key: Mapped[str] = mapped_column(String(200))
+    form: Mapped[str] = mapped_column(String(16), default="GSTR-2B")
+    gstin: Mapped[str | None] = mapped_column(String(15))
+    """Whose return it is: the firm's GSTIN, as the file says."""
+    period: Mapped[str | None] = mapped_column(String(16))
+    """The return period, as MMYYYY."""
+    invoices: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(16), default="review")
+    """review, applied or undone."""
+    options: Mapped[str] = mapped_column(Text, default="{}")
+    result: Mapped[str | None] = mapped_column(Text)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime)
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class Job(Base):
     """Work done in the background: an email to read, a mailbox to check."""
 

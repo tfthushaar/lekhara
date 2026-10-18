@@ -17,6 +17,7 @@ from lekhara.config import Settings
 from lekhara.models import (
     BankStatement,
     Connector,
+    GstImport,
     ImportBatch,
     InboundItem,
     InboundMessage,
@@ -140,6 +141,18 @@ def waiting(
             "A Tally export to bring in",
             f"{row.filename}{f' from {row.company}' if row.company else ''}: check its choices.",
             f"/tally/{row.id}",
+            row.created_at,
+        )
+
+    for row in session.scalars(
+        select(GstImport).where(GstImport.project_id.in_(ids), GstImport.status == "review")
+    ):
+        add(
+            row.project_id,
+            "gst",
+            f"A {row.form} to check",
+            f"{row.filename}: {row.invoices} suppliers' invoices to check against your bills.",
+            f"/gst/{row.id}",
             row.created_at,
         )
 

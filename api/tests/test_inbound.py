@@ -284,3 +284,14 @@ def test_only_the_team_sees_a_project_mailbox(mail_app, architect, engine) -> No
         assert session.get(Project, project).mail_token
         assert session.query(InboundMessage).count() == 0
     assert architect.get(f"/projects/{project}/inbound").status_code == 404
+
+
+def test_an_emailed_gstr2b_waits_to_be_checked(mail_app) -> None:
+    import gst_samples
+
+    client, project, address = firm(mail_app)
+    post(mail_app, mail(address, [("GSTR2B_092026.json", gst_samples.gstr2b_json())]))
+    run(mail_app)
+    [item] = items(client, project)
+    assert item["status"] == "review" and item["link"].startswith("/gst/")
+    assert "GSTR-2B" in item["note"]

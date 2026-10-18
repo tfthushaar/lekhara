@@ -506,6 +506,7 @@ def units(s: ProjectSnapshot, rows: list[Unit], owners: list[Landowner]) -> dict
                 "agreement_value": m(u.agreement_value),
                 "guidance_value": m(u.guidance_value),
                 "below_guidance": u.label in flagged,
+                "buyer_name": u.buyer_name,
             }
             for u in rows
         ],
@@ -1959,6 +1960,7 @@ INBOUND_LINK = {
     "bank_statement": "/bank/{}",
     "import_batch": "/imports/{}",
     "document": "/documents/{}",
+    "gst_import": "/gst/{}",
 }
 
 
@@ -2024,4 +2026,91 @@ def connector_row(c) -> dict:
         "last_state": c.last_state,
         "last_import_id": c.last_import_id,
         "code_expires_at": at(c.code_expires_at),
+    }
+
+
+# GSTR-2B
+
+_MONTHS = (
+    "January", "February", "March", "April", "May", "June", "July", "August", "September",
+    "October", "November", "December",
+)  # fmt: skip
+
+
+def period_label(period: str | None) -> str | None:
+    from lekhara.gst.plan import period_month
+
+    month = period_month(period)
+    return f"{_MONTHS[month[1] - 1]} {month[0]}" if month else period
+
+
+def gst_row(row) -> dict:
+    return {
+        "id": row.id,
+        "filename": row.filename,
+        "form": row.form,
+        "gstin": row.gstin,
+        "period": row.period,
+        "period_label": period_label(row.period),
+        "invoices": row.invoices,
+        "status": row.status,
+        "created_at": row.created_at.replace(microsecond=0).isoformat(),
+    }
+
+
+def gst_review(row, ret, plan, project: Project, *, can_edit: bool, can_undo: bool) -> dict:
+    from lekhara.gst.service import options
+
+    return {
+        **gst_row(row),
+        "project_id": project.id,
+        "project_name": project.name,
+        "can_edit": can_edit and row.status == "review",
+        "can_undo": can_edit and can_undo,
+        "add_missing": bool(options(row).get("add_missing")),
+        "counts": plan.counts,
+        "alerts": [
+            {
+                "level": a.level,
+                "code": a.code,
+                "title": a.title,
+                "detail": a.detail,
+                "fix": a.fix,
+                "items": a.items,
+            }
+            for a in plan.alerts
+        ],
+        "lines": [
+            {
+                "supplier_gstin": x.invoice.supplier_gstin,
+                "supplier_name": x.invoice.supplier_name,
+                "number": x.invoice.number,
+                "date": d(x.invoice.on),
+                "kind": x.invoice.kind,
+                "taxable": m(x.invoice.taxable),
+                "gst": m(x.invoice.gst),
+                "value": m(x.invoice.value),
+                "itc_available": x.invoice.itc_available,
+                "reverse_charge": x.invoice.reverse_charge,
+                "outcome": x.outcome,
+                "note": x.note,
+                "bill_id": x.bill_id,
+            }
+            for x in plan.lines
+        ],
+        "unreported": [
+            {
+                "bill_id": b.id,
+                "supplier": b.vendor_name,
+                "bill_no": b.bill_no,
+                "bill_date": d(b.bill_date),
+                "taxable": m(b.taxable),
+            }
+            for b in plan.unreported
+        ],
+        "new_suppliers": [{"gstin": g, "name": n} for g, n in plan.new_suppliers.items()],
+        "gstin_updates": [
+            {"vendor_id": v.id, "name": v.name, "gstin": g} for v, g, _ in plan.gstin_updates
+        ],
+        "result": json.loads(row.result) if row.result else None,
     }

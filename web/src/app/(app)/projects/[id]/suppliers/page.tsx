@@ -18,6 +18,10 @@ export default function SuppliersPage({ params }: PageProps<"/projects/[id]/supp
 async function SuppliersView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const p = await api.purchases(id);
+  const withGst = p.bills.some((b) => b.gst_amount);
+  const withLine = p.bills.some((b) => b.cost_line);
+  const withSource = p.bills.some((b) => b.source !== "Lekhara");
+  const withUdyam = p.suppliers.some((x) => x.udyam_number);
 
   return (
     <>
@@ -73,10 +77,10 @@ async function SuppliersView({ params }: { params: Promise<{ id: string }> }) {
                 <th>Bill</th>
                 <th>Date</th>
                 <th className="right">Taxable</th>
-                <th className="right">GST</th>
-                <th>Cost line</th>
+                {withGst ? <th className="right">GST</th> : null}
+                {withLine ? <th>Cost line</th> : null}
                 <th>Paid</th>
-                <th>From</th>
+                {withSource ? <th>From</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -91,10 +95,10 @@ async function SuppliersView({ params }: { params: Promise<{ id: string }> }) {
                   </td>
                   <td className="nowrap">{day(b.bill_date)}</td>
                   <td className="right num">{inr(b.taxable_value)}</td>
-                  <td className="right num">{b.gst_amount ? inr(b.gst_amount) : ""}</td>
-                  <td>{b.cost_line ? b.cost_line.code : ""}</td>
+                  {withGst ? <td className="right num">{b.gst_amount ? inr(b.gst_amount) : ""}</td> : null}
+                  {withLine ? <td>{b.cost_line ? b.cost_line.code : ""}</td> : null}
                   <td className="nowrap">{b.paid_on ? day(b.paid_on) : <span className="muted">Unpaid</span>}</td>
-                  <td className="small muted">{b.source}</td>
+                  {withSource ? <td className="small muted">{b.source}</td> : null}
                 </tr>
               ))}
             </tbody>
@@ -133,7 +137,7 @@ async function SuppliersView({ params }: { params: Promise<{ id: string }> }) {
                 <th>Supplier</th>
                 <th>GSTIN</th>
                 <th>MSME</th>
-                <th>Udyam</th>
+                {withUdyam ? <th>Udyam</th> : null}
                 <th className="right">Bills here</th>
               </tr>
             </thead>
@@ -145,9 +149,9 @@ async function SuppliersView({ params }: { params: Promise<{ id: string }> }) {
                   </td>
                   <td className="nowrap">{s.gstin ?? <span className="muted">Not registered</span>}</td>
                   <td>{s.msme_label}</td>
-                  <td className="nowrap">{s.udyam_number ?? ""}</td>
+                  {withUdyam ? <td className="nowrap">{s.udyam_number ?? ""}</td> : null}
                   <td className="right num">
-                    {s.bills ? `${s.bills}${s.unpaid ? `, ${s.unpaid} unpaid` : ""}` : ""}
+                    {s.bills ? `${s.bills}${s.unpaid ? ` (${s.unpaid} unpaid)` : ""}` : ""}
                   </td>
                 </tr>
               ))}

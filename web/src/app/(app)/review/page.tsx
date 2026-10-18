@@ -28,6 +28,7 @@ const KIND: Record<ReviewQueue["items"][number]["kind"], string> = {
   tally: "Tally",
   sheet: "Sheet",
   mail: "Email",
+  gst: "GST return",
 };
 
 async function ReviewView() {

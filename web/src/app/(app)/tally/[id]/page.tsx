@@ -207,9 +207,8 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
       ) : null}
 
       <section className="section">
-        <div className="section-head">
-          <h2>What the file holds</h2>
-        </div>
+        <details className="disclosure">
+          <summary>What the file holds</summary>
         <ul className="calc" style={{ marginTop: 12, maxWidth: 640 }}>
           <li>
             <span className="muted">Ledger masters</span>
@@ -236,6 +235,7 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
             </li>
           ) : null}
         </ul>
+        </details>
       </section>
 
       <Preview t={t} />
