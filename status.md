@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Add GSTR-2B checks".
+Last updated: 2026-10-18, with the commit "Point the status to the new plan and decisions".
 
 ## What we are building
 
@@ -13,7 +13,7 @@ Lekhara connects read-only, reads documents with AI from several providers (with
 
 Lekhara is sold as a self-serve monthly SaaS: one subscription per builder firm, covering all its projects and people, after a one-month free trial, paid through Razorpay. A builder signs up and uses it on their own data the same day, without our help. Every record can be imported from a file, fed from a connected source, or typed and edited in Lekhara, and everything can be exported at any time.
 
-Launch market: Bengaluru, then the rest of Karnataka, then other states. The full plan is v7.3 (kept outside the repository).
+Launch market: Bengaluru, then the rest of Karnataka, then other states. The plan, a description of what Lekhara is and does, and the list of decisions still to make, each with its options and sources, are kept outside the repository.
 
 ## Done
 
