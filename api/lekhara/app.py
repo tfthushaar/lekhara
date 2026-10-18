@@ -24,6 +24,7 @@ from lekhara import (
     jobs,
     purchases,
     registers,
+    review,
     services,
     views,
 )
@@ -1572,6 +1573,32 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     # Today
 
+    def reviewable(session: Session, me: auth.Principal) -> list[Project]:
+        return [
+            p
+            for p in visible(session, me)
+            if me.can_prepare(p) and me.is_team_member(p) and not me.views_as_sample(p)
+        ]
+
+    @app.get("/review")
+    def review_queue(session: SessionDep, me: Me) -> dict:
+        entries = review.waiting(session, app.state.storage, settings, reviewable(session, me))
+        return {
+            "count": len(entries),
+            "items": [
+                {
+                    "project_id": w.project_id,
+                    "project_name": w.project_name,
+                    "kind": w.kind,
+                    "title": w.title,
+                    "detail": w.detail,
+                    "href": w.href,
+                    "since": w.since.replace(microsecond=0).isoformat(),
+                }
+                for w in entries
+            ],
+        }
+
     @app.get("/today")
     def today(session: SessionDep, me: Me, on: AsOf) -> dict:
         projects = visible(session, me)
@@ -1587,9 +1614,11 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             or (o.status == ObligationStatus.DUE_SOON and o.due_on and (o.due_on - on).days <= 7)
         )
         org_names = sorted({s.project.organization.name for s in snaps})
+        waiting = review.waiting(session, app.state.storage, settings, reviewable(session, me))
         return {
             "as_of": on.isoformat(),
             "kind": "team",
+            "to_review": len(waiting),
             "organization": ", ".join(org_names),
             "summary": {
                 "drawable_now": views.m(sum((s.escrow.drawable_now for s in snaps), ZERO)),

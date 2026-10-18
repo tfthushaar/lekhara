@@ -198,7 +198,7 @@ def set_options(
     as_of: date,
     passwords: tuple[str, ...] = (),
 ) -> None:
-    if row.status != "review":
+    if row.status == "undone" or (row.status == "applied" and body.get("role") is not None):
         raise ServiceError("This statement has already been applied.")
     opts = options(row)
     if body.get("role") is not None:
@@ -265,12 +265,17 @@ def apply(
     user_id: str | None,
     passwords: tuple[str, ...] = (),
 ) -> dict:
-    if row.status != "review":
-        raise ServiceError("This statement has already been applied.")
+    if row.status not in ("review", "applied"):
+        raise ServiceError("This statement was undone.")
     if not options(row).get("role"):
         raise ServiceError("Say which account this statement is for first.")
     _, plan = review(session, storage, row, as_of, passwords)
+    # Applying again brings in what has been placed since: the rest is already in.
     result: dict[str, list[str]] = {"receipts": [], "escrow": []}
+    if row.status == "applied":
+        result = json.loads(row.result or "{}")
+        if not plan.to_add:
+            raise ServiceError("Everything in this statement is already in.")
     for p in plan.lines:
         if p.receipt and not p.receipt_exists:
             receipt = Receipt(
@@ -295,8 +300,9 @@ def apply(
             session.add(txn)
             session.flush()
             result["escrow"].append(txn.id)
+    if row.status != "applied":
+        row.applied_at = utcnow()
     row.status = "applied"
-    row.applied_at = utcnow()
     row.result = json.dumps(result)
     session.commit()
     return result

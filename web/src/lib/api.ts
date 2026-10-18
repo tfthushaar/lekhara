@@ -41,6 +41,7 @@ export type Today =
       kind: "team";
       as_of: string;
       organization: string;
+      to_review: number;
       summary: { drawable_now: string; at_stake: string; due_this_week: number; projects: number };
       items: Obligation[];
     }
@@ -780,6 +781,19 @@ export type ImportList = {
   }[];
 };
 
+export type ReviewQueue = {
+  count: number;
+  items: {
+    project_id: string;
+    project_name: string;
+    kind: "bank" | "tally" | "sheet" | "mail";
+    title: string;
+    detail: string;
+    href: string;
+    since: string;
+  }[];
+};
+
 export type InboundItem = {
   id: string;
   filename: string;
@@ -937,7 +951,9 @@ export type BankReview = BankStatementRow & {
   role: "rera" | "collections" | null;
   buyers_pay_here: boolean;
   can_edit: boolean;
+  can_place: boolean;
   can_apply: boolean;
+  can_apply_rest: boolean;
   can_undo: boolean;
   opening: string | null;
   closing: string | null;
@@ -1262,6 +1278,7 @@ export const api = {
   bankStatement: (id: string) => get<BankReview>(`/bank-statements/${id}`),
   purchases: (projectId: string) => get<Purchases>(`/projects/${projectId}/purchases`),
   inbound: (projectId: string) => get<Inbound>(`/projects/${projectId}/inbound`),
+  review: () => get<ReviewQueue>("/review"),
   inboundSettings: () => get<InboundSettings>("/organization/inbound"),
   bill: (id: string) => get<BillDetail>(`/bills/${id}`),
   supplier: (id: string) => get<SupplierDetail>(`/suppliers/${id}`),

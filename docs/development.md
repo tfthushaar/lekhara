@@ -68,6 +68,10 @@ Record types are defined once in `api/lekhara/records.py` (fields, aliases, pars
 
 Statement passwords are sealed with `LEKHARA_SECRET_KEY` (`lekhara/secretbox.py`); set it in production, and keep it, or the stored passwords cannot be opened. PDF statements are read by `lekhara/bank/pdf.py`.
 
+### The review queue
+
+`api/lekhara/review.py` gathers, for the projects a person can import into, everything that waits for a choice: bank statements without an account or with payments to place (statements from the last `RECENT_DAYS` are re-planned from their cached files), Tally imports and Import centre batches not yet applied, held emails and inbound files that could not be read. `GET /review` lists them; `/today` carries the count as `to_review`. When a new import waits for a choice, add it here so it never goes unseen.
+
 ### Suppliers, bills and commitments
 
 `api/lekhara/purchases.py` adds, changes and deletes suppliers (firm-wide), bills and commitments (per project) with a change history; `imports.py` has a handler for each. Records that carry money into the append-only ledger (a bill with a cost line, a commitment) go through `sync_ledger`, which adds the entries that bring the ledger to the record's current figures under a reference prefix (`bill:<id>:`, `commitment:<id>:`), so edits and deletes never rewrite history.

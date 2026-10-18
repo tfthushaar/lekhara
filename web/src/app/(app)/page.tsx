@@ -88,6 +88,14 @@ async function TodayView() {
       <p className="muted small" style={{ marginBottom: 16 }}>
         {today.organization}, {plural(summary.projects, "project")}, as of {day(today.as_of)}
       </p>
+      {today.to_review > 0 ? (
+        <p className="notice" style={{ marginBottom: 24 }}>
+          {`${plural(today.to_review, "thing")} brought in by you or by email ${today.to_review === 1 ? "waits" : "wait"} for a choice. `}
+          <a href="/review" className="link-action">
+            Open the review queue
+          </a>
+        </p>
+      ) : null}
       <div className="stats">
         <div className="stat">
           <p className="stat-label">You can draw now</p>

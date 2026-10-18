@@ -146,7 +146,7 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
             <h2>Buyer payments</h2>
             <p>Each matched to a unit from the narration, your earlier choice for the payer, or Tally</p>
           </div>
-          {s.can_edit ? (
+          {s.can_place ? (
             <ActionForm action={statementChoices.bind(null, s.id)} label="Save the choices" pendingLabel="Checking again" secondary>
               <BuyerTable s={s} lines={buyerLines} editable />
             </ActionForm>
@@ -210,6 +210,16 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
               {waiting > 0
                 ? `Payments waiting for their unit stay out; everything else comes in now. Bring in the same statement again later once they are placed; nothing is added twice.`
                 : "Everything marked above comes in now. Bringing in the same statement again later adds nothing twice."}
+            </p>
+          </ActionForm>
+        </section>
+      ) : null}
+
+      {s.can_apply_rest ? (
+        <section className="section">
+          <ActionForm action={applyStatement.bind(null, s.id)} label="Bring in the rest" pendingLabel="Bringing it in">
+            <p style={{ marginBottom: 12, maxWidth: 720 }}>
+              {`${plural(added, "payment")} placed since the statement came in can come in now.`}
             </p>
           </ActionForm>
         </section>

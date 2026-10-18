@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Add the forwarding address and PDF statements".
+Last updated: 2026-10-18, with the commit "Add the review queue".
 
 ## What we are building
 
@@ -160,9 +160,15 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
 - Bank statements as PDF: the transactions are read line by line from the text of each page, whatever the bank, with whether money went in or out read from the running balance; narrations over two lines are joined, the value date taken out, statements listed newest first put in order. A line has the same fingerprint in the PDF and the Excel download of the same statement, so nothing is counted twice across formats.
   - Tested end to end: a statement emailed by the team and read by the background worker, a document from an outsider held, allowed and its sender trusted, a locked PDF statement waiting for its password and read once the password is given.
 
+- The review queue:
+  - A "To review" page with everything brought in that waits for a choice, across every project the person can import into, oldest first, each opening where it is settled: a statement whose account is not known yet, buyers' payments to place, a statement, Tally export or sheet not brought in yet, an email from outside the team to allow, a file that could not be read (such as a statement waiting for its password).
+  - Today says how many things wait, with a link to the queue.
+  - A bank statement already brought in can still have its waiting payments placed, and then brings in just those ("Bring in the rest"); nothing else in it is added twice.
+  - Tested end to end: a statement waiting for its account, then for one payment after it was brought in, the payment placed and brought in, and the queue empty again.
+
 ## In progress
 
-- The review queue: one place for everything waiting for the builder across projects (buyers' payments to place, Tally choices, sheets to check, mail to allow, statements waiting for a password), with Today showing how many.
+- The Lekhara Connector for Tally: an optional small program on the computer that runs Tally, which asks TallyPrime for what changed every few minutes (over Tally's own XML interface, with nothing opened to the internet) and sends it to Lekhara, so the books come in without anyone exporting them. Each computer is linked to a project with a one-time code from the Import page, and can be unlinked at any time.
 
 ## Left
 
