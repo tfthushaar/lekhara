@@ -327,6 +327,20 @@ export async function removeStatementPassword(passwordId: string, _previous: Act
   return {};
 }
 
+export async function newConnectorCode(projectId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send<{ code: string }>("POST", `/projects/${projectId}/connectors`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Type this code into the connector within 30 minutes:", link: result.data.code };
+}
+
+export async function unlinkConnector(connectorId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/connectors/${connectorId}/unlink`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function uploadStatement(
   projectId: string,
   _previous: ActionState,

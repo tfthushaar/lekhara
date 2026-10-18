@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Add the review queue".
+Last updated: 2026-10-18, with the commit "Add the Lekhara Connector for Tally".
 
 ## What we are building
 
@@ -166,9 +166,17 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The ful
   - A bank statement already brought in can still have its waiting payments placed, and then brings in just those ("Bring in the rest"); nothing else in it is added twice.
   - Tested end to end: a statement waiting for its account, then for one payment after it was brought in, the payment placed and brought in, and the queue empty again.
 
+- The Lekhara Connector for Tally (the second automatic feed, optional):
+  - A small program for the computer with Tally (`connector/` in the repository; Python's standard library only, packaged as one Windows program with `build.ps1`). Every five minutes it reads Tally's masters and the Day Book for the last seven days, and once a day the whole financial year, over TallyPrime's own XML interface on that computer, and sends them to Lekhara. It only reads Tally and only makes outgoing connections; when nothing changed, nothing is sent.
+  - A computer is linked to a project with a one-time code from the Import page (it works once, for 30 minutes), which the connector exchanges for its own key; the key can only send data to that project, and unlinking the computer on the Import page withdraws it at once. The Import page shows each linked computer, the company it reads, when it was last heard from and last brought anything in, and anything wrong (Tally not open, its HTTP server off).
+  - Each sync goes through the Tally import and is applied by itself, matched on Tally's own voucher identities so nothing comes in twice; masters are kept to read later vouchers against. What needs a choice shows in the review queue as "Choices for the connected Tally", and comes in on the next sync once chosen.
+  - Tally imports, like bank statements, now take choices after they are applied, and "Bring in the rest" brings in only what the choices freed.
+  - A firm whose free month has ended unpaid takes no new data from its connectors.
+  - Tested with a stand-in Tally on the real program: linking with a code from the Import page, a sync brought in, the next one sending nothing, the computer shown as connected, choices in the review queue, and the connector stopped once unlinked. To be tested against TallyPrime itself at a design partner.
+
 ## In progress
 
-- The Lekhara Connector for Tally: an optional small program on the computer that runs Tally, which asks TallyPrime for what changed every few minutes (over Tally's own XML interface, with nothing opened to the internet) and sends it to Lekhara, so the books come in without anyone exporting them. Each computer is linked to a project with a one-time code from the Import page, and can be unlinked at any time.
+- GSTR-2B from the GST portal: the builder downloads GSTR-2B (the suppliers' invoices the GST system holds for them) as JSON or Excel and uploads or forwards it; Lekhara checks each supplier's GSTIN and registration, fills in suppliers and their bills, and flags bills in Lekhara or Tally that the GST system does not have (input credit at risk) and invoices it has that Lekhara does not. Then the same through a GST Suvidha Provider, with the builder's one-time password about once a month.
 
 ## Left
 
@@ -183,7 +191,7 @@ In this order:
 - Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, engines that work with partial data and say what is missing, first-run help.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
 - S3-compatible file storage.
-- Automatic feeds, decided on 2026-10-18 (everything except what needs a bank partnership): an optional Lekhara Connector on the Tally computer; Sell.Do and other CRMs by API; the GST portal through a GSP (an OTP about once a month), and GSTR-2B files downloaded from the portal. Bank APIs and the Account Aggregator wait.
+- Automatic feeds, decided on 2026-10-18 (everything except what needs a bank partnership), still to do: Sell.Do and other CRMs by API; the GST portal (GSTR-2B files, then through a GSP with an OTP about once a month). Bank APIs and the Account Aggregator wait.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
 - Collections, next steps: reminders through the team's own WhatsApp or email.
 - Registration and handover, next steps: possession letters, the association handover checklist.

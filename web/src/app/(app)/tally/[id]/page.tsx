@@ -252,6 +252,16 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
         </section>
       ) : null}
 
+      {t.can_apply_rest ? (
+        <section className="section">
+          <ActionForm action={applyTally.bind(null, t.id)} label="Bring in the rest" pendingLabel="Bringing it in">
+            <p style={{ marginBottom: 12, maxWidth: 720 }}>
+              What your choices have freed since this export came in can come in now; the rest is already in.
+            </p>
+          </ActionForm>
+        </section>
+      ) : null}
+
       {t.can_undo ? (
         <section className="section">
           <details className="disclosure">

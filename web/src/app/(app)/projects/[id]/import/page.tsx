@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { startImport, uploadStatement, uploadTally } from "@/app/actions";
+import { newConnectorCode, startImport, unlinkConnector, uploadStatement, uploadTally } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { InboundBox } from "@/components/inbound";
-import { api } from "@/lib/api";
+import { PUBLIC_API_URL, api } from "@/lib/api";
 import { day } from "@/lib/format";
 
 export default function ImportPage({ params }: PageProps<"/projects/[id]/import">) {
@@ -23,11 +23,12 @@ const STATUS: Record<string, string> = {
 
 async function ImportView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [list, tallyList, bankList, box] = await Promise.all([
+  const [list, tallyList, bankList, box, linked] = await Promise.all([
     api.imports(id),
     api.tallyImports(id),
     api.bankStatements(id),
     api.inbound(id),
+    api.connectors(id),
   ]);
 
   return (
@@ -69,6 +70,57 @@ async function ImportView({ params }: { params: Promise<{ id: string }> }) {
             </ActionForm>
           </div>
         ) : null}
+        <details className="disclosure" open={linked.connectors.some((c) => c.status === "active")}>
+          <summary>Or connect Tally, so it comes in by itself</summary>
+          <p className="small muted" style={{ maxWidth: 760, margin: "8px 0 12px" }}>
+            The Lekhara Connector runs on the computer with Tally. Every few minutes it reads Tally&apos;s masters and
+            vouchers, over Tally&apos;s own connection on that computer, and sends them here; nothing in Tally is changed
+            and nothing is opened to the internet. In TallyPrime, turn on its HTTP server first (Help, Settings,
+            Connectivity: act as a server on port 9000). Then link the computer with a code, which works once:
+          </p>
+          {linked.can_edit ? (
+            <>
+              <ActionForm action={newConnectorCode.bind(null, id)} label="Get a code" pendingLabel="Making a code" secondary />
+              <p className="small" style={{ maxWidth: 760 }}>
+                On the Tally computer, run <code>{`lekhara-connector link CODE --server ${PUBLIC_API_URL}`}</code>, then{" "}
+                <code>lekhara-connector run</code>.
+              </p>
+            </>
+          ) : null}
+          {linked.connectors.filter((c) => c.status === "active").length > 0 ? (
+            <ul className="rows" style={{ marginTop: 12 }}>
+              {linked.connectors
+                .filter((c) => c.status === "active")
+                .map((c) => (
+                  <li key={c.id} className="row">
+                    <div>
+                      <span className={c.last_state ? "tag tag-soon" : "tag tag-done"}>{c.last_state ? "Check" : "Connected"}</span>
+                    </div>
+                    <div>
+                      <p className="row-title">{`${c.name ?? "A computer"}${c.company ? `, reading ${c.company}` : ""}`}</p>
+                      <p className="row-detail">
+                        {c.last_sync_at
+                          ? `Last brought in ${c.last_sync_at.replace("T", ", ").slice(0, 17)}.`
+                          : "Linked; nothing sent yet."}
+                        {c.last_seen_at ? ` Last heard from ${c.last_seen_at.replace("T", ", ").slice(0, 17)}.` : ""}
+                      </p>
+                      {c.last_state ? <p className="row-meta">{c.last_state}</p> : null}
+                    </div>
+                    <div className="row-side">
+                      {c.last_import_id ? (
+                        <Link href={`/tally/${c.last_import_id}`} className="link-action">
+                          Latest sync
+                        </Link>
+                      ) : null}
+                      {linked.can_edit ? (
+                        <ActionForm action={unlinkConnector.bind(null, c.id)} label="Unlink" pendingLabel="Unlinking" secondary />
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+            </ul>
+          ) : null}
+        </details>
         {tallyList.imports.length > 0 ? (
           <table className="table" style={{ marginTop: 20 }}>
             <thead>

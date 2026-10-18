@@ -1287,7 +1287,7 @@ def tally_review(
     lines: list = (),
     owners: list = (),
 ) -> dict:
-    from lekhara.tally.service import SOURCE_LABEL
+    from lekhara.tally.service import SOURCE_LABEL, waiting_count
 
     kinds: dict[str, int] = {}
     for ledger in book.ledgers.values():
@@ -1302,7 +1302,8 @@ def tally_review(
         "project_name": project.name,
         "created_at": row.created_at.replace(microsecond=0).isoformat(),
         "applied_at": row.applied_at.replace(microsecond=0).isoformat() if row.applied_at else None,
-        "can_edit": can_edit and row.status == "review",
+        "can_edit": can_edit and row.status in ("review", "applied"),
+        "can_apply_rest": can_edit and row.status == "applied" and waiting_count(plan) > 0,
         "can_undo": can_undo,
         "source": book.source,
         "source_label": SOURCE_LABEL.get(book.source, book.source),
@@ -2002,4 +2003,25 @@ def inbound_view(
             }
             for msg in inbound.messages_of(session, project)
         ],
+    }
+
+
+# Connectors
+
+
+def connector_row(c) -> dict:
+    def at(value):
+        return value.replace(microsecond=0).isoformat() if value else None
+
+    return {
+        "id": c.id,
+        "kind": c.kind,
+        "name": c.name,
+        "status": c.status,
+        "company": c.company,
+        "last_seen_at": at(c.last_seen_at),
+        "last_sync_at": at(c.last_sync_at),
+        "last_state": c.last_state,
+        "last_import_id": c.last_import_id,
+        "code_expires_at": at(c.code_expires_at),
     }

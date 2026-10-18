@@ -84,6 +84,7 @@ NOT_EXPORTED = {
     "inbound_messages": "emails received, already in the records and documents they brought",
     "inbound_items": "files in those emails, already in the records and documents they made",
     "jobs": "Lekhara's own background work",
+    "connectors": "links to the firm's own computers, holding their keys",
     "statement_passwords": "sealed passwords, never given out",
 }
 """Tables left out of the export, and why."""

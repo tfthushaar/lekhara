@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from lekhara import (
     accounts,
     auth,
+    connectors,
     export,
     imports,
     inbound,
@@ -37,6 +38,7 @@ from lekhara.migrate import upgrade
 from lekhara.models import (
     Bill,
     Commitment,
+    Connector,
     CostLineRow,
     InboundItem,
     InboundMessage,
@@ -155,6 +157,16 @@ class SenderBody(BaseModel):
 class PasswordBody(BaseModel):
     label: str | None = None
     password: str | None = None
+
+
+class ConnectorLink(BaseModel):
+    code: str = ""
+    name: str | None = None
+
+
+class ConnectorBeat(BaseModel):
+    state: str | None = None
+    company: str | None = None
 
 
 class StatementOptions(BaseModel):
@@ -1570,6 +1582,91 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         session.delete(row)
         session.commit()
         return senders_payload(session, me)
+
+    # Connectors on the builder's own computers
+
+    def connector_from(session: Session, key: str | None) -> Connector:
+        return connectors.by_key(session, key)
+
+    @app.post("/projects/{project_id}/connectors", status_code=201)
+    def new_connector(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        connector, code = connectors.new_code(session, p, user_id=me.user_id)
+        return {**views.connector_row(connector), "code": code}
+
+    @app.get("/projects/{project_id}/connectors")
+    def list_connectors(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return {
+            "can_edit": me.can_prepare(p) and not me.views_as_sample(p),
+            "connectors": [views.connector_row(c) for c in connectors.connectors_of(session, p)],
+        }
+
+    @app.post("/connectors/{connector_id}/unlink")
+    def unlink_connector(connector_id: str, session: SessionDep, me: Me) -> dict:
+        c = session.get(Connector, connector_id)
+        if c is None:
+            raise ServiceError("Not found.", 404)
+        p = services.get_project(session, c.project_id)
+        auth.require_prepare(me, p)
+        connectors.unlink(session, c)
+        return {"ok": True}
+
+    @app.post("/connector/link")
+    def connector_link(body: ConnectorLink, session: SessionDep) -> dict:
+        c, key = connectors.link(session, body.code, body.name)
+        p = session.get(Project, c.project_id)
+        return {"key": key, "connector_id": c.id, **connectors.config(c, p)}
+
+    @app.get("/connector/config")
+    def connector_config(
+        session: SessionDep, x_lekhara_connector: Annotated[str | None, Header()] = None
+    ) -> dict:
+        c = connector_from(session, x_lekhara_connector)
+        return connectors.config(c, session.get(Project, c.project_id))
+
+    @app.post("/connector/heartbeat")
+    def connector_heartbeat(
+        body: ConnectorBeat,
+        session: SessionDep,
+        x_lekhara_connector: Annotated[str | None, Header()] = None,
+    ) -> dict:
+        c = connector_from(session, x_lekhara_connector)
+        connectors.heartbeat(session, c, body.state, body.company)
+        return {"ok": True}
+
+    @app.post("/connector/tally")
+    async def connector_tally(
+        request: Request,
+        session: SessionDep,
+        x_lekhara_connector: Annotated[str | None, Header()] = None,
+    ) -> dict:
+        c = connector_from(session, x_lekhara_connector)
+        form = await request.form()
+        limit = settings.tally_upload_mb * 1_000_000
+
+        async def part(name: str) -> bytes | None:
+            field = form.get(name)
+            if field is None or not hasattr(field, "read"):
+                return None
+            data = await field.read(limit + 1)
+            if len(data) > limit:
+                raise ServiceError(
+                    f"Tally data over {settings.tally_upload_mb} MB; sync a shorter period."
+                )
+            return data or None
+
+        return connectors.sync(
+            session,
+            app.state.storage,
+            settings,
+            c,
+            masters=await part("masters"),
+            vouchers=await part("vouchers"),
+            company=str(form.get("company") or "") or None,
+        )
 
     # Today
 

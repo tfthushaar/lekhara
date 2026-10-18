@@ -68,6 +68,10 @@ Record types are defined once in `api/lekhara/records.py` (fields, aliases, pars
 
 Statement passwords are sealed with `LEKHARA_SECRET_KEY` (`lekhara/secretbox.py`); set it in production, and keep it, or the stored passwords cannot be opened. PDF statements are read by `lekhara/bank/pdf.py`.
 
+### The Lekhara Connector for Tally
+
+`connector/lekhara_connector.py` is the program for the builder's Tally computer (standard library only; `connector/build.ps1` packages it with PyInstaller; `connector/README.md` is for the builder). It asks TallyPrime's XML server for "List of Accounts" (all masters) and the "Day Book" for a date range, and posts them to `POST /connector/tally` with its key in `X-Lekhara-Connector`. `api/lekhara/connectors.py` links a computer (`POST /projects/{id}/connectors` makes a one-time code; `POST /connector/link` exchanges it for the key), keeps the latest masters, combines them with the vouchers under one root, skips a sync identical to the last, and runs the Tally import and applies it. `tests/test_connector.py` runs the real program against the API with a stand-in Tally; to try it by hand, start the API and run `python connector/lekhara_connector.py link CODE --server http://localhost:8000 --tally http://localhost:9000`.
+
 ### The review queue
 
 `api/lekhara/review.py` gathers, for the projects a person can import into, everything that waits for a choice: bank statements without an account or with payments to place (statements from the last `RECENT_DAYS` are re-planned from their cached files), Tally imports and Import centre batches not yet applied, held emails and inbound files that could not be read. `GET /review` lists them; `/today` carries the count as `to_review`. When a new import waits for a choice, add it here so it never goes unseen.

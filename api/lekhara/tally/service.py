@@ -229,9 +229,11 @@ def _target_ok(session: Session, project_id: str, role: str, target: str | None)
 def set_options(
     session: Session, row: TallyImport, *, cost_centre: str | None, links: dict
 ) -> None:
-    """links: a ledger's name to a unit id, "ignore", "" to forget, or {"role", "target"}."""
-    if row.status != "review":
-        raise ServiceError("This import has already been applied.")
+    """links: a ledger's name to a unit id, "ignore", "" to forget, or {"role", "target"}.
+    Choices can still be made once an import is applied: they are the project's, remembered for
+    every later import, and applying again brings in what they free."""
+    if row.status == "undone":
+        raise ServiceError("This import was undone.")
     opts = options(row)
     opts["cost_centre"] = (cost_centre or "").strip() or None
     row.options = json.dumps(opts)
@@ -265,10 +267,12 @@ def set_options(
 def apply(
     session: Session, storage: Storage, row: TallyImport, *, as_of: date, user_id: str | None
 ) -> dict:
-    if row.status != "review":
-        raise ServiceError("This import has already been applied.")
+    if row.status == "undone":
+        raise ServiceError("This import was undone.")
     project = session.get(Project, row.project_id)
     _, plan = review(session, storage, row, as_of)
+    # Applying again adds only what was waiting (everything else is recognised as already in).
+    earlier = json.loads(row.result) if row.status == "applied" and row.result else None
     result = {
         "vendors_added": [],
         "vendors_changed": [],
@@ -398,11 +402,26 @@ def apply(
         session.add(payment)
         session.flush()
         result["landowner_payments"].append(payment.id)
+    if earlier is not None:
+        result = {k: earlier.get(k, []) + v for k, v in result.items()}
+    else:
+        row.applied_at = utcnow()
     row.status = "applied"
-    row.applied_at = utcnow()
     row.result = json.dumps(result)
     session.commit()
     return result
+
+
+def waiting_count(plan: Plan) -> int:
+    """How much in the export is not in Lekhara yet: new bills, payments placed on a unit,
+    cost, RERA account movements and landowner payments."""
+    return (
+        sum(1 for b in plan.bills if not b.exists)
+        + sum(1 for r in plan.receipts if not r.exists and r.unit_id)
+        + sum(1 for c in plan.money.cost_entries if not c.exists)
+        + sum(1 for e in plan.money.escrow if not e.exists)
+        + sum(1 for p in plan.money.landowner_payments if not p.exists)
+    )
 
 
 def can_undo(row: TallyImport) -> bool:

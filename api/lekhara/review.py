@@ -16,6 +16,7 @@ from lekhara.bank import service as bank
 from lekhara.config import Settings
 from lekhara.models import (
     BankStatement,
+    Connector,
     ImportBatch,
     InboundItem,
     InboundMessage,
@@ -26,6 +27,7 @@ from lekhara.models import (
 from lekhara.records import RECORD_TYPES
 from lekhara.services import ServiceError
 from lekhara.storage import Storage
+from lekhara.tally import service as tally
 
 RECENT_DAYS = 120
 """Statements older than this are not looked at again for payments to place."""
@@ -102,6 +104,31 @@ def waiting(
                 f"{row.filename}: {_plural(plan.counts.get('to_add', 0), 'transaction')}.",
                 href,
                 row.created_at,
+            )
+
+    for c in session.scalars(
+        select(Connector).where(
+            Connector.project_id.in_(ids),
+            Connector.status == "active",
+            Connector.last_import_id.is_not(None),
+        )
+    ):
+        row = session.get(TallyImport, c.last_import_id)
+        if row is None or row.status != "applied":
+            continue
+        try:
+            _, plan = tally.review(session, storage, row, settings.as_of())
+        except (ServiceError, FileNotFoundError):
+            continue
+        blocking = [a.title for a in plan.alerts if a.level == "blocking"]
+        if blocking:
+            add(
+                c.project_id,
+                "tally",
+                "Choices for the connected Tally",
+                "; ".join(blocking) + ". What they hold back comes in on the next sync.",
+                f"/tally/{row.id}",
+                c.last_sync_at or row.created_at,
             )
 
     for row in session.scalars(

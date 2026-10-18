@@ -781,6 +781,24 @@ export type ImportList = {
   }[];
 };
 
+export type ConnectorRow = {
+  id: string;
+  kind: string;
+  name: string | null;
+  status: "pending" | "active" | "unlinked";
+  company: string | null;
+  last_seen_at: string | null;
+  last_sync_at: string | null;
+  last_state: string | null;
+  last_import_id: string | null;
+  code_expires_at: string | null;
+};
+
+export type ConnectorList = { can_edit: boolean; connectors: ConnectorRow[] };
+
+/** Where a connector on a builder's computer reaches the API. */
+export const PUBLIC_API_URL = process.env.LEKHARA_PUBLIC_API_URL ?? BASE;
+
 export type ReviewQueue = {
   count: number;
   items: {
@@ -984,6 +1002,7 @@ export type TallyReview = {
   created_at: string;
   applied_at: string | null;
   can_edit: boolean;
+  can_apply_rest: boolean;
   can_undo: boolean;
   source: string;
   source_label: string;
@@ -1279,6 +1298,7 @@ export const api = {
   purchases: (projectId: string) => get<Purchases>(`/projects/${projectId}/purchases`),
   inbound: (projectId: string) => get<Inbound>(`/projects/${projectId}/inbound`),
   review: () => get<ReviewQueue>("/review"),
+  connectors: (projectId: string) => get<ConnectorList>(`/projects/${projectId}/connectors`),
   inboundSettings: () => get<InboundSettings>("/organization/inbound"),
   bill: (id: string) => get<BillDetail>(`/bills/${id}`),
   supplier: (id: string) => get<SupplierDetail>(`/suppliers/${id}`),

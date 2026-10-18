@@ -907,6 +907,38 @@ class InboundItem(Base):
     result_id: Mapped[str | None] = mapped_column(String(64))
 
 
+class Connector(Base):
+    """A program on the builder's own computer that feeds a project by itself: today, the
+    Lekhara Connector for Tally. Linked once with a short code; it then signs in with its own
+    key, which only ever lets it send data to this project."""
+
+    __tablename__ = "connectors"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"))
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16), default="tally")
+    name: Mapped[str | None] = mapped_column(String(200))
+    """The computer's name, as the connector reports it."""
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    """pending (waiting for its code), active or unlinked."""
+    code_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    code_expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    key_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    company: Mapped[str | None] = mapped_column(String(200))
+    """The Tally company it reads."""
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_state: Mapped[str | None] = mapped_column(String(300))
+    """What the connector said last: Tally not running, a company not open, an error."""
+    last_import_id: Mapped[str | None] = mapped_column(String(64))
+    last_hash: Mapped[str | None] = mapped_column(String(64))
+    masters_key: Mapped[str | None] = mapped_column(String(200))
+    """The latest masters it sent, kept to read later vouchers against."""
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Job(Base):
     """Work done in the background: an email to read, a mailbox to check."""
 
