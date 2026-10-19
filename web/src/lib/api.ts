@@ -1144,6 +1144,11 @@ export type TallyReview = {
     receipts_new: number;
     receipts_known: number;
     receipts_waiting: number;
+    debit_notes: number;
+    sales: number;
+    sales_matched: number;
+    sales_unmatched: number;
+    demands_unbooked: number;
   };
   alerts: TallyAlert[];
   buyers: { ledger: string; total: string; count: number; suggestions: string[]; ignored: boolean }[];
@@ -1151,7 +1156,16 @@ export type TallyReview = {
   cost_centres: string[];
   cost_centre: string | null;
   vendors: { name: string; gstin: string | null; registered: boolean; msme: string | null; existing: boolean; changes: string[]; bills: number }[];
-  bills: { vendor: string; bill_no: string; bill_date: string; taxable_value: string; gst: string; paid_on: string | null; is_cement: boolean }[];
+  bills: {
+    vendor: string;
+    bill_no: string;
+    bill_date: string;
+    taxable_value: string;
+    gst: string;
+    paid_on: string | null;
+    is_cement: boolean;
+    debit_notes: string[];
+  }[];
   receipts: { ledger: string; unit: string | null; amount: string; tds: string; received_on: string }[];
   money: TallyMoney;
   result: {

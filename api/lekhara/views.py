@@ -1337,6 +1337,11 @@ def tally_review(
             "receipts_new": len(new_receipts),
             "receipts_known": sum(1 for r in plan.receipts if r.exists),
             "receipts_waiting": sum(1 for r in plan.receipts if not r.exists and not r.unit_id),
+            "debit_notes": sum(len(b.debit_notes) for b in plan.bills),
+            "sales": len(plan.sales),
+            "sales_matched": sum(1 for s in plan.sales if s.demand_id),
+            "sales_unmatched": sum(1 for s in plan.sales if not s.demand_id and s.unit_id),
+            "demands_unbooked": len(plan.unbooked),
         },
         "alerts": [
             {
@@ -1385,6 +1390,7 @@ def tally_review(
                 "gst": m(b.gst),
                 "paid_on": d(b.paid_on),
                 "is_cement": b.is_cement,
+                "debit_notes": b.debit_notes,
             }
             for b in new_bills[:100]
         ],

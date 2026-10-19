@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-19, with the commit "Ask data room visitors for their name and email".
+Last updated: 2026-10-19, with the commit "Net debit notes off bills and match sales vouchers to demands".
 
 ## What we are building
 
@@ -217,10 +217,14 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 - Tested end to end: the possession letter, an association item marked done, and a refund case paid in full cancelling the booking, with the unit free and its earlier booking kept.
 - Data rooms can ask each visitor for their name and email before showing anything, telling them it is shared with the builder and recorded with what they open; every opening and download is then recorded against that person, and the room's page shows who. On by default for new rooms, and switched on or off on the room's page. The visitor's browser keeps a token for that room's link only.
 - Tested end to end: a gated room shown only after a name and email, a wrong email refused, a file refused before the gate and downloaded after it, and the room showing who visited.
+- Tally, debit notes and sales:
+  - A debit note to a supplier (goods returned, a rate cut) comes off the bill it was raised against, found by its bill-wise reference or the supplier's invoice number: the bill's taxable value and GST come down, so the 80% test and the MSME clock see the net bill, and a note arriving in a later file changes a bill already brought in (undone with the import). When GST is cost, the note's GST comes off cost too. A debit note is no longer counted as a payment of the bill. Notes that cannot be tied to a bill are named, with how to fix them in Tally.
+  - Sales vouchers raised on buyers are matched to the demands raised in Lekhara on the same unit, for the same amount, within two months. When a firm books its demands as sales, demands with no sales voucher are named, since GST on a home under construction is due on the invoice or the payment, whichever comes first; sales vouchers that match no demand are named too.
+- Tested end to end with the full suites; the Tally review shows the notes netted and how the sales match.
 
 ## In progress
 
-- Tally: debit notes netted off the bills they reduce, and sales vouchers matched to buyers' demands.
+- Onboarding: the firm filled in from its GSTIN, a project from its K-RERA certificate, engines that say what is missing, and first-run help.
 
 ## Left
 
@@ -230,7 +234,7 @@ In this order:
 
 - Self-serve start, still to do: sign-in with Google and by phone code, limits on sign-ups and resets per network address, and row-level security in Postgres as a second wall between firms when production moves to Postgres.
 - Import centre, still to do: known CRM export formats, templates in Kannada, AI column mapping for unfamiliar sheets.
-- Tally import, after that: debit notes netted off bills, sales vouchers matched to demands, testing against real exports from design partners.
+- Tally import, after that: testing against real exports from design partners.
 - Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, engines that work with partial data and say what is missing, first-run help.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
 - S3-compatible file storage.

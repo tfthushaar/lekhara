@@ -10,6 +10,7 @@ money ledgers are append-only, so undoing adds reversing entries; everything els
 import json
 from collections import OrderedDict
 from datetime import date, timedelta
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,10 +19,12 @@ from lekhara import registers
 from lekhara.models import (
     Bill,
     CostLineRow,
+    DemandRow,
     EscrowTxn,
     Landowner,
     LandownerPaymentRow,
     LedgerEntry,
+    PaymentMilestone,
     Project,
     Receipt,
     TallyImport,
@@ -30,12 +33,13 @@ from lekhara.models import (
     Vendor,
     utcnow,
 )
+from lekhara.money import ZERO
 from lekhara.services import ServiceError
 from lekhara.storage import Storage
 from lekhara.tally import reports
 from lekhara.tally.book import Book, from_nodes
 from lekhara.tally.ledgers import CostLineRef, LandownerRef
-from lekhara.tally.plan import Context, Plan, UnitRef, VendorRef, make_plan
+from lekhara.tally.plan import Context, DemandRef, Plan, UnitRef, VendorRef, make_plan
 from lekhara.tally.reader import (
     HOW_TO_EXPORT,
     UNREADABLE,
@@ -194,6 +198,20 @@ def context(session: Session, project: Project, row: TallyImport, as_of: date) -
         link.ledger: (link.role, link.target_id)
         for link in session.scalars(select(TallyLink).where(TallyLink.project_id == project.id))
     }
+    milestones = {
+        m.id: m.name
+        for m in session.scalars(
+            select(PaymentMilestone).where(PaymentMilestone.project_id == project.id)
+        )
+    }
+    demands = tuple(
+        DemandRef(d.id, d.unit_id, d.amount, d.gst, d.raised_on, milestones.get(d.milestone_id, ""))
+        for d in session.scalars(
+            select(DemandRow).where(
+                DemandRow.project_id == project.id, DemandRow.cancellation_id.is_(None)
+            )
+        )
+    )
     return Context(
         as_of=as_of,
         registered_on=project.registered_on,
@@ -209,6 +227,7 @@ def context(session: Session, project: Project, row: TallyImport, as_of: date) -
         landowners=tuple(LandownerRef(o.id, o.name, o.pan) for o in owners),
         gst_is_cost=project.gst_regime != "commercial_12pc",
         jda=project.land_structure.startswith("jda"),
+        demands=demands,
     )
 
 
@@ -334,6 +353,21 @@ def apply(
             if bill is not None and bill.paid_on is None and bp.paid_on is not None:
                 bill.paid_on = bp.paid_on
                 result["bills_paid"].append(bill.id)
+            if (
+                bill is not None
+                and bp.debit_notes
+                and (bill.taxable_value, bill.gst_amount or ZERO) != (bp.taxable_value, bp.gst)
+            ):
+                # A debit note in this file has come off a bill brought in earlier.
+                result.setdefault("bills_changed", []).append(
+                    {
+                        "id": bill.id,
+                        "taxable_value": str(bill.taxable_value),
+                        "gst_amount": str(bill.gst_amount) if bill.gst_amount is not None else None,
+                    }
+                )
+                bill.taxable_value = bp.taxable_value
+                bill.gst_amount = bp.gst
             continue
         bill = Bill(
             project_id=project.id,
@@ -477,6 +511,11 @@ def undo(session: Session, row: TallyImport) -> None:
         bill = session.get(Bill, bill_id)
         if bill is not None:
             bill.paid_on = None
+    for before in result.get("bills_changed", []):
+        bill = session.get(Bill, before["id"])
+        if bill is not None:
+            bill.taxable_value = Decimal(before["taxable_value"])
+            bill.gst_amount = Decimal(before["gst_amount"]) if before["gst_amount"] else None
     session.flush()
     for change in result["vendors_changed"]:
         vendor = session.get(Vendor, change["id"])

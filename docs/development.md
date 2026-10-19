@@ -58,6 +58,10 @@ Record types are defined once in `api/lekhara/records.py` (fields, aliases, pars
 
 Editing as a table (`/projects/{id}/table/{kind}`) shows a page of a record type's export rows as inputs and turns the submitted rows into an import batch with `origin` table (`imports.start_rows`), so the change goes through the same preview, apply and undo, and the history records the source as `edited`. Only types an import can update are offered (`imports.EDITABLE_AS_TABLE`); the columns that identify a row are locked (`record_views.LOCKED`).
 
+Debit notes (`plan._net_debit_notes`) reduce the bill they reference before payments are tied to it (`_settle` leaves debit notes out); the service updates a bill already brought in and records its earlier figures in the result as `bills_changed`, which undo restores. Sales vouchers are matched to Lekhara's demands (`plan._sales`, with the demands passed in `Context.demands`); demands with no voucher are reported only when at least one sales voucher matched a demand.
+
+A data room that asks who is visiting (`DataRoom.ask_visitor`) shows nothing until `POST /shared/{token}/visitor` records a `DataRoomVisitor`; the web keeps the returned token in a cookie scoped to that room's link and passes it to the API as `X-Lekhara-Visitor`.
+
 ### Approvals, filings and landowner payments
 
 `api/lekhara/statutory.py` holds approvals (with their status: to apply, applied, granted, lapsing within `approvals.renewal_notice_days`, lapsed) and K-RERA filings (a quarterly report covers a quarter end, an annual audit a 31 March). Landowner payments are in `registers.py`; their history is logged under the landowner, so the landowner's page keeps deleted payments too. `record_views.py` builds the landowner, approvals, K-RERA and table views. Lapsing approvals reach Today through `services.lapsing_approvals` and the obligations engine.

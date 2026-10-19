@@ -78,7 +78,10 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
         <div className="stat">
           <p className="stat-label">Suppliers&apos; bills</p>
           <p className="stat-value">{c.bills_new}</p>
-          <p className="stat-note">{`${c.bills_paid} already paid; ${c.bills_known} brought in before`}</p>
+          <p className="stat-note">
+            {`${c.bills_paid} already paid; ${c.bills_known} brought in before`}
+            {c.debit_notes ? `; ${c.debit_notes} debit ${c.debit_notes === 1 ? "note" : "notes"} netted off` : ""}
+          </p>
         </div>
         <div className="stat">
           <p className="stat-label">Buyer payments</p>
@@ -115,6 +118,18 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
           <p className="stat-note">With the TDS cut on each</p>
         </div>
       </div>
+      {c.sales > 0 ? (
+        <p className="small muted" style={{ marginTop: 16 }}>
+          {[
+            `Sales vouchers to buyers: ${c.sales_matched} of ${c.sales} match a demand in Lekhara`,
+            c.sales_unmatched ? `${c.sales_unmatched} match none` : null,
+            c.demands_unbooked ? `${c.demands_unbooked} demands in Lekhara are not in Tally` : null,
+          ]
+            .filter(Boolean)
+            .join("; ")}
+          .
+        </p>
+      ) : null}
 
       <section className="section">
         <div className="section-head">
@@ -333,6 +348,7 @@ function Preview({ t }: { t: TallyReview }) {
                   <td>
                     {b.bill_no}
                     {b.is_cement ? <span className="small muted"> cement</span> : null}
+                    {b.debit_notes.length ? <span className="small muted">{` net of ${b.debit_notes.join(", ")}`}</span> : null}
                   </td>
                   <td className="nowrap">{day(b.bill_date)}</td>
                   <td className="right num">{inr(b.taxable_value)}</td>

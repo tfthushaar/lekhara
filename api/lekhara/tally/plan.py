@@ -45,6 +45,16 @@ class VendorRef:
 
 
 @dataclass(frozen=True)
+class DemandRef:
+    id: str
+    unit_id: str
+    amount: Decimal
+    gst: Decimal
+    raised_on: date
+    milestone: str
+
+
+@dataclass(frozen=True)
 class Context:
     as_of: date
     registered_on: date | None
@@ -62,6 +72,8 @@ class Context:
     gst_is_cost: bool = True
     """True when the project's GST scheme gives no input credit, so GST on purchases is cost."""
     jda: bool = False
+    demands: tuple[DemandRef, ...] = ()
+    """Demands raised in Lekhara, to match against sales vouchers in Tally."""
 
 
 @dataclass
@@ -107,6 +119,22 @@ class BillPlan:
     paid_on: date | None
     voucher: str
     exists: bool
+    debit_notes: list[str] = field(default_factory=list)
+    """Debit notes netted off this bill, by voucher."""
+
+
+@dataclass
+class SalePlan:
+    """A sales voucher raised on a buyer in Tally, and the demand in Lekhara it matches."""
+
+    voucher: str
+    ledger: str
+    unit_id: str | None
+    unit_label: str | None
+    on: date
+    base: Decimal
+    gst: Decimal
+    demand_id: str | None
 
 
 @dataclass
@@ -143,6 +171,9 @@ class Plan:
     cost_centres: list[str]
     alerts: list[Alert]
     money: Money = field(default_factory=Money)
+    sales: list[SalePlan] = field(default_factory=list)
+    unbooked: list[DemandRef] = field(default_factory=list)
+    """Demands in Lekhara, in the file's period, with no sales voucher in Tally."""
 
 
 def _count(n: int, one: str, many: str) -> str:
@@ -236,8 +267,21 @@ def make_plan(book: Book, ctx: Context) -> Plan:
             )
         )
     receipts, buyers = _receipts(book, vouchers, ctx, alerts)
+    sales, unbooked = _sales(book, vouchers, ctx, period, alerts)
     _money_alerts(book, ctx, cash, alerts)
-    return Plan(period, dict(counts), vendors, bills, receipts, buyers, cost_centres, alerts, cash)
+    return Plan(
+        period,
+        dict(counts),
+        vendors,
+        bills,
+        receipts,
+        buyers,
+        cost_centres,
+        alerts,
+        cash,
+        sales,
+        unbooked,
+    )
 
 
 def _money_alerts(book: Book, ctx: Context, cash: Money, alerts: list[Alert]) -> None:
@@ -508,6 +552,7 @@ def _bills(
                 exists=ref in ctx.known_refs,
             )
         )
+    _net_debit_notes(book, vouchers, bills, refs_by_bill, owners, alerts)
     billwise_off = _settle(book, vouchers, bills, refs_by_bill)
     if no_reference:
         alerts.append(
@@ -537,12 +582,77 @@ def _bills(
     return bills, vendor_names, billwise_off
 
 
+def _net_debit_notes(book, vouchers, bills, refs_by_bill, owners, alerts) -> None:
+    """A debit note to a supplier (goods returned, a rate cut) reduces the bill it is raised
+    against: found by bill-wise reference (Agst Ref), or else by the supplier's invoice number
+    in the note's reference. The bill's taxable value and GST come down by the note's."""
+    by_ref: dict[tuple[str, str], BillPlan] = {}
+    for bill in bills:
+        for key in refs_by_bill[bill.ref]:
+            by_ref.setdefault(key, bill)
+        by_ref.setdefault((norm(bill.vendor_name), norm(bill.bill_no)), bill)
+    untied: list[str] = []
+    for v in vouchers:
+        if v.base_type != "debit note":
+            continue
+        suppliers = [
+            e
+            for e in v.entries
+            if book.kind(e.ledger) == "creditor" and e.amount > 0 and norm(e.ledger) not in owners
+        ]
+        if not suppliers:
+            continue
+        cost = sum(
+            (-e.amount for e in v.entries if book.kind(e.ledger) in COST_KINDS and e.amount < 0),
+            ZERO,
+        )
+        gst = sum(
+            (
+                -e.amount
+                for e in v.entries
+                if e.amount < 0
+                and book.kind(e.ledger) == "tax"
+                and book.ledger(e.ledger).tax_kind == "gst"
+            ),
+            ZERO,
+        )
+        for e in suppliers:
+            names = [b.name for b in e.bills if b.kind == "agst ref" and b.name]
+            if not names and v.reference:
+                names = [v.reference]
+            bill = next((by_ref.get((norm(e.ledger), norm(n))) for n in names if n), None)
+            if bill is None:
+                untied.append(v.label)
+                continue
+            share = e.amount / sum((x.amount for x in suppliers), ZERO)
+            note_gst = (gst * share).quantize(Decimal("0.01"))
+            note_taxable = (cost * share).quantize(Decimal("0.01")) if cost else e.amount - note_gst
+            bill.taxable_value = max(bill.taxable_value - note_taxable, ZERO)
+            bill.gst = max(bill.gst - note_gst, ZERO)
+            bill.total = max(bill.total - e.amount, ZERO)
+            bill.debit_notes.append(v.label)
+    if untied:
+        alerts.append(
+            Alert(
+                "missing",
+                "bill.debit_note_untied",
+                _count(len(untied), "debit note", "debit notes") + " could not be tied to a bill",
+                "They are left out of the suppliers' bills, so those bills, and the 80% test, show "
+                "the amount before the note.",
+                "In Tally, raise each debit note against the bill (Agst Ref), or put the "
+                "supplier's invoice number in its reference.",
+                untied[:20],
+            )
+        )
+
+
 def _settle(book: Book, vouchers: list[Voucher], bills: list[BillPlan], refs_by_bill) -> set[str]:
-    """Paid dates from bill-wise payments. Returns suppliers whose payments could not be tied."""
+    """Paid dates from bill-wise payments. Returns suppliers whose payments could not be tied.
+    Debit notes are not payments: they have already come off the bill."""
     paid: dict[tuple[str, str], list[tuple[date, Decimal]]] = defaultdict(list)
     untied: set[str] = set()
     for v in vouchers:
-        if v.base_type not in ("payment", "journal", "debit note", "contra"):
+        if v.base_type not in ("payment", "journal", "contra"):
             continue
         for e in v.entries:
             if e.amount <= 0 or book.kind(e.ledger) != "creditor":
@@ -728,3 +838,98 @@ def _receipts(book: Book, vouchers: list[Voucher], ctx: Context, alerts: list[Al
             )
         )
     return receipts, sorted(unmatched.values(), key=lambda b: (b.ignored, b.ledger.casefold()))
+
+
+def _sales(book: Book, vouchers: list[Voucher], ctx: Context, period, alerts: list[Alert]):
+    """Sales vouchers raised on buyers, matched to the demands raised in Lekhara on the same unit
+    for the same amount, within two months. Demands with no voucher are reported only when the
+    builder does book demands as sales, so a firm that does not is not told about every demand."""
+    sales: list[SalePlan] = []
+    by_unit: dict[str, list[DemandRef]] = defaultdict(list)
+    for d in ctx.demands:
+        by_unit[d.unit_id].append(d)
+    used: set[str] = set()
+    for v in vouchers:
+        if v.base_type != "sales":
+            continue
+        buyers = [e for e in v.entries if book.kind(e.ledger) == "debtor" and e.amount > 0]
+        if not buyers:
+            continue
+        gst = sum(
+            (
+                -e.amount
+                for e in v.entries
+                if e.amount < 0
+                and book.kind(e.ledger) == "tax"
+                and book.ledger(e.ledger).tax_kind == "gst"
+            ),
+            ZERO,
+        )
+        e = max(buyers, key=lambda x: x.amount)
+        link = ctx.links.get(norm(e.ledger))
+        unit = None
+        if link and link[0] == "unit":
+            unit = next((u for u in ctx.units if u.id == link[1]), None)
+        elif not link:
+            found = _match_unit(e.ledger, v, ctx.units)
+            unit = found[0] if len(found) == 1 else None
+        base = e.amount - gst
+        match = None
+        if unit is not None and v.on is not None:
+            candidates = [
+                d
+                for d in by_unit.get(unit.id, [])
+                if d.id not in used
+                and abs((d.raised_on - v.on).days) <= 60
+                and (
+                    abs(d.amount - base) <= max(Decimal("1"), base * Decimal("0.005"))
+                    or abs(d.amount + d.gst - e.amount) <= Decimal("1")
+                )
+            ]
+            if candidates:
+                match = min(candidates, key=lambda d: abs((d.raised_on - v.on).days))
+                used.add(match.id)
+        sales.append(
+            SalePlan(
+                voucher=v.label,
+                ledger=e.ledger,
+                unit_id=unit.id if unit else None,
+                unit_label=unit.label if unit else None,
+                on=v.on,
+                base=base,
+                gst=gst,
+                demand_id=match.id if match else None,
+            )
+        )
+    start, end = period
+    unbooked: list[DemandRef] = []
+    if used and start and end:
+        unbooked = [d for d in ctx.demands if d.id not in used and start <= d.raised_on <= end]
+    labels = {u.id: u.label for u in ctx.units}
+    if unbooked:
+        alerts.append(
+            Alert(
+                "missing",
+                "sale.demand_not_booked",
+                _count(len(unbooked), "demand", "demands") + " raised in Lekhara are not in Tally",
+                "GST on a home sold under construction is due when you invoice or are paid, "
+                "whichever is first, so a demand with no sales voucher may mean GST not yet "
+                "accounted for.",
+                "Raise a sales voucher in Tally for each demand, or check why it is not there.",
+                [f"Unit {labels.get(d.unit_id, '?')}, {d.milestone}" for d in unbooked][:30],
+            )
+        )
+    loose = [s for s in sales if s.demand_id is None and s.unit_id is not None]
+    if loose and ctx.demands:
+        alerts.append(
+            Alert(
+                "info",
+                "sale.no_demand",
+                _count(len(loose), "sales voucher has", "sales vouchers have")
+                + " no demand in Lekhara",
+                "Each is raised on a buyer's unit for an amount no demand in Lekhara matches.",
+                "If it is a milestone demand, raise it on the project's Collections tab.",
+                [f"{s.voucher}, unit {s.unit_label}" for s in loose][:30],
+            )
+        )
+    return sales, unbooked

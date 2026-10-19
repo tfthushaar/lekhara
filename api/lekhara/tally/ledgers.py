@@ -339,22 +339,28 @@ def money(
                 m.total += e.amount
         if not mapped_lines:
             continue
+        # A debit note credits cost and GST back, so it works on the credits instead.
+        sign = -1 if v.base_type == "debit note" else 1
+
+        def counts(amount: Decimal, sign: int = sign) -> bool:
+            return amount * sign > 0
+
         gst = ZERO
         if gst_is_cost:
             gst = sum(
                 (
                     e.amount
                     for e in v.entries
-                    if e.amount > 0
+                    if counts(e.amount)
                     and kind(e.ledger) == "tax"
                     and book.ledger(e.ledger).tax_kind == "gst"
                 ),
                 ZERO,
             )
-        base = sum((e.amount for e, _ in mapped_lines if e.amount > 0), ZERO)
+        base = sum((e.amount for e, _ in mapped_lines if counts(e.amount)), ZERO)
         by_line: dict[str, Decimal] = defaultdict(Decimal)
         for e, line_id in mapped_lines:
-            share = (gst * e.amount / base) if (gst and base and e.amount > 0) else ZERO
+            share = (gst * e.amount / base) if (gst and base and counts(e.amount)) else ZERO
             by_line[line_id] += e.amount + share
             cost_map[norm(e.ledger)].total += e.amount
         for line_id, amount in by_line.items():

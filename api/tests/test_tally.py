@@ -448,3 +448,65 @@ def test_tally_money_through_the_api(app) -> None:
     assert summary["incurred"] == "0.00"  # reversed, never deleted
     again = client.get(f"/tally/{upload(client, project, full_xml_utf16()).json()['id']}").json()
     assert again["money"]["counts"]["incurred"] == "427000.00"  # undone entries come back
+
+
+def with_debit_notes() -> bytes:
+    from tally_samples import DEBIT_NOTES, MASTERS, VOUCHERS, envelope
+
+    return envelope(MASTERS + VOUCHERS + DEBIT_NOTES).encode("utf-8")
+
+
+def test_debit_notes_come_off_the_bills_they_are_raised_against() -> None:
+    _, book = read_book("export.xml", with_debit_notes())
+    plan = make_plan(book, ctx())
+    steel = next(b for b in plan.bills if b.bill_no == "KST/1023")
+    assert (steel.taxable_value, steel.gst, steel.total) == (
+        D("90000.00"),
+        D("16200.00"),
+        D("106200.00"),
+    )
+    assert steel.debit_notes == ["Debit Note DN-1 of 10 May 2025"]
+    # The payment of 1,18,000 still pays the bill; the debit note is not counted as a payment.
+    assert steel.paid_on == date(2025, 5, 15)
+    untied = next(a for a in plan.alerts if a.code == "bill.debit_note_untied")
+    assert len(untied.items) == 1
+
+
+def test_sales_vouchers_are_matched_to_demands() -> None:
+    from lekhara.tally.plan import DemandRef
+
+    _, book = read_book("export.xml", full_xml_utf16())
+    demands = (
+        DemandRef("d1", "u2", D("900000"), D("0"), date(2025, 6, 25), "Plinth"),
+        DemandRef("d2", "u1", D("500000"), D("25000"), date(2025, 6, 20), "Booking"),
+        DemandRef("d3", "u1", D("500000"), D("25000"), date(2024, 1, 1), "Before the file"),
+    )
+    plan = make_plan(book, ctx(demands=demands))
+    (sale,) = plan.sales
+    assert (sale.unit_label, sale.demand_id, sale.base) == ("A-102", "d1", D("900000.00"))
+    assert [d.id for d in plan.unbooked] == ["d2"]
+    alert = next(a for a in plan.alerts if a.code == "sale.demand_not_booked")
+    assert alert.items == ["Unit A-101, Booking"]
+
+    # A firm that does not book demands as sales is not told about every demand.
+    plan = make_plan(book, ctx(demands=(demands[1],)))
+    assert plan.unbooked == [] and not any(a.code == "sale.demand_not_booked" for a in plan.alerts)
+
+
+def test_a_later_debit_note_changes_a_bill_already_brought_in(app) -> None:
+    client, project = firm_with_units(app)
+    first = upload(client, project, full_xml_utf16()).json()["id"]
+    client.post(f"/tally/{first}/apply")
+    later = upload(client, project, with_debit_notes()).json()["id"]
+    review = client.get(f"/tally/{later}").json()
+    assert review["counts"]["debit_notes"] == 1 and review["counts"]["bills_new"] == 0
+    applied = client.post(f"/tally/{later}/apply").json()
+    assert len(applied["result"]["bills_changed"]) == 1
+
+    def steel() -> dict:
+        bills = client.get(f"/projects/{project}/purchases").json()["bills"]
+        return next(b for b in bills if b["bill_no"] == "KST/1023")
+
+    assert D(steel()["taxable_value"]) == D("90000")
+    client.post(f"/tally/{later}/undo")
+    assert D(steel()["taxable_value"]) == D("100000")
