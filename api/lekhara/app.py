@@ -24,6 +24,7 @@ from lekhara import (
     imports,
     inbound,
     jobs,
+    krera_certificate,
     legal,
     packs,
     purchases,
@@ -617,6 +618,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             firm = {
                 "id": org.id,
                 "name": org.name,
+                "gstin": org.gstin,
                 "access": services.access_state(org, on),
                 "trial_ends_on": views.d(org.trial_ends_on),
                 "days_left": services.trial_days_left(org, on),
@@ -773,7 +775,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             "name": org.name,
             "legal_name": org.legal_name,
             "gstin": org.gstin,
-            "state": accounts.GSTIN_STATE.get((org.gstin or "")[:2]) if org.gstin else None,
+            **accounts.gstin_facts(org.gstin),
             "access": services.access_state(org, on),
             "trial_ends_on": views.d(org.trial_ends_on),
             "days_left": services.trial_days_left(org, on),
@@ -938,6 +940,15 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             raise ServiceError(auth.READ_ONLY, 402)
         project = accounts.create_project(session, org, me, body.model_dump())
         return {"id": project.id}
+
+    @app.post("/projects/from-certificate")
+    def read_krera_certificate(session: SessionDep, me: Me, file: UploadFile) -> dict:
+        accounts.current_org(session, me)
+        data = file.file.read(settings.max_upload_mb * 1_000_000 + 1)
+        if len(data) > settings.max_upload_mb * 1_000_000:
+            raise ServiceError(f"Files can be up to {settings.max_upload_mb} MB.")
+        reading = krera_certificate.read_certificate(file.filename or "", data)
+        return {"fields": reading.fields, "missing": reading.missing}
 
     # Units and buyers: add, edit, delete, with history
 
@@ -1489,6 +1500,14 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         auth.require_prepare(me, p)
         values, _ = form_values(FILINGS, body)
         statutory.create_filing(session, p, values, as_of=on, user_id=me.user_id)
+        session.commit()
+        return krera_for(session, me, p, on)
+
+    @app.post("/projects/{project_id}/filings/earlier")
+    def record_earlier_filings(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        statutory.record_earlier_filings(session, p, KARNATAKA, as_of=on, user_id=me.user_id)
         session.commit()
         return krera_for(session, me, p, on)
 

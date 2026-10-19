@@ -199,11 +199,15 @@ def krera_view(
             "history": history_rows(changes, names_for(changes), labels),
         }
 
+    known_from = project.organization.created_on
+
     def state(due: date, period_end: date, f) -> str:
         if f is not None:
             return "filed"
         if period_end > as_of:
             return "open"
+        if known_from is not None and due < known_from:
+            return "unrecorded"
         return "late" if due < as_of else "due"
 
     quarters = []
@@ -243,6 +247,8 @@ def krera_view(
         "audits": audits,
         "qpr_due_days": due_days,
         "audit_months": months,
+        "known_from": _d(known_from),
+        "unrecorded": sum(1 for x in [*quarters, *audits] if x["state"] == "unrecorded"),
     }
 
 

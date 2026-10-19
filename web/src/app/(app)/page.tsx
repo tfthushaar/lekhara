@@ -147,13 +147,24 @@ async function Welcome() {
         {org?.access === "trial"
           ? `Your free month has started: ${org.days_left} days on your own projects. `
           : ""}
-        Three steps and this page starts telling you what each project owes, and to whom.
+        A few steps and this page starts telling you what each project owes, and to whom.
       </p>
       <ol className="steps-list">
+        {org && !org.gstin ? (
+          <li>
+            <div>
+              <p className="row-title">Your firm&apos;s GSTIN</p>
+              <p className="row-detail">It fills in your state and PAN, and goes on every pack and letter.</p>
+            </div>
+            <Link href="/settings" className="button button-secondary">
+              Add the GSTIN
+            </Link>
+          </li>
+        ) : null}
         <li>
           <div>
             <p className="row-title">Add your first project</p>
-            <p className="row-detail">The name, K-RERA number and dates from its registration.</p>
+            <p className="row-detail">Drop in its K-RERA registration certificate, or type the name, number and dates.</p>
           </div>
           {org?.can_add_projects && org.access !== "read_only" ? (
             <Link href="/projects/new" className="button">

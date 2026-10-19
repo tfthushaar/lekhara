@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { deleteFiling, recordFiling, updateFiling } from "@/app/actions";
+import { deleteFiling, recordEarlierFilings, recordFiling, updateFiling } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { History } from "@/components/history";
 import { type FilingPeriod, api } from "@/lib/api";
@@ -20,6 +20,7 @@ const STATE = {
   late: { text: "Late", tag: "tag tag-overdue" },
   due: { text: "Due", tag: "tag tag-soon" },
   open: { text: "Current", tag: "tag tag-upcoming" },
+  unrecorded: { text: "Not recorded", tag: "tag tag-upcoming" },
 };
 
 const SHOWN = 4;
@@ -31,6 +32,18 @@ async function KreraView({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <>
+      {k.unrecorded > 0 ? (
+        <div className="notice" style={{ marginBottom: 24 }}>
+          <p>
+            {`Lekhara does not know whether the ${k.unrecorded} filings due before you started using it, on ${day(k.known_from)}, were made. Record each one below with its acknowledgement, or all at once if they were filed on time.`}
+          </p>
+          {k.can_edit ? (
+            <div style={{ marginTop: 12 }}>
+              <ActionForm action={recordEarlierFilings.bind(null, id)} label="They were all filed on time" pendingLabel="Recording" secondary />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <section className="section">
         <div className="section-head">
           <h2>Quarterly progress reports</h2>

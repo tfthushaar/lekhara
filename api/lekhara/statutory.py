@@ -367,6 +367,55 @@ def update_filing(
     return changes
 
 
+def earlier_periods(project: Project, rules, as_of: date) -> list[tuple[str, date, date]]:
+    """(kind, period end, due date) of every filing due before the firm started using Lekhara."""
+    from lekhara.engines.obligations import _month_end_after, _quarter_ends
+    from lekhara.engines.tax import financial_year
+
+    known_from = project.organization.created_on
+    if known_from is None:
+        return []
+    due_days = rules.value("krera.qpr_due_days", as_of)
+    months = rules.value("krera.annual_audit_months", as_of)
+    out = [
+        ("qpr", qe, qe + timedelta(days=due_days))
+        for qe in _quarter_ends(project.registered_on, known_from)
+        if qe + timedelta(days=due_days) < known_from
+    ]
+    fy_start, _ = financial_year(known_from)
+    year_end = fy_start - timedelta(days=1)
+    while year_end > project.registered_on:
+        due = _month_end_after(year_end, months)
+        if due < known_from:
+            out.append(("annual_audit", year_end, due))
+        year_end = date(year_end.year - 1, 3, 31)
+    return out
+
+
+def record_earlier_filings(
+    session: Session, project: Project, rules, *, as_of: date, user_id: str | None
+) -> int:
+    """Records every filing due before the firm joined, and not recorded yet, as filed on its due
+    date: for a builder who filed them all on time."""
+    added = 0
+    for kind, end, due in earlier_periods(project, rules, as_of):
+        if find_filing(session, project, kind, end) is None:
+            create_filing(
+                session,
+                project,
+                {
+                    "kind": kind,
+                    "period_end": end,
+                    "filed_on": due,
+                    "reference": "Filed before Lekhara",
+                },
+                as_of=as_of,
+                user_id=user_id,
+            )
+            added += 1
+    return added
+
+
 def delete_filing(session: Session, project: Project, f: Filing, *, user_id: str | None) -> None:
     log_change(
         session,

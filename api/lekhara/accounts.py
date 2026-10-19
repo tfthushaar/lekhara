@@ -108,6 +108,33 @@ def check_password(password: str | None) -> str:
     return password
 
 
+CONSTITUTION = {
+    "C": "Company",
+    "F": "Partnership firm or LLP",
+    "P": "Proprietor",
+    "H": "Hindu undivided family",
+    "A": "Association of persons",
+    "B": "Body of individuals",
+    "T": "Trust",
+    "L": "Local authority",
+    "J": "Artificial juridical person",
+    "G": "Government",
+}
+
+
+def gstin_facts(gstin: str | None) -> dict:
+    """What a GSTIN itself says: the state, the PAN inside it, and from the PAN, the kind of
+    business. The legal name is not in the number; it is on the GST certificate."""
+    if not gstin:
+        return {"state": None, "pan": None, "constitution": None}
+    pan = gstin[2:12]
+    return {
+        "state": GSTIN_STATE.get(gstin[:2]),
+        "pan": pan,
+        "constitution": CONSTITUTION.get(pan[3]),
+    }
+
+
 def check_gstin(gstin: str | None) -> str | None:
     gstin = (gstin or "").strip().upper()
     if not gstin:

@@ -133,7 +133,16 @@ async function SettingsView() {
             </li>
           </ul>
         )}
-        {f.state ? <p className="small muted">Registered in {f.state}.</p> : null}
+        {f.gstin ? (
+          <p className="small muted">
+            {`From the GSTIN: ${[f.constitution, f.state ? `registered in ${f.state}` : null, f.pan ? `PAN ${f.pan}` : null]
+              .filter(Boolean)
+              .join(", ")}.`}
+            {f.legal_name ? "" : " The legal name is on your GST certificate; enter it above."}
+          </p>
+        ) : (
+          <p className="small muted">Your GSTIN goes on the packs and letters Lekhara prepares, and fills in your state and PAN.</p>
+        )}
       </section>
 
       <section className="section">

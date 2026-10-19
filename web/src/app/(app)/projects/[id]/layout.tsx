@@ -42,7 +42,7 @@ async function ProjectHeader({ params }: { params: Promise<{ id: string }> }) {
             {p.access.sample ? <span className="tag tag-upcoming" style={{ marginLeft: 12, verticalAlign: "middle" }}>Sample, read-only</span> : null}
           </h1>
           <p>
-            {p.locality}, {p.city}. {p.land_structure}. K-RERA {p.krera_registration}
+            {[p.locality, p.city].filter(Boolean).join(", ")}. {p.land_structure}. K-RERA {p.krera_registration}
           </p>
         </div>
         {p.possession_due_on ? (

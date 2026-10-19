@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { applyPlanTemplate, raiseDemands, savePlan } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { Needs, has, missing } from "@/components/needs";
 import { type Collections, type PaymentPlan, api } from "@/lib/api";
 import { day, inr, pct } from "@/lib/format";
 
@@ -23,11 +24,15 @@ function when(m: Collections["milestones"][number]): string {
 
 async function CollectionsView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [c, plan] = await Promise.all([api.collections(id), api.paymentPlan(id)]);
+  const [c, plan, setup] = await Promise.all([api.collections(id), api.paymentPlan(id), api.setup(id)]);
   const s = c.summary;
+  const needs = missing(setup, ["units", "plan", "progress", "receipts"]);
+  const canRaise = has(setup, "units") && has(setup, "plan") && has(setup, "progress");
+  const paymentsIn = has(setup, "receipts");
 
   return (
     <>
+      <Needs items={needs} purpose="To raise demands and follow up buyers' payments" />
       <div className="stats">
         <div className="stat">
           <p className="stat-label">Billed to buyers</p>
@@ -57,7 +62,11 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
           <p>Milestones the latest certified progress has reached</p>
         </div>
         {c.ready.length === 0 ? (
-          <p className="empty">Every milestone reached so far has been demanded.</p>
+          <p className="empty">
+            {canRaise
+              ? "Every milestone reached so far has been demanded."
+              : "Demands are ready to raise once the units, the payment plan and certified progress are in."}
+          </p>
         ) : (
           <ul className="rows">
             {c.ready.map((r) => (
@@ -96,7 +105,7 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
           <p>Past their due date, largest first. Your team sends the reminders.</p>
         </div>
         {c.overdue.length === 0 ? (
-          <p className="empty">No buyer is overdue.</p>
+          <p className="empty">{paymentsIn || c.accounts.length === 0 ? "No buyer is overdue." : "No buyer is overdue on the demands raised so far."}</p>
         ) : (
           <table className="table">
             <thead>
@@ -172,6 +181,7 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
         </table>
       </section>
 
+      {paymentsIn ? (
       <section className="section">
         <div className="section-head">
           <h2>Deposits against the 70% rule</h2>
@@ -202,6 +212,7 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
           </tbody>
         </table>
       </section>
+      ) : null}
 
       <section className="section">
         <details className="disclosure">

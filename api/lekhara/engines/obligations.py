@@ -122,6 +122,9 @@ class ProjectFacts:
     disputes: DisputesPosition | None = None
     expiring_documents: list[Expiring] = field(default_factory=list)
     lapsing_approvals: list[LapsingApproval] = field(default_factory=list)
+    known_from: date | None = None
+    """The day the firm started using Lekhara. Filings due before it are not known to Lekhara,
+    so they are asked about once rather than counted as late."""
 
 
 def _quarter_ends(start: date, end: date) -> list[date]:
@@ -461,10 +464,14 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
         late_fee = rules.value("krera.qpr_late_fee_per_quarter", f.as_of)
     due_days = rules.value("krera.qpr_due_days", f.as_of)
     horizon = f.as_of + timedelta(days=100)
+    unrecorded = {"quarterly report": 0, "annual audit": 0}
     for qe in _quarter_ends(f.registered_on, horizon):
         if qe in f.qpr_filed:
             continue
         due = qe + timedelta(days=due_days)
+        if f.known_from is not None and due < f.known_from:
+            unrecorded["quarterly report"] += 1
+            continue
         label = f"quarter ending {_fmt(qe)}"
         if due < f.as_of:
             add(
@@ -501,8 +508,10 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
     fy_end = fy_start - timedelta(days=1)
     while fy_end > f.registered_on:
         year = fy_end.year - 1
-        if year not in f.audits_done:
-            due = _month_end_after(fy_end, months)
+        due = _month_end_after(fy_end, months)
+        if year not in f.audits_done and f.known_from is not None and due < f.known_from:
+            unrecorded["annual audit"] += 1
+        elif year not in f.audits_done:
             status = _dated_status(due, f.as_of, soon)
             if status != ObligationStatus.UPCOMING or (due - f.as_of).days <= 60:
                 add(
@@ -520,6 +529,22 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
                     action="Prepare the audit pack",
                 )
         fy_end = date(fy_end.year - 1, 3, 31)
+
+    if any(unrecorded.values()):
+        counts = [f"{n} {kind}{'s' if n > 1 else ''}" for kind, n in unrecorded.items() if n]
+        add(
+            key="krera:unrecorded",
+            title="Record the K-RERA filings made before you joined",
+            detail=(
+                f"Lekhara does not know whether {' and '.join(counts)} due before "
+                f"{_fmt(f.known_from)} were filed. Record them on the K-RERA tab, or all at once "
+                "if they were filed on time."
+            ),
+            owed_to="K-RERA",
+            status=ObligationStatus.AT_RISK,
+            area=Area.KRERA,
+            action="Record them",
+        )
 
     # Delay interest and the possession date
     d = f.delay

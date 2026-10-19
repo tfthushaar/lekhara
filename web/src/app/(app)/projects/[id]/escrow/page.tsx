@@ -3,7 +3,8 @@ import { Suspense } from "react";
 
 import { startWithdrawal } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
-import { api } from "@/lib/api";
+import { Needs, has, missing } from "@/components/needs";
+import { api, setupIfTeam } from "@/lib/api";
 import { day, inr, pct } from "@/lib/format";
 import { REQUEST_STATUS } from "@/lib/labels";
 
@@ -17,12 +18,16 @@ export default function EscrowPage({ params }: PageProps<"/projects/[id]/escrow"
 
 async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const e = await api.escrow(id);
+  const [e, setup] = await Promise.all([api.escrow(id), setupIfTeam(id)]);
   const open = e.requests.find((r) => r.id === e.open_request_id);
   const drawable = Number(e.drawable_now);
+  const needs = setup ? missing(setup, ["cost_lines", "costs", "escrow"]) : [];
+  const known = !setup || (has(setup, "costs") && has(setup, "escrow"));
+  const paymentsIn = !setup || has(setup, "receipts");
 
   return (
     <>
+      <Needs items={needs} purpose="To work out what can be withdrawn" />
       {open ? (
         <div className="notice" style={{ marginBottom: 32 }}>
           A withdrawal of {inr(open.amount)} is under way and waiting for {open.waiting_on}.{" "}
@@ -35,8 +40,8 @@ async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
       <div className="grid-2">
         <div>
           <p className="stat-label">You can withdraw today</p>
-          <p className="hero-value">{inr(e.drawable_now)}</p>
-          <p className="stat-note">{e.limited_by_text}</p>
+          <p className="hero-value">{known ? inr(e.drawable_now) : "Not known yet"}</p>
+          <p className="stat-note">{known ? e.limited_by_text : "Once your costs and the RERA account are in"}</p>
 
           {e.can_start ? (
             <div style={{ marginTop: 24 }}>
@@ -51,7 +56,7 @@ async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
               </p>
             </div>
           ) : null}
-          {!open && drawable <= 0 && e.can_start ? (
+          {!open && drawable <= 0 && e.can_start && known ? (
             <p className="muted" style={{ marginTop: 24 }}>
               Nothing can be drawn until more cost is incurred or more is deposited.
             </p>
@@ -94,7 +99,13 @@ async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
             <span className="num">{inr(e.deposits.deposited)}</span>
           </li>
           <li className="calc-total">
-            <span>{Number(e.deposits.shortfall) > 0 ? "Still to deposit" : "Deposits are complete"}</span>
+            <span>
+              {Number(e.deposits.shortfall) > 0
+                ? "Still to deposit"
+                : paymentsIn
+                  ? "Deposits are complete"
+                  : "No buyer payments in Lekhara yet"}
+            </span>
             <span className="num">
               {Number(e.deposits.shortfall) > 0 ? inr(e.deposits.shortfall) : ""}
             </span>

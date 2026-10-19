@@ -417,6 +417,7 @@ def snapshot(
         disputes=disputes,
         expiring_documents=expiring_docs,
         lapsing_approvals=lapsing,
+        known_from=project.organization.created_on,
     )
     return ProjectSnapshot(
         project=project,

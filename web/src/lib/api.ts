@@ -64,6 +64,7 @@ export type Me = {
   organization: {
     id: string;
     name: string;
+    gstin: string | null;
     access: Access;
     trial_ends_on: string | null;
     days_left: number | null;
@@ -81,6 +82,8 @@ export type Firm = {
   legal_name: string | null;
   gstin: string | null;
   state: string | null;
+  pan: string | null;
+  constitution: string | null;
   access: Access;
   trial_ends_on: string | null;
   days_left: number | null;
@@ -1321,6 +1324,18 @@ async function get<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+/** The project's set-up checklist, or null for someone outside the firm's team (a certifier). */
+export async function setupIfTeam(projectId: string): Promise<Setup | null> {
+  const response = await fetch(`${BASE}/projects/${projectId}/setup`, {
+    cache: "no-store",
+    headers: await authHeaders(),
+  });
+  if (response.status === 401) redirect("/login");
+  if (response.status === 403 || response.status === 404) return null;
+  if (!response.ok) throw new Error(`Lekhara API ${response.status} on the set-up checklist`);
+  return response.json() as Promise<Setup>;
+}
+
 /** An invitation, read without signing in. Null once it has been used or has expired. */
 export async function invitationInfo(token: string): Promise<InvitationInfo | null> {
   const response = await fetch(`${BASE}/invitations/${encodeURIComponent(token)}`, {
@@ -1467,7 +1482,7 @@ export type FilingPeriod = {
   period_end: string;
   period_start: string;
   due_on: string;
-  state: "filed" | "late" | "due" | "open";
+  state: "filed" | "late" | "due" | "open" | "unrecorded";
   filing: { id: string; filed_on: string; reference: string | null; history: HistoryEntry[] } | null;
 };
 
@@ -1479,6 +1494,8 @@ export type Krera = {
   audits: FilingPeriod[];
   qpr_due_days: number;
   audit_months: number;
+  known_from: string | null;
+  unrecorded: number;
 };
 
 export type TableEdit = {

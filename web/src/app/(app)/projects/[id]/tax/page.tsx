@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { Needs, has, missing } from "@/components/needs";
 import { api } from "@/lib/api";
 import { day, inr, pct, relative } from "@/lib/format";
 
@@ -16,20 +17,34 @@ const MSME_STATUS = { ok: "On time", due_soon: "Due soon", overdue: "Past the li
 
 async function TaxView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const t = await api.tax(id);
+  const [t, setup] = await Promise.all([api.tax(id), api.setup(id)]);
   const p = t.procurement;
+  const billsIn = has(setup, "bills") || has(setup, "costs");
+  const paymentsIn = has(setup, "receipts");
+  const costsIn = has(setup, "costs");
   const dr = t.development_rights;
   const share = Math.min(Number(p.registered_share_pct), 100);
 
   return (
     <>
+      <Needs items={missing(setup, ["bills", "costs", "receipts"])} purpose="For the tax checks" />
       <p className="muted small" style={{ marginBottom: 24 }}>
         GST regime: {t.regime}. Rates come from the Karnataka rules pack; some are marked for your
         CA to confirm. <Link href="/rules">See the rules</Link>
       </p>
 
       <div className="grid-2">
-        {p.applies ? (
+        {p.applies && !billsIn ? (
+          <div className="card">
+            <h2>Registered suppliers, FY {p.fy}</h2>
+            <p className="hero-value">No bills yet</p>
+            <p>
+              At least {pct(p.min_share_pct)} of what you buy this year must be from GST-registered suppliers.
+              Add suppliers&apos; bills, or bring them in from Tally, to track it.
+            </p>
+          </div>
+        ) : null}
+        {p.applies && billsIn ? (
           <div className="card">
             <h2>Registered suppliers, FY {p.fy}</h2>
             <p className="hero-value">{pct(p.registered_share_pct)}</p>
@@ -103,6 +118,16 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
                 <strong>{inr(t.delay.per_month)}</strong>.
               </p>
             </>
+          ) : !t.delay.possession_due_on ? (
+            <p style={{ marginTop: 12 }}>
+              Add the possession date promised in your registration, on the{" "}
+              <Link href={`/projects/${id}/setup`}>Set-up tab</Link>, to see what a delay would cost.
+            </p>
+          ) : !paymentsIn ? (
+            <p style={{ marginTop: 12 }}>
+              If possession slips past {day(t.delay.possession_due_on)}, interest runs on what buyers have paid.
+              Bring in buyers&apos; payments to see how much a month.
+            </p>
           ) : (
             <>
               <p className="stat-label" style={{ marginTop: 12 }}>
@@ -122,12 +147,18 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
           <p className="stat-label" style={{ marginTop: 12 }}>
             Still to pay on construction to date
           </p>
-          <p className="hero-value">{inr(t.cess.balance_due) || "₹0"}</p>
-          <p>
-            1% of {inr(t.cess.construction_incurred)} of construction cost is{" "}
-            {inr(t.cess.due_to_date)}; {inr(t.cess.paid)} is paid. The whole project will carry
-            about {inr(t.cess.on_estimate)}.
-          </p>
+          {costsIn ? (
+            <>
+              <p className="hero-value">{inr(t.cess.balance_due) || "₹0"}</p>
+              <p>
+                1% of {inr(t.cess.construction_incurred)} of construction cost is{" "}
+                {inr(t.cess.due_to_date)}; {inr(t.cess.paid)} is paid. The whole project will carry
+                about {inr(t.cess.on_estimate)}.
+              </p>
+            </>
+          ) : (
+            <p>1% of construction cost. Bring in your costs to see what is due.</p>
+          )}
         </div>
       </div>
 
@@ -212,7 +243,7 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
           <p>10% applies to money paid under a joint development agreement</p>
         </div>
         {t.landowner_tds.length === 0 ? (
-          <p className="empty">TDS is in order on every landowner payment.</p>
+          <p className="empty">No TDS shortfall on the landowner payments in Lekhara.</p>
         ) : (
           <table className="table">
             <thead>

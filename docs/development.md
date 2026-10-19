@@ -62,6 +62,10 @@ Debit notes (`plan._net_debit_notes`) reduce the bill they reference before paym
 
 A data room that asks who is visiting (`DataRoom.ask_visitor`) shows nothing until `POST /shared/{token}/visitor` records a `DataRoomVisitor`; the web keeps the returned token in a cookie scoped to that room's link and passes it to the API as `X-Lekhara-Visitor`.
 
+### Onboarding
+
+`api/lekhara/krera_certificate.py` reads a Form C registration certificate's text (`POST /projects/from-certificate`); the web opens the new-project form with what it found. `accounts.gstin_facts` gives a GSTIN's state, PAN and constitution. Pages that would show zeros before data is in ask the set-up checklist (`readiness.py`, `/projects/{id}/setup`) through `web/src/components/needs.tsx`. The firm's `created_on` is passed to the obligations engine as `known_from`: filings due before it are asked about once (`krera:unrecorded`) rather than counted late, and `POST /projects/{id}/filings/earlier` records them all as filed on their due dates.
+
 ### Approvals, filings and landowner payments
 
 `api/lekhara/statutory.py` holds approvals (with their status: to apply, applied, granted, lapsing within `approvals.renewal_notice_days`, lapsed) and K-RERA filings (a quarterly report covers a quarter end, an annual audit a 31 March). Landowner payments are in `registers.py`; their history is logged under the landowner, so the landowner's page keeps deleted payments too. `record_views.py` builds the landowner, approvals, K-RERA and table views. Lapsing approvals reach Today through `services.lapsing_approvals` and the obligations engine.

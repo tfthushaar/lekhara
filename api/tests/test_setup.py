@@ -125,3 +125,66 @@ def test_the_sample_project_is_mostly_set_up(owner) -> None:
     s = statuses(view)
     assert s["units"] == "done" and s["plan"] == "done" and s["certifiers"] == "done"
     assert view["summary"]["done"] >= 8
+
+
+CERTIFICATE = [
+    "FORM 'C'",
+    "[See rule 6(a)]",
+    "REGISTRATION CERTIFICATE OF PROJECT",
+    "This registration is granted under section 5 of the Act to the following project under",
+    "project registration number PRM/KA/RERA/1251/309/PR/250401/007412",
+    "Project: Kaveri Heights, Sy. No. 41/2, situated at Bagalur Road, Yelahanka, Bengaluru",
+    "Urban District, Karnataka 560064.",
+    "1. Kaveri Homes LLP having its registered office at 12 MG Road, Bengaluru.",
+    "2. This registration is granted subject to the following conditions, namely:",
+    "(iii) The registration shall be valid for a period commencing from 01/04/2025 and ending",
+    "with 31/03/2029 unless renewed by the Real Estate Regulatory Authority.",
+]
+
+
+def test_a_project_is_read_from_its_krera_certificate(app) -> None:
+    from lekhara.pdf import write_pdf
+
+    client, _ = firm(app)
+    data = write_pdf([CERTIFICATE], title="Registration certificate")
+    r = client.post(
+        "/projects/from-certificate", files={"file": ("certificate.pdf", data, "application/pdf")}
+    )
+    assert r.status_code == 200, r.text
+    fields = r.json()["fields"]
+    assert fields == {
+        "krera_registration": "PRM/KA/RERA/1251/309/PR/250401/007412",
+        "registered_on": "2025-04-01",
+        "possession_due_on": "2029-03-31",
+        "name": "Kaveri Heights",
+        "locality": "Yelahanka",
+        "city": "Bengaluru",
+        "spv_name": "Kaveri Homes LLP",
+    }
+    assert r.json()["missing"] == []
+
+    blank = write_pdf([["Scanned"]], title="Scan")
+    scanned = client.post(
+        "/projects/from-certificate", files={"file": ("scan.pdf", blank, "application/pdf")}
+    )
+    assert scanned.status_code == 400 and "scanned copy" in scanned.json()["detail"]
+    other = client.post(
+        "/projects/from-certificate", files={"file": ("photo.jpg", b"x", "image/jpeg")}
+    )
+    assert other.status_code == 400
+
+
+def test_the_firm_from_its_gstin(app) -> None:
+    from tests.test_purchases import gstin
+
+    client, _ = firm(app)
+    number = gstin("29AABFK1234M1Z")
+    r = client.put("/organization", json={"gstin": number})
+    assert r.status_code == 200, r.text
+    f = client.get("/organization").json()
+    assert (f["state"], f["pan"], f["constitution"]) == (
+        "Karnataka",
+        "AABFK1234M",
+        "Partnership firm or LLP",
+    )
+    assert client.get("/auth/me").json()["organization"]["gstin"] == number

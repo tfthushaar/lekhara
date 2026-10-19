@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { has } from "@/components/needs";
 import { ObligationRows } from "@/components/obligations";
 import { api } from "@/lib/api";
 import { inr, pct } from "@/lib/format";
@@ -24,6 +25,8 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
   const over = Number(m.anticipated_final_cost) - Number(m.budget);
   const sum = (key: "budget" | "committed" | "incurred" | "paid" | "anticipated_final_cost") =>
     String(money.lines.reduce((total, line) => total + Number(line[key]), 0));
+  const known = (key: string) => !setup || has(setup, key);
+  const fresh = setup !== null && ["units", "costs", "receipts", "escrow"].every((key) => !known(key));
 
   return (
     <>
@@ -36,6 +39,43 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
           </a>
         </p>
       ) : null}
+      {fresh ? (
+        <section style={{ marginBottom: 32 }}>
+          <div className="section-head">
+            <h2>Start with what you already have</h2>
+            <p>Each file comes in with a preview first; nothing changes until you say so</p>
+          </div>
+          <ul className="steps-list">
+            <li>
+              <div>
+                <p className="row-title">Your Tally books</p>
+                <p className="row-detail">Suppliers, bills, costs, buyer payments, the RERA account and landowners, from one export.</p>
+              </div>
+              <Link href={`/projects/${id}/import`} className="button">
+                Bring in Tally
+              </Link>
+            </li>
+            <li>
+              <div>
+                <p className="row-title">Bank statements</p>
+                <p className="row-detail">The collection account and the RERA account, as Excel or PDF from net banking.</p>
+              </div>
+              <Link href={`/projects/${id}/import`} className="button button-secondary">
+                Bring in a statement
+              </Link>
+            </li>
+            <li>
+              <div>
+                <p className="row-title">Your units and buyers</p>
+                <p className="row-detail">From your sales sheet or CRM export; columns are matched for you.</p>
+              </div>
+              <Link href={`/projects/${id}/import`} className="button button-secondary">
+                Import units
+              </Link>
+            </li>
+          </ul>
+        </section>
+      ) : null}
       <div className="stats">
         <div className="stat">
           <p className="stat-label">Certified progress</p>
@@ -44,22 +84,34 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
         </div>
         <div className="stat">
           <p className="stat-label">Anticipated final cost</p>
-          <p className="stat-value">{inr(m.anticipated_final_cost)}</p>
+          <p className="stat-value">{known("cost_lines") ? inr(m.anticipated_final_cost) : "No budget yet"}</p>
           <p className="stat-note">
-            {over > 0 ? `${inr(String(over))} over the budget of ${inr(m.budget)}` : `Budget ${inr(m.budget)}`}
+            {!known("cost_lines") ? (
+              <Link href={`/projects/${id}/budget`}>Set up the cost lines</Link>
+            ) : over > 0 ? (
+              `${inr(String(over))} over the budget of ${inr(m.budget)}`
+            ) : (
+              `Budget ${inr(m.budget)}`
+            )}
           </p>
         </div>
         <div className="stat">
           <p className="stat-label">Cost incurred</p>
-          <p className="stat-value">{inr(m.incurred)}</p>
+          <p className="stat-value">{known("costs") || Number(m.incurred) > 0 ? inr(m.incurred) : "No costs yet"}</p>
           <p className="stat-note">
-            {pct(m.development_incurred_pct)} of development cost.{" "}
-            <Link href={`/projects/${id}/budget`}>Cost lines and budget</Link>
+            {known("costs") || Number(m.incurred) > 0 ? (
+              <>
+                {pct(m.development_incurred_pct)} of development cost.{" "}
+                <Link href={`/projects/${id}/budget`}>Cost lines and budget</Link>
+              </>
+            ) : (
+              <Link href={`/projects/${id}/import`}>Bring in your costs from Tally</Link>
+            )}
           </p>
         </div>
         <div className="stat">
           <p className="stat-label">Can draw now</p>
-          <p className="stat-value">{inr(project.drawable_now)}</p>
+          <p className="stat-value">{known("costs") && known("escrow") ? inr(project.drawable_now) : "Not known yet"}</p>
           <p className="stat-note">
             <Link href={`/projects/${id}/escrow`}>See how this is worked out</Link>
           </p>

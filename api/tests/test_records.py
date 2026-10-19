@@ -167,8 +167,10 @@ def test_filings(app) -> None:
     client, project = firm(app)
     krera = client.get(f"/projects/{project}/krera").json()
     states = {q["period_end"]: q["state"] for q in krera["quarters"]}
-    assert states["2026-06-30"] == "late" and states["2026-09-30"] == "late"
+    # The firm joined on 17 October, so Lekhara does not know about earlier filings.
+    assert states["2026-06-30"] == "unrecorded" and states["2026-09-30"] == "unrecorded"
     assert states["2026-12-31"] == "open"
+    assert krera["unrecorded"] == 7 and krera["known_from"] == "2026-10-17"
     assert krera["audits"][0]["period_end"] == "2026-03-31"
     assert krera["audits"][0]["due_on"] == "2026-09-30"
 
@@ -183,7 +185,8 @@ def test_filings(app) -> None:
     )
     assert "before the period" in early.json()["detail"]
 
-    assert "qpr:2026-09-30" in keys(client, project)
+    assert "krera:unrecorded" in keys(client, project)
+    assert "qpr:2026-09-30" not in keys(client, project)
     krera = client.post(
         f"/projects/{project}/filings",
         json={
@@ -244,3 +247,14 @@ def test_edit_as_a_table(app) -> None:
     assert client.get(f"/projects/{project}/table/receipts").status_code == 404
     short = client.post(f"/projects/{project}/table/units", json={"rows": [["A-101"]]})
     assert short.status_code == 400
+
+
+def test_filings_before_joining_recorded_at_once(app) -> None:
+    client, project = firm(app)
+    krera = client.post(f"/projects/{project}/filings/earlier").json()
+    assert krera["unrecorded"] == 0
+    filed = [q for q in krera["quarters"] if q["state"] == "filed"]
+    assert len(filed) == 6 and filed[0]["filing"]["reference"] == "Filed before Lekhara"
+    assert filed[0]["filing"]["filed_on"] == "2026-10-15"
+    assert krera["audits"][0]["state"] == "filed"
+    assert "krera:unrecorded" not in keys(client, project)

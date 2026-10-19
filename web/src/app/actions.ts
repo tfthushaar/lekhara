@@ -1238,3 +1238,22 @@ export async function enterRoom(token: string, _previous: ActionState, form: For
   });
   redirect(`/shared/${encodeURIComponent(token)}`);
 }
+
+export async function recordEarlierFilings(projectId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/filings/earlier`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+/** Reads a project's details from its K-RERA certificate and opens the form filled in, to check. */
+export async function readCertificate(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose the certificate first." };
+  const body = new FormData();
+  body.append("file", file, file.name);
+  const result = await sendForm<{ fields: Record<string, string>; missing: string[] }>("/projects/from-certificate", body);
+  if (!result.ok) return { error: result.error };
+  const query = new URLSearchParams({ ...result.data.fields, from: "certificate", missing: result.data.missing.join(", ") });
+  redirect(`/projects/new?${query}`);
+}

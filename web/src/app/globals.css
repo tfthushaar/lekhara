@@ -1177,3 +1177,18 @@ h3 {
 .check-line input {
   margin-top: 3px;
 }
+
+/* What a page needs before it can work something out */
+
+.needs {
+  margin: 0 0 24px;
+}
+
+.needs ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.needs li {
+  margin: 2px 0;
+}
