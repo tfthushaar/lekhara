@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-19, with the commit "Add two-step sign-in, limits per address, virus checks, row-level security and CRM exports".
+Last updated: 2026-10-19, with the commit "Show form results straight away when a form is sent before the page's scripts load".
 
 ## What we are building
 
@@ -241,10 +241,12 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - A unit whose status says it is blocked, on hold, available or lost is brought in unsold, even with a name against it.
   - Built from the CRMs' published field names; to be checked against real exports from design partners.
 - Tested end to end: a Sell.Do inventory export recognised on the preview and imported, with the blocked unit left unsold.
+- Forms on a slow connection: a form sent before the page's scripts have arrived now comes back to the same page with its error or confirmation on that form straight away, instead of the message appearing only once the scripts load. Reloading the page afterwards does not send the form again. With the scripts loaded, nothing changes.
+- Tested end to end: sign-in and adding a unit sent as plain posts, the message shown on the right form only and only once, and in a browser with its scripts held back; with scripts, errors still show in place.
 
 ## In progress
 
-- Form errors shown without JavaScript.
+- Public website: home, pricing and contact, with the refund and cancellation policy pages a payment gateway checks.
 
 ## Left
 
@@ -262,7 +264,6 @@ In this order:
 - Collections, next steps: reminders through the team's own WhatsApp or email.
 - Disputes, next steps: reading complaints and orders with AI, reply outlines for the lawyer.
 - Document vault, next steps: reading scans and filing documents by themselves.
-- Form errors shown without JavaScript too (today the browser's own checks catch most cases; the server's message appears once the page has loaded its scripts).
 
 ### v2
 

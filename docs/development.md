@@ -157,7 +157,9 @@ The web app reads the API from `LEKHARA_API_URL` (default `http://localhost:8000
 
 Screens: Today (`/`), Projects, a project's Overview, Escrow, Collections, Handover, Disputes, Documents, Tax and statutory, and Units and landowners tabs, a Withdrawal request, a unit's handover page, a case, a document, a data room, demand letters, and Rules. `/shared/{token}` is the page outsiders see; `/files/{id}` and `/shared/{token}/files/{id}` pass files through from the API.
 
-Every form works without JavaScript: server actions in `src/app/actions.ts` call the API and show its error message in words.
+Forms are server actions. What each does is in `src/app/form-handlers.ts` (call the API, return `{error}`, `{ok}` or redirect); `src/app/actions.ts` exports each one wrapped by `settled` (`src/lib/settle.ts`), so a new handler needs its line there too. Forms are drawn with `ActionForm`, which shows the result in words.
+
+A form sent before the page's scripts have loaded is posted as it is, and Next answers an action with the page resumed from its prerendered shell, which cannot carry the result. So `settled` keeps the result in a cookie for a minute and redirects back to the page; `proxy.ts` hands it to that page once as a request header, and `ActionForm` shows it on the form that was sent (told apart by its action, what is bound to it, its button and its place on the page). Called by the page's own scripts (the `Next-Action` header), nothing changes.
 
 This is Next.js 16 with Cache Components enabled. APIs differ from older versions; read the guides bundled in `web/node_modules/next/dist/docs/` before using a Next.js API. Uncached data must be read inside a `<Suspense>` boundary.
 
