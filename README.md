@@ -60,7 +60,7 @@ If you already use other tools, keep them. Lekhara reads from them instead. If y
 - **Contractor bills and purchase prices.**
 - **Site progress from ordinary site photos.**
 - **Snags, defects and the five-year defect liability.**
-- **A document vault:** every paper filed against its project, unit, case or approval, and searchable to the page it is on. A checklist of what banks and K-RERA ask for, reminders before approvals and policies lapse, and data rooms for lenders that close on the date you choose, with every visit recorded.
+- **A document vault:** every paper filed against its project, unit, case or approval, and searchable to the page it is on. A checklist of what banks and K-RERA ask for, reminders before approvals and policies lapse, and data rooms for lenders that close on the date you choose, with every visit recorded and, if you like, who made it.
 - **Notices, title documents and board packs.**
 
 ## How it works

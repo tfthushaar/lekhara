@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Suspense } from "react";
 
-import { sharedRoom } from "@/lib/api";
+import { enterRoom } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
+import { VISITOR_COOKIE, sharedRoom } from "@/lib/api";
 import { day } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -25,7 +28,8 @@ export default function SharedPage({ params }: PageProps<"/shared/[token]">) {
 
 async function SharedView({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const room = await sharedRoom(token);
+  const visitor = (await cookies()).get(VISITOR_COOKIE)?.value;
+  const room = await sharedRoom(token, visitor);
   if (room === null) {
     return (
       <>
@@ -33,6 +37,37 @@ async function SharedView({ params }: { params: Promise<{ token: string }> }) {
         <p style={{ marginTop: 12, maxWidth: 560 }}>
           It has expired or been withdrawn. Ask the person who shared it for a new link.
         </p>
+      </>
+    );
+  }
+  if (room.gate) {
+    return (
+      <>
+        <div className="page-head">
+          <div>
+            <h1>{room.name}</h1>
+            <p>
+              Shared by {room.organization}. {room.project}.
+            </p>
+          </div>
+        </div>
+        <p style={{ maxWidth: 560, marginBottom: 16 }}>
+          {room.organization} asks for your name and email before you open these documents. They are
+          shared with {room.organization} and recorded with each document you open or download, until
+          this link closes on {day(room.expires_on)}.
+        </p>
+        <div style={{ maxWidth: 560 }}>
+          <ActionForm action={enterRoom.bind(null, token)} label="Open the documents" pendingLabel="Opening">
+            <div className="field">
+              <label htmlFor="visitor-name">Your name</label>
+              <input id="visitor-name" name="name" autoComplete="name" required />
+            </div>
+            <div className="field">
+              <label htmlFor="visitor-email">Your email</label>
+              <input id="visitor-email" name="email" type="email" autoComplete="email" required />
+            </div>
+          </ActionForm>
+        </div>
       </>
     );
   }

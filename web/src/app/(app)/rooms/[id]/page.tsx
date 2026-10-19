@@ -140,6 +140,7 @@ async function RoomView({
               <tr>
                 <th>When (UTC)</th>
                 <th>What</th>
+                {room.visits.some((v) => v.visitor) ? <th>Who</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -147,6 +148,7 @@ async function RoomView({
                 <tr key={`${v.at}-${i}`}>
                   <td className="nowrap">{when(v.at)}</td>
                   <td>{v.action === "open" ? "Opened the room" : `Downloaded ${v.document ?? "a document"}`}</td>
+                  {room.visits.some((x) => x.visitor) ? <td>{v.visitor ?? <span className="muted">Not asked</span>}</td> : null}
                 </tr>
               ))}
             </tbody>
@@ -156,6 +158,16 @@ async function RoomView({
 
       {room.can_share && open ? (
         <section className="section">
+          <details className="disclosure">
+            <summary>{room.ask_visitor ? "Visitors give their name and email" : "Ask visitors who they are"}</summary>
+            <ActionForm action={updateRoom.bind(null, room.id)} label="Save" pendingLabel="Saving" secondary>
+              <input type="hidden" name="visitor_setting" value="change" />
+              <label className="check-line">
+                <input type="checkbox" name="ask_visitor" value="yes" defaultChecked={room.ask_visitor} /> Ask each visitor
+                for their name and email before they see anything
+              </label>
+            </ActionForm>
+          </details>
           <details className="disclosure">
             <summary>Change what is shared</summary>
             <ActionForm action={updateRoom.bind(null, room.id)} label="Save" pendingLabel="Saving" secondary>

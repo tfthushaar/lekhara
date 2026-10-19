@@ -1164,3 +1164,16 @@ h3 {
   white-space: nowrap;
   font-weight: 600;
 }
+
+.check-line {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 12px 0;
+  font-size: 14px;
+  max-width: 640px;
+}
+
+.check-line input {
+  margin-top: 3px;
+}

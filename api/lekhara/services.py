@@ -5,6 +5,7 @@ let each certifier review and sign, submit to the bank, record the release.
 """
 
 import hashlib
+import re
 import secrets
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
@@ -112,6 +113,7 @@ from lekhara.models import (
     DataRoom,
     DataRoomDocument,
     DataRoomVisit,
+    DataRoomVisitor,
     DemandRow,
     DisputeCase,
     DisputeHearing,
@@ -1543,6 +1545,7 @@ def create_room(
     room = DataRoom(
         project_id=project.id,
         name=name[:200],
+        ask_visitor=bool(fields.get("ask_visitor")),
         audience=(fields.get("audience") or "").strip()[:200] or None,
         token_hash=_token_hash(token),
         created_on=as_of,
@@ -1593,6 +1596,8 @@ def update_room(
         room.name = fields["name"].strip()[:200]
     if "audience" in fields:
         room.audience = (fields["audience"] or "").strip()[:200] or None
+    if fields.get("ask_visitor") is not None:
+        room.ask_visitor = bool(fields["ask_visitor"])
     if fields.get("expires_on") is not None:
         room.expires_on = _room_expiry(fields["expires_on"], as_of, rules)
     if fields.get("document_ids") is not None:
@@ -1632,10 +1637,57 @@ def open_room(session: Session, token: str, as_of: date) -> DataRoom:
 
 
 def log_visit(
-    session: Session, room: DataRoom, action: str, document_id: str | None = None
+    session: Session,
+    room: DataRoom,
+    action: str,
+    document_id: str | None = None,
+    visitor: DataRoomVisitor | None = None,
 ) -> None:
-    session.add(DataRoomVisit(room_id=room.id, action=action, document_id=document_id))
+    session.add(
+        DataRoomVisit(
+            room_id=room.id,
+            action=action,
+            document_id=document_id,
+            visitor_id=visitor.id if visitor else None,
+        )
+    )
     session.commit()
+
+
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def register_visitor(
+    session: Session, room: DataRoom, name: str, email: str, *, ip: str | None
+) -> str:
+    """Records who is opening a room that asks, and returns the token their browser keeps."""
+    name, email = (name or "").strip(), (email or "").strip().lower()
+    if not name:
+        raise ServiceError("Enter your name.")
+    if not _EMAIL.match(email):
+        raise ServiceError("Enter an email address, like name@example.com.")
+    token = secrets.token_urlsafe(24)
+    session.add(
+        DataRoomVisitor(
+            room_id=room.id,
+            name=name[:200],
+            email=email[:320],
+            token_hash=_token_hash(token),
+            ip=(ip or "")[:64] or None,
+        )
+    )
+    session.commit()
+    return token
+
+
+def room_visitor(session: Session, room: DataRoom, token: str | None) -> DataRoomVisitor | None:
+    if not token:
+        return None
+    return session.scalars(
+        select(DataRoomVisitor).where(
+            DataRoomVisitor.room_id == room.id, DataRoomVisitor.token_hash == _token_hash(token)
+        )
+    ).first()
 
 
 # Withdrawal workflow

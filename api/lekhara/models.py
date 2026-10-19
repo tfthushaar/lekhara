@@ -579,6 +579,8 @@ class DataRoom(Base):
     expires_on: Mapped[date] = mapped_column(Date)
     revoked_on: Mapped[date | None] = mapped_column(Date)
     created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    ask_visitor: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    """Ask everyone who opens the link for their name and email first."""
 
     entries: Mapped[list["DataRoomDocument"]] = relationship(cascade="all, delete-orphan")
     visits: Mapped[list["DataRoomVisit"]] = relationship(order_by="DataRoomVisit.at.desc()")
@@ -603,6 +605,22 @@ class DataRoomVisit(Base):
     action: Mapped[str] = mapped_column(String(16))
     """open or download."""
     document_id: Mapped[str | None] = mapped_column(String(64))
+    visitor_id: Mapped[str | None] = mapped_column(ForeignKey("data_room_visitors.id"))
+
+
+class DataRoomVisitor(Base):
+    """Someone who gave their name and email to open a data room. Only a hash of the token
+    their browser keeps is stored."""
+
+    __tablename__ = "data_room_visitors"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    room_id: Mapped[str] = mapped_column(ForeignKey("data_rooms.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str] = mapped_column(String(320))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    ip: Mapped[str | None] = mapped_column(String(64))
 
 
 # People and access

@@ -310,3 +310,40 @@ def test_certifiers_cannot_see_the_vault(vault) -> None:
     ca = signed_in(vault, "ca@demo.lekhara")
     assert ca.get(f"/projects/{SG}/documents").status_code == 403
     assert ca.get(f"/projects/{SG}/documents/search", params={"q": "deed"}).status_code == 403
+
+
+def test_a_room_that_asks_who_is_visiting(vault, boss, clerk) -> None:
+    docs = clerk.get(f"/projects/{SG}/documents").json()["documents"]
+    ids = [x["id"] for x in docs[:2]]
+    body = {
+        "name": "Lender review",
+        "expires_on": "2026-11-15",
+        "document_ids": ids,
+        "ask_visitor": True,
+    }
+    r = boss.post(f"/projects/{SG}/rooms", json=body)
+    assert r.status_code == 201, r.text
+    room_id, token = r.json()["id"], r.json()["token"]
+
+    public = TestClient(vault)
+    gate = public.get(f"/shared/{token}").json()
+    assert gate["gate"] is True and "documents" not in gate
+    assert public.get(f"/shared/{token}/documents/{ids[0]}/file").status_code == 403
+    assert boss.get(f"/rooms/{room_id}").json()["visits"] == []
+
+    bad = public.post(f"/shared/{token}/visitor", json={"name": "Asha", "email": "asha"})
+    assert bad.status_code == 400
+    visitor = public.post(
+        f"/shared/{token}/visitor", json={"name": "Asha Nair", "email": "Asha@Bank.example"}
+    ).json()["visitor"]
+    public.headers["X-Lekhara-Visitor"] = visitor
+    shared = public.get(f"/shared/{token}").json()
+    assert shared["gate"] is False and len(shared["documents"]) == 2
+    assert public.get(f"/shared/{token}/documents/{ids[0]}/file").status_code == 200
+
+    room = boss.get(f"/rooms/{room_id}").json()
+    assert room["ask_visitor"] is True
+    assert {v["visitor"] for v in room["visits"]} == {"Asha Nair <asha@bank.example>"}
+
+    public.headers["X-Lekhara-Visitor"] = "someone-elses-token"
+    assert public.get(f"/shared/{token}").json()["gate"] is True

@@ -39,6 +39,7 @@ from lekhara.models import (
     DataRoom,
     DataRoomDocument,
     DataRoomVisit,
+    DataRoomVisitor,
     DemandRow,
     DisputeCase,
     DisputeHearing,
@@ -189,6 +190,7 @@ SHEETS = [
         "Shared in data rooms", DataRoomDocument, lambda s: DataRoomDocument.room_id.in_(s.rooms)
     ),
     Sheet("Data room visits", DataRoomVisit, lambda s: DataRoomVisit.room_id.in_(s.rooms)),
+    Sheet("Data room visitors", DataRoomVisitor, lambda s: DataRoomVisitor.room_id.in_(s.rooms)),
     Sheet("Tally choices", TallyLink, lambda s: TallyLink.project_id.in_(s.projects)),
     Sheet("Bank accounts", BankAccount, lambda s: BankAccount.project_id.in_(s.projects)),
     Sheet("Bank payers", BankPayer, lambda s: BankPayer.project_id.in_(s.projects)),

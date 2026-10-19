@@ -1089,7 +1089,9 @@ def room_detail(
     as_of: date,
     notice_days: int,
     can_share: bool,
+    visitors: dict[str, str] | None = None,
 ) -> dict:
+    visitors = visitors or {}
     titles = {doc.id: doc.title for doc in [*docs, *available]}
     row = room_row(room, len(docs), as_of)
     row.update(
@@ -1104,11 +1106,13 @@ def room_detail(
                 {"id": doc.id, "title": doc.title, "category_label": CATEGORY_LABEL[doc.category]}
                 for doc in available
             ],
+            "ask_visitor": room.ask_visitor,
             "visits": [
                 {
                     "at": v_at(v),
                     "action": v.action,
                     "document": titles.get(v.document_id) if v.document_id else None,
+                    "visitor": visitors.get(v.visitor_id),
                 }
                 for v in room.visits[:50]
             ],
@@ -1119,6 +1123,7 @@ def room_detail(
 
 def shared_room(room: DataRoom, docs: list[Document], project: Project) -> dict:
     return {
+        "gate": False,
         "name": room.name,
         "audience": room.audience,
         "organization": project.organization.name,

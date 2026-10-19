@@ -274,6 +274,7 @@ def _purge_scoped(session: Session, org: Organization) -> list[str]:
 
     steps = [
         (m.DataRoomVisit, m.DataRoomVisit.room_id, rooms),
+        (m.DataRoomVisitor, m.DataRoomVisitor.room_id, rooms),
         (m.DataRoomDocument, m.DataRoomDocument.room_id, rooms),
         (m.DataRoom, m.DataRoom.project_id, projects),
         (m.ChecklistWaiver, m.ChecklistWaiver.project_id, projects),

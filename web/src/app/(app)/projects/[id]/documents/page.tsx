@@ -399,6 +399,10 @@ function RoomsSection({ r, projectId }: { r: DocumentsView; projectId: string })
               </div>
               <DateField name="expires_on" label="Link closes on" id="room-expires" />
             </div>
+            <label className="check-line">
+              <input type="checkbox" name="ask_visitor" value="yes" defaultChecked /> Ask each visitor for their name and
+              email, and record them with each visit
+            </label>
             <p className="small muted" style={{ marginBottom: 8 }}>
               Choose what to share. The room always shows the latest version of each.
             </p>

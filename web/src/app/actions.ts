@@ -4,7 +4,7 @@ import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { send, sendForm } from "@/lib/api";
+import { VISITOR_COOKIE, send, sendForm } from "@/lib/api";
 import { SESSION_COOKIE, SESSION_DAYS } from "@/lib/session-cookie";
 
 export type ActionState = { error?: string; ok?: string; link?: string };
@@ -996,6 +996,7 @@ export async function createRoom(
     audience: text(form, "audience") || null,
     expires_on: text(form, "expires_on") || null,
     document_ids: form.getAll("document_ids").map(String),
+    ask_visitor: form.get("ask_visitor") === "yes",
   });
   if (!result.ok) return { error: result.error };
   redirect(`/rooms/${result.data.id}?link=${encodeURIComponent(result.data.token)}`);
@@ -1008,6 +1009,7 @@ export async function updateRoom(
 ): Promise<ActionState> {
   const body: Record<string, unknown> = filled(form, ["name", "audience", "expires_on"]);
   if (form.get("documents") === "change") body.document_ids = form.getAll("document_ids").map(String);
+  if (form.get("visitor_setting") === "change") body.ask_visitor = form.get("ask_visitor") === "yes";
   const result = await send("PUT", `/rooms/${roomId}`, body);
   if (!result.ok) return { error: result.error };
   refresh();
@@ -1215,4 +1217,24 @@ export async function setAssociationItem(projectId: string, key: string, _previo
   if (!result.ok) return { error: result.error };
   refresh();
   return { ok: "Saved." };
+}
+
+/** Someone opening a data room that asks who they are: their name and email are recorded with
+ * their visits, and their browser keeps a token for this room's link only. */
+export async function enterRoom(token: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send<{ visitor: string }>("POST", `/shared/${encodeURIComponent(token)}/visitor`, {
+    name: text(form, "name"),
+    email: text(form, "email"),
+  });
+  if (!result.ok) return { error: result.error };
+  (await cookies()).set({
+    name: VISITOR_COOKIE,
+    value: result.data.visitor,
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: `/shared/${encodeURIComponent(token)}`,
+    maxAge: 60 * 24 * 60 * 60,
+  });
+  redirect(`/shared/${encodeURIComponent(token)}`);
 }

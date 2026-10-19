@@ -736,10 +736,14 @@ export type RoomDetail = RoomRow & {
   can_share: boolean;
   documents_in_room: DocRow[];
   available: { id: string; title: string; category_label: string }[];
-  visits: { at: string; action: "open" | "download"; document: string | null }[];
+  ask_visitor: boolean;
+  visits: { at: string; action: "open" | "download"; document: string | null; visitor: string | null }[];
 };
 
+export type SharedGate = { gate: true; name: string; organization: string; project: string; expires_on: string };
+
 export type SharedRoom = {
+  gate: false;
   name: string;
   audience: string | null;
   organization: string;
@@ -1314,13 +1318,21 @@ export async function invitationInfo(token: string): Promise<InvitationInfo | nu
 }
 
 /** A shared data room, opened without signing in. Null once the link has closed. */
-export async function sharedRoom(token: string): Promise<SharedRoom | null> {
+export const VISITOR_COOKIE = "lekhara_visitor";
+
+export async function sharedRoom(token: string, visitor?: string): Promise<SharedRoom | SharedGate | null> {
   const response = await fetch(`${BASE}/shared/${encodeURIComponent(token)}`, {
     cache: "no-store",
+    headers: visitor ? { "X-Lekhara-Visitor": visitor } : {},
   });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Lekhara API ${response.status} on a shared room`);
-  return response.json() as Promise<SharedRoom>;
+  return response.json() as Promise<SharedRoom | SharedGate>;
+}
+
+/** Fetches a file from a shared data room, as the visitor who gave their name. */
+export async function fetchSharedFile(path: string, visitor?: string): Promise<Response> {
+  return fetch(`${BASE}${path}`, { cache: "no-store", headers: visitor ? { "X-Lekhara-Visitor": visitor } : {} });
 }
 
 /** Fetches a file from the API for a route handler to pass on to the browser. */

@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-19, with the commit "Add possession letters, the association handover and cancelled bookings".
+Last updated: 2026-10-19, with the commit "Ask data room visitors for their name and email".
 
 ## What we are building
 
@@ -215,10 +215,12 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - Grouped units on the Handover tab open on their own only when the group is short.
 - Cancelling a booking: from the unit page (the date, any refund and why), or from a case once the refund under an order or a settlement is paid. The unit is free to sell again; the buyer's demands and payments stay on record under the cancelled booking, still count in the 70% check and in the case, and the unit page lists earlier bookings. A unit registered in the buyer's name is refused, since that needs a cancellation deed. Marking a unit unsold is kept for bookings entered by mistake.
 - Tested end to end: the possession letter, an association item marked done, and a refund case paid in full cancelling the booking, with the unit free and its earlier booking kept.
+- Data rooms can ask each visitor for their name and email before showing anything, telling them it is shared with the builder and recorded with what they open; every opening and download is then recorded against that person, and the room's page shows who. On by default for new rooms, and switched on or off on the room's page. The visitor's browser keeps a token for that room's link only.
+- Tested end to end: a gated room shown only after a name and email, a wrong email refused, a file refused before the gate and downloaded after it, and the room showing who visited.
 
 ## In progress
 
-- The data room visitor gate: a name and email asked of anyone opening a lender's data room link, recorded with each visit.
+- Tally: debit notes netted off the bills they reduce, and sales vouchers matched to buyers' demands.
 
 ## Left
 
@@ -236,7 +238,7 @@ In this order:
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
 - Collections, next steps: reminders through the team's own WhatsApp or email.
 - Disputes, next steps: reading complaints and orders with AI, reply outlines for the lawyer.
-- Document vault, next steps: reading scans and filing documents by themselves, an optional name and email gate for data room visitors.
+- Document vault, next steps: reading scans and filing documents by themselves.
 - Bank withdrawal pack (PDF); quarterly progress report and annual audit packs.
 - Form errors shown without JavaScript too (today the browser's own checks catch most cases; the server's message appears once the page has loaded its scripts).
 

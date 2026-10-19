@@ -47,6 +47,7 @@ from lekhara.models import (
     Commitment,
     Connector,
     CostLineRow,
+    DataRoomVisitor,
     Filing,
     InboundItem,
     InboundMessage,
@@ -416,6 +417,12 @@ class NewRoom(BaseModel):
     audience: str | None = None
     expires_on: date | None = None
     document_ids: list[str] = []
+    ask_visitor: bool = False
+
+
+class Visitor(BaseModel):
+    name: str = ""
+    email: str = ""
 
 
 class RoomUpdate(BaseModel):
@@ -423,6 +430,7 @@ class RoomUpdate(BaseModel):
     audience: str | None = None
     expires_on: date | None = None
     document_ids: list[str] | None = None
+    ask_visitor: bool | None = None
 
 
 class HandoverUpdate(BaseModel):
@@ -2752,6 +2760,12 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         docs = services.room_documents(session, room)
         inside = {d.id for d in docs}
         available = [d for d in services.current_documents(session, p) if d.id not in inside]
+        visitors = {
+            v.id: f"{v.name} <{v.email}>"
+            for v in session.scalars(
+                select(DataRoomVisitor).where(DataRoomVisitor.room_id == room.id)
+            )
+        }
         return views.room_detail(
             room,
             docs,
@@ -2760,6 +2774,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             as_of=on,
             notice_days=notice_days(on),
             can_share=me.can_release(p),
+            visitors=visitors,
         )
 
     def room_for(session: Session, me: auth.Principal, room_id: str, *, share=False):
@@ -2803,24 +2818,54 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     # Shared links: no sign-in; the token in the link is the permission.
 
+    VisitorToken = Annotated[str | None, Header(alias="X-Lekhara-Visitor")]
+
     @app.get("/shared/{token}")
-    def shared_room(token: str, session: SessionDep, on: AsOf) -> dict:
+    def shared_room(
+        token: str, session: SessionDep, on: AsOf, visitor: VisitorToken = None
+    ) -> dict:
         room = services.open_room(session, token, on)
         p = services.get_project(session, room.project_id)
+        who = services.room_visitor(session, room, visitor)
+        if room.ask_visitor and who is None:
+            # Nothing is shown, or recorded, until the visitor says who they are.
+            return {
+                "gate": True,
+                "name": room.name,
+                "organization": p.organization.name,
+                "project": p.name,
+                "expires_on": room.expires_on.isoformat(),
+            }
         view = views.shared_room(room, services.room_documents(session, room), p)
-        services.log_visit(session, room, "open")
+        services.log_visit(session, room, "open", visitor=who)
         return view
+
+    @app.post("/shared/{token}/visitor", status_code=201)
+    def shared_visitor(
+        token: str, body: Visitor, request: Request, session: SessionDep, on: AsOf
+    ) -> dict:
+        room = services.open_room(session, token, on)
+        ip, _ = client(request)
+        return {"visitor": services.register_visitor(session, room, body.name, body.email, ip=ip)}
 
     @app.get("/shared/{token}/documents/{document_id}/file")
     def shared_file(
-        token: str, document_id: str, session: SessionDep, on: AsOf, inline: bool = False
+        token: str,
+        document_id: str,
+        session: SessionDep,
+        on: AsOf,
+        inline: bool = False,
+        visitor: VisitorToken = None,
     ) -> Response:
         room = services.open_room(session, token, on)
+        who = services.room_visitor(session, room, visitor)
+        if room.ask_visitor and who is None:
+            raise ServiceError("Give your name and email on the room's page first.", 403)
         doc = next((d for d in services.room_documents(session, room) if d.id == document_id), None)
         if doc is None:
             raise ServiceError("Document not found.", 404)
         data = services.read_file(app.state.storage, doc)
-        services.log_visit(session, room, "download", doc.id)
+        services.log_visit(session, room, "download", doc.id, visitor=who)
         return file_response(doc, data, inline)
 
     # Withdrawals

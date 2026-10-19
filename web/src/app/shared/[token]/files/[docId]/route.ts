@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 
-import { fetchFile } from "@/lib/api";
+import { VISITOR_COOKIE, fetchSharedFile } from "@/lib/api";
 
 const PASS_ON = ["content-type", "content-disposition", "content-length", "x-content-type-options"];
 
@@ -9,10 +9,11 @@ const PASS_ON = ["content-type", "content-disposition", "content-length", "x-con
 export async function GET(request: NextRequest, ctx: RouteContext<"/shared/[token]/files/[docId]">) {
   const { token, docId } = await ctx.params;
   const inline = request.nextUrl.searchParams.get("inline") === "1";
-  const response = await fetchFile(
+  const response = await fetchSharedFile(
     `/shared/${encodeURIComponent(token)}/documents/${encodeURIComponent(docId)}/file${inline ? "?inline=true" : ""}`,
-    false,
+    request.cookies.get(VISITOR_COOKIE)?.value,
   );
+  if (response.status === 403) return Response.redirect(new URL(`/shared/${encodeURIComponent(token)}`, request.url), 303);
   if (!response.ok) return new Response("This link has expired or has been withdrawn.", { status: 404 });
   const headers = new Headers({ "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" });
   for (const name of PASS_ON) {
