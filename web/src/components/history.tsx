@@ -1,6 +1,17 @@
 import type { HistoryEntry } from "@/lib/api";
 
-const SOURCE: Record<string, string> = { typed: "typed in", import: "imported", undo: "import undone" };
+const SOURCE: Record<string, string> = {
+  typed: "typed in",
+  import: "imported",
+  edited: "edited as a table",
+  undo: "import undone",
+};
+
+function verb(action: string): string {
+  if (action === "created") return "Added";
+  if (action === "deleted") return "Deleted";
+  return "Changed";
+}
 
 /** Who changed what and when, each field before and after. */
 export function History({ entries }: { entries: HistoryEntry[] }) {
@@ -14,7 +25,7 @@ export function History({ entries }: { entries: HistoryEntry[] }) {
             <div className="small muted">{h.at.replace("T", ", ").slice(0, 17)}</div>
             <div>
               <p className="row-title">
-                {`${h.action === "created" ? "Added" : h.action === "deleted" ? "Deleted" : "Changed"} by ${h.by}, ${SOURCE[h.source] ?? h.source}`}
+                {`${h.subject ? `${h.subject} ${verb(h.action).toLowerCase()}` : verb(h.action)} by ${h.by}, ${SOURCE[h.source] ?? h.source}`}
               </p>
               {h.changes.map((c) => (
                 <p key={c.field} className="row-detail">

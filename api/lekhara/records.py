@@ -495,7 +495,192 @@ COMMITMENTS = RecordType(
     ),
 )
 
-RECORD_TYPES = {r.kind: r for r in (UNITS, RECEIPTS, SUPPLIERS, BILLS, COMMITMENTS)}
+LANDOWNER_PAYMENTS = RecordType(
+    kind="landowner_payments",
+    title="Landowner payments",
+    key="landowner",
+    fields=(
+        Field(
+            "landowner",
+            "Landowner",
+            "text",
+            required=True,
+            aliases=("landowner name", "payee", "paid to", "name", "party", "party name"),
+            help="The landowner's name or PAN, as in Lekhara.",
+            example="R. Venkatesh",
+        ),
+        Field(
+            "paid_on",
+            "Paid on",
+            "date",
+            required=True,
+            aliases=("date", "payment date", "date of payment", "paid date", "value date"),
+            help="Day first, as in 05/06/2025.",
+            example="05/06/2025",
+        ),
+        Field(
+            "amount",
+            "Amount",
+            "money",
+            required=True,
+            aliases=("amount paid", "paid", "payment", "gross amount", "consideration"),
+            help="The amount paid or credited to the landowner before TDS, in rupees. TDS goes "
+            "in its own column.",
+            example="3000000",
+        ),
+        Field(
+            "tds_deducted",
+            "TDS deducted",
+            "money",
+            aliases=("tds", "tds amount", "tds 194ic", "tds deducted u/s 194ic"),
+            help="TDS cut under s.194-IC on consideration paid in money.",
+            example="300000",
+        ),
+        Field(
+            "deposit",
+            "Refundable deposit",
+            "bool",
+            aliases=("deposit", "security deposit", "refundable", "is deposit"),
+            help="Yes for a refundable security deposit, which carries no TDS; no for "
+            "consideration. No if left blank.",
+            example="No",
+        ),
+        Field(
+            "reference",
+            "Reference",
+            "text",
+            aliases=("utr", "utr no", "cheque no", "cheque number", "reference no", "note"),
+            help="UTR, cheque number or a note.",
+            example="HDFCN52025060598765",
+        ),
+    ),
+)
+
+APPROVALS = RecordType(
+    kind="approvals",
+    title="Approvals",
+    key="name",
+    fields=(
+        Field(
+            "name",
+            "Approval",
+            "text",
+            required=True,
+            aliases=("approval name", "clearance", "noc", "permission", "consent", "particulars"),
+            help="What the approval is, such as Fire NOC or Environmental clearance. Each "
+            "appears once.",
+            example="Fire NOC (provisional)",
+        ),
+        Field(
+            "authority",
+            "Authority",
+            "text",
+            aliases=("issued by", "department", "issuing authority", "agency"),
+            example="Karnataka State Fire and Emergency Services",
+        ),
+        Field(
+            "reference",
+            "Number",
+            "text",
+            aliases=(
+                "reference",
+                "approval no",
+                "approval number",
+                "order no",
+                "file no",
+                "ref no",
+            ),
+            example="KSFES/NOC/2024/1187",
+        ),
+        Field(
+            "applied_on",
+            "Applied on",
+            "date",
+            aliases=("application date", "date of application", "applied"),
+            example="10/01/2024",
+        ),
+        Field(
+            "granted_on",
+            "Granted on",
+            "date",
+            aliases=("date of issue", "issued on", "approval date", "granted", "issue date"),
+            example="22/03/2024",
+        ),
+        Field(
+            "valid_until",
+            "Valid until",
+            "date",
+            aliases=("expiry", "expiry date", "expires on", "valid till", "validity", "valid upto"),
+            help="Blank if it does not lapse.",
+            example="21/03/2026",
+        ),
+        Field(
+            "note",
+            "Note",
+            "text",
+            aliases=("remarks", "comments", "conditions", "status remarks"),
+            example="Final NOC to be applied for before the occupancy certificate",
+        ),
+    ),
+)
+
+FILINGS = RecordType(
+    kind="filings",
+    title="K-RERA filings",
+    key="period_end",
+    fields=(
+        Field(
+            "kind",
+            "Filing",
+            "choice",
+            required=True,
+            aliases=("filing", "report", "type", "return"),
+            choices=(
+                ("qpr", "Quarterly progress report"),
+                ("annual_audit", "Annual audit report"),
+            ),
+            example="Quarterly progress report",
+        ),
+        Field(
+            "period_end",
+            "Period ending",
+            "date",
+            required=True,
+            aliases=("quarter ending", "quarter end", "year ending", "period", "for the period"),
+            help="The last day of the quarter or financial year the filing covers.",
+            example="30/06/2026",
+        ),
+        Field(
+            "filed_on",
+            "Filed on",
+            "date",
+            required=True,
+            aliases=("date of filing", "filing date", "submitted on", "uploaded on"),
+            example="12/07/2026",
+        ),
+        Field(
+            "reference",
+            "Acknowledgement",
+            "text",
+            aliases=("acknowledgement no", "reference", "ack no", "receipt no", "ref no"),
+            example="KRERA/QPR/2026/0412",
+        ),
+    ),
+)
+
+RECORD_TYPES = {
+    r.kind: r
+    for r in (
+        UNITS,
+        RECEIPTS,
+        SUPPLIERS,
+        BILLS,
+        COMMITMENTS,
+        LANDOWNER_PAYMENTS,
+        APPROVALS,
+        FILINGS,
+    )
+}
 
 
 def normalise_header(text: str) -> str:

@@ -25,9 +25,11 @@ from lekhara import (
     jobs,
     legal,
     purchases,
+    record_views,
     registers,
     review,
     services,
+    statutory,
     views,
 )
 from lekhara.bank import service as bank
@@ -38,13 +40,16 @@ from lekhara.engines.obligations import ObligationStatus, sort_obligations
 from lekhara.gst import service as gst
 from lekhara.migrate import upgrade
 from lekhara.models import (
+    Approval,
     Bill,
     Commitment,
     Connector,
     CostLineRow,
+    Filing,
     InboundItem,
     InboundMessage,
     Landowner,
+    LandownerPaymentRow,
     Membership,
     Organization,
     PaymentMilestone,
@@ -57,7 +62,15 @@ from lekhara.models import (
     Vendor,
 )
 from lekhara.money import ZERO
-from lekhara.records import BILLS, COMMITMENTS, RECEIPTS, SUPPLIERS
+from lekhara.records import (
+    APPROVALS,
+    BILLS,
+    COMMITMENTS,
+    FILINGS,
+    LANDOWNER_PAYMENTS,
+    RECEIPTS,
+    SUPPLIERS,
+)
 from lekhara.rules import KARNATAKA
 from lekhara.secretbox import seal
 from lekhara.services import ServiceError
@@ -211,6 +224,35 @@ class LandownerBody(BaseModel):
     share_pct: str | None = None
     refundable_deposit: str | None = None
     pan: str | None = None
+
+
+class LandownerPaymentBody(BaseModel):
+    paid_on: str | None = None
+    amount: str | None = None
+    tds_deducted: str | None = None
+    deposit: str | None = None
+    reference: str | None = None
+
+
+class ApprovalBody(BaseModel):
+    name: str | None = None
+    authority: str | None = None
+    reference: str | None = None
+    applied_on: str | None = None
+    granted_on: str | None = None
+    valid_until: str | None = None
+    note: str | None = None
+
+
+class FilingBody(BaseModel):
+    kind: str | None = None
+    period_end: str | None = None
+    filed_on: str | None = None
+    reference: str | None = None
+
+
+class TableBody(BaseModel):
+    rows: list[list[str]]
 
 
 class MappingBody(BaseModel):
@@ -1213,6 +1255,230 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         )
         session.commit()
         return {"ok": True}
+
+    # Landowners and their payments
+
+    def landowner_for(session: Session, me: auth.Principal, owner_id: str, *, edit=False):
+        owner = session.get(Landowner, owner_id)
+        if owner is None:
+            raise ServiceError("Landowner not found.", 404)
+        p = services.get_project(session, owner.project_id)
+        if edit:
+            auth.require_prepare(me, p)
+        else:
+            auth.require_team(me, p)
+        return owner, p
+
+    def landowner_view(session: Session, me: auth.Principal, owner, p: Project) -> dict:
+        session.refresh(owner)
+        changes = registers.landowner_history(session, owner)
+        return record_views.landowner_detail(
+            session,
+            owner,
+            p,
+            names_for(session, changes),
+            can_edit=me.can_prepare(p) and not me.views_as_sample(p),
+        )
+
+    @app.get("/landowners/{owner_id}")
+    def get_landowner(owner_id: str, session: SessionDep, me: Me) -> dict:
+        owner, p = landowner_for(session, me, owner_id)
+        return landowner_view(session, me, owner, p)
+
+    @app.post("/landowners/{owner_id}/payments", status_code=201)
+    def add_landowner_payment(
+        owner_id: str, body: LandownerPaymentBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        owner, p = landowner_for(session, me, owner_id, edit=True)
+        values, _ = form_values(LANDOWNER_PAYMENTS, body)
+        registers.create_landowner_payment(session, p, owner, values, as_of=on, user_id=me.user_id)
+        session.commit()
+        return landowner_view(session, me, owner, p)
+
+    def landowner_payment_for(session: Session, me: auth.Principal, payment_id: str):
+        payment = session.get(LandownerPaymentRow, payment_id)
+        if payment is None:
+            raise ServiceError("Payment not found.", 404)
+        owner, p = landowner_for(session, me, payment.landowner_id, edit=True)
+        return payment, owner, p
+
+    @app.put("/landowner-payments/{payment_id}")
+    def update_landowner_payment(
+        payment_id: str, body: LandownerPaymentBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        payment, owner, p = landowner_payment_for(session, me, payment_id)
+        values, _ = form_values(LANDOWNER_PAYMENTS, body)
+        if "reference" in body.model_fields_set and not body.reference:
+            values["reference"] = None
+        if "tds_deducted" in body.model_fields_set and not body.tds_deducted:
+            values["tds_deducted"] = ZERO
+        registers.update_landowner_payment(
+            session, p, payment, values, as_of=on, user_id=me.user_id
+        )
+        session.commit()
+        return landowner_view(session, me, owner, p)
+
+    @app.post("/landowner-payments/{payment_id}/delete")
+    def delete_landowner_payment(payment_id: str, session: SessionDep, me: Me) -> dict:
+        payment, owner, p = landowner_payment_for(session, me, payment_id)
+        registers.delete_landowner_payment(session, p, payment, user_id=me.user_id)
+        session.commit()
+        return landowner_view(session, me, owner, p)
+
+    # Approvals
+
+    def approvals_for(session: Session, me: auth.Principal, p: Project, on: date) -> dict:
+        return record_views.approvals_view(
+            session,
+            p,
+            lambda changes: names_for(session, changes),
+            can_edit=me.can_prepare(p) and not me.views_as_sample(p),
+            as_of=on,
+        )
+
+    @app.get("/projects/{project_id}/approvals")
+    def project_approvals(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return approvals_for(session, me, p, on)
+
+    @app.post("/projects/{project_id}/approvals", status_code=201)
+    def create_approval(
+        project_id: str, body: ApprovalBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        values, _ = form_values(APPROVALS, body)
+        statutory.create_approval(session, p, values, as_of=on, user_id=me.user_id)
+        session.commit()
+        return approvals_for(session, me, p, on)
+
+    @app.post("/projects/{project_id}/approvals/standard")
+    def standard_approvals(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        statutory.add_standard_approvals(session, p, as_of=on, user_id=me.user_id)
+        session.commit()
+        return approvals_for(session, me, p, on)
+
+    def approval_for(session: Session, me: auth.Principal, approval_id: str):
+        a = session.get(Approval, approval_id)
+        if a is None:
+            raise ServiceError("Approval not found.", 404)
+        p = services.get_project(session, a.project_id)
+        auth.require_prepare(me, p)
+        return a, p
+
+    @app.put("/approvals/{approval_id}")
+    def update_approval(
+        approval_id: str, body: ApprovalBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        a, p = approval_for(session, me, approval_id)
+        values, _ = form_values(APPROVALS, body)
+        clear = tuple(
+            k
+            for k in ("authority", "reference", "applied_on", "granted_on", "valid_until", "note")
+            if k in body.model_fields_set and not getattr(body, k)
+        )
+        statutory.update_approval(session, p, a, values, as_of=on, user_id=me.user_id, clear=clear)
+        session.commit()
+        return approvals_for(session, me, p, on)
+
+    @app.post("/approvals/{approval_id}/delete")
+    def delete_approval(approval_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        a, p = approval_for(session, me, approval_id)
+        statutory.delete_approval(session, p, a, user_id=me.user_id)
+        session.commit()
+        return approvals_for(session, me, p, on)
+
+    # K-RERA filings
+
+    def krera_for(session: Session, me: auth.Principal, p: Project, on: date) -> dict:
+        return record_views.krera_view(
+            session,
+            p,
+            lambda changes: names_for(session, changes),
+            can_edit=me.can_prepare(p) and not me.views_as_sample(p),
+            as_of=on,
+        )
+
+    @app.get("/projects/{project_id}/krera")
+    def project_krera(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return krera_for(session, me, p, on)
+
+    @app.post("/projects/{project_id}/filings", status_code=201)
+    def create_filing(
+        project_id: str, body: FilingBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        values, _ = form_values(FILINGS, body)
+        statutory.create_filing(session, p, values, as_of=on, user_id=me.user_id)
+        session.commit()
+        return krera_for(session, me, p, on)
+
+    def filing_for(session: Session, me: auth.Principal, filing_id: str):
+        f = session.get(Filing, filing_id)
+        if f is None:
+            raise ServiceError("Filing not found.", 404)
+        p = services.get_project(session, f.project_id)
+        auth.require_prepare(me, p)
+        return f, p
+
+    @app.put("/filings/{filing_id}")
+    def update_filing(
+        filing_id: str, body: FilingBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        f, p = filing_for(session, me, filing_id)
+        values, _ = form_values(FILINGS, body)
+        if "reference" in body.model_fields_set and not body.reference:
+            values["reference"] = None
+        statutory.update_filing(session, p, f, values, as_of=on, user_id=me.user_id)
+        session.commit()
+        return krera_for(session, me, p, on)
+
+    @app.post("/filings/{filing_id}/delete")
+    def delete_filing(filing_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        f, p = filing_for(session, me, filing_id)
+        statutory.delete_filing(session, p, f, user_id=me.user_id)
+        session.commit()
+        return krera_for(session, me, p, on)
+
+    # Records edited as a table
+
+    def table_kind(kind: str) -> str:
+        if kind not in imports.EDITABLE_AS_TABLE:
+            raise ServiceError("These records cannot be edited as a table.", 404)
+        return kind
+
+    @app.get("/projects/{project_id}/table/{kind}")
+    def get_table(project_id: str, kind: str, session: SessionDep, me: Me, page: int = 1) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        return record_views.table_view(session, p, table_kind(kind), page=page)
+
+    @app.post("/projects/{project_id}/table/{kind}", status_code=201)
+    def save_table(
+        project_id: str, kind: str, body: TableBody, session: SessionDep, me: Me
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        record = imports.record_type(table_kind(kind))
+        header = [f.label for f in record.fields]
+        if any(len(row) != len(header) for row in body.rows):
+            raise ServiceError("Every row needs a value for each column.")
+        batch = imports.start_rows(
+            session,
+            p,
+            kind,
+            filename=f"{record.title}, edited as a table",
+            rows=[header, *body.rows],
+            user_id=me.user_id,
+            origin="table",
+        )
+        return {"id": batch.id}
 
     # Tally imports
 

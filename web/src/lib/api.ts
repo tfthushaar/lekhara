@@ -12,6 +12,7 @@ export type Area =
   | "handover"
   | "disputes"
   | "documents"
+  | "approvals"
   | "krera"
   | "tax"
   | "units";
@@ -913,7 +914,14 @@ export type InboundSettings = {
   passwords: { id: string; label: string; added_on: string }[];
 };
 
-export type HistoryEntry = { at: string; action: string; source: string; by: string; changes: FieldChange[] };
+export type HistoryEntry = {
+  at: string;
+  action: string;
+  source: string;
+  by: string;
+  subject?: string | null;
+  changes: FieldChange[];
+};
 
 export type CostLineRef = { id: string; code: string; name: string };
 
@@ -1340,6 +1348,85 @@ export async function demoAccounts(): Promise<DemoAccounts | null> {
   }
 }
 
+export type LandownerDetail = {
+  id: string;
+  project_id: string;
+  project_name: string;
+  can_edit: boolean;
+  name: string;
+  pan: string | null;
+  share_type: string;
+  share_pct: string;
+  refundable_deposit: string;
+  totals: { consideration: string; tds: string; deposits: string; tds_short: string };
+  payments: {
+    id: string;
+    paid_on: string;
+    amount: string;
+    tds_deducted: string;
+    deposit: boolean;
+    reference: string | null;
+    source: "typed" | "import" | "tally";
+    tds_short: string | null;
+  }[];
+  history: HistoryEntry[];
+};
+
+export type ApprovalStatus = "lapsed" | "lapsing" | "granted" | "applied" | "to_apply";
+
+export type ApprovalRow = {
+  id: string;
+  name: string;
+  authority: string | null;
+  reference: string | null;
+  applied_on: string | null;
+  granted_on: string | null;
+  valid_until: string | null;
+  note: string | null;
+  status: ApprovalStatus;
+  status_text: string;
+  days_left: number | null;
+  history: HistoryEntry[];
+};
+
+export type Approvals = {
+  project_id: string;
+  can_edit: boolean;
+  approvals: ApprovalRow[];
+  counts: Record<ApprovalStatus, number>;
+  standard_missing: number;
+};
+
+export type FilingPeriod = {
+  period_end: string;
+  period_start: string;
+  due_on: string;
+  state: "filed" | "late" | "due" | "open";
+  filing: { id: string; filed_on: string; reference: string | null; history: HistoryEntry[] } | null;
+};
+
+export type Krera = {
+  project_id: string;
+  can_edit: boolean;
+  registered_on: string;
+  quarters: FilingPeriod[];
+  audits: FilingPeriod[];
+  qpr_due_days: number;
+  audit_months: number;
+};
+
+export type TableEdit = {
+  project_id: string;
+  project_name: string;
+  kind: string;
+  title: string;
+  page: number;
+  pages: number;
+  total: number;
+  fields: { key: string; label: string; kind: string; locked: boolean; choices: { value: string; label: string }[] }[];
+  rows: string[][];
+};
+
 export const api = {
   me: () => get<Me>("/auth/me"),
   today: () => get<Today>("/today"),
@@ -1389,6 +1476,11 @@ export const api = {
   units: (id: string) => get<Units>(`/projects/${id}/units`),
   withdrawal: (id: string) => get<Withdrawal>(`/withdrawals/${id}`),
   rules: () => get<Rules>("/rules"),
+  landowner: (id: string) => get<LandownerDetail>(`/landowners/${id}`),
+  approvals: (projectId: string) => get<Approvals>(`/projects/${projectId}/approvals`),
+  krera: (projectId: string) => get<Krera>(`/projects/${projectId}/krera`),
+  table: (projectId: string, kind: string, page: number) =>
+    get<TableEdit>(`/projects/${projectId}/table/${kind}?page=${page}`),
 };
 
 export function areaHref(o: Obligation): string {
@@ -1409,6 +1501,10 @@ export function areaHref(o: Obligation): string {
       return `${base}/tax`;
     case "units":
       return `${base}/units`;
+    case "approvals":
+      return `${base}/approvals`;
+    case "krera":
+      return `${base}/krera`;
     default:
       return base;
   }

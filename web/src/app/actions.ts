@@ -1093,3 +1093,104 @@ export async function rejectWithdrawal(
   refresh();
   return {};
 }
+
+const LANDOWNER_PAYMENT_FIELDS = ["paid_on", "amount", "tds_deducted", "deposit", "reference"];
+
+export async function addLandownerPayment(ownerId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", `/landowners/${ownerId}/payments`, filled(form, LANDOWNER_PAYMENT_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Payment added." };
+}
+
+export async function updateLandownerPayment(paymentId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const body: Record<string, string> = filled(form, LANDOWNER_PAYMENT_FIELDS);
+  for (const name of blanks(form, ["tds_deducted", "reference"])) body[name] = "";
+  const result = await send("PUT", `/landowner-payments/${paymentId}`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function deleteLandownerPayment(paymentId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/landowner-payments/${paymentId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+const APPROVAL_FIELDS = ["name", "authority", "reference", "applied_on", "granted_on", "valid_until", "note"];
+
+export async function createApproval(projectId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/approvals`, filled(form, APPROVAL_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Approval added." };
+}
+
+export async function addStandardApprovals(projectId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/approvals/standard`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function updateApproval(approvalId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const body: Record<string, string> = filled(form, APPROVAL_FIELDS);
+  for (const name of blanks(form, APPROVAL_FIELDS.filter((n) => n !== "name"))) body[name] = "";
+  const result = await send("PUT", `/approvals/${approvalId}`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function deleteApproval(approvalId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/approvals/${approvalId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+const FILING_FIELDS = ["kind", "period_end", "filed_on", "reference"];
+
+export async function recordFiling(projectId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/filings`, filled(form, FILING_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Recorded as filed." };
+}
+
+export async function updateFiling(filingId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const body: Record<string, string> = filled(form, FILING_FIELDS);
+  for (const name of blanks(form, ["reference"])) body[name] = "";
+  const result = await send("PUT", `/filings/${filingId}`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}
+
+export async function deleteFiling(filingId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/filings/${filingId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+/** Rows edited as a table become an import, so the change is previewed before it is saved. */
+export async function saveTable(
+  projectId: string,
+  kind: string,
+  shape: { rows: number; columns: number },
+  _previous: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const rows: string[][] = [];
+  for (let r = 0; r < shape.rows; r += 1) {
+    const row: string[] = [];
+    for (let c = 0; c < shape.columns; c += 1) row.push(String(form.get(`c-${r}-${c}`) ?? "").trim());
+    rows.push(row);
+  }
+  const result = await send<{ id: string }>("POST", `/projects/${projectId}/table/${kind}`, { rows });
+  if (!result.ok) return { error: result.error };
+  redirect(`/imports/${result.data.id}`);
+}

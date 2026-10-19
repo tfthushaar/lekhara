@@ -7,7 +7,7 @@ let each certifier review and sign, submit to the bank, record the release.
 import hashlib
 import secrets
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
@@ -74,7 +74,12 @@ from lekhara.engines.escrow import (
 from lekhara.engines.handover import HandoverPosition, UnitHandoverIn, handover_position
 from lekhara.engines.money import Category, CostLine, Entry, EntryKind, ProjectPosition, ReraHead
 from lekhara.engines.money import project_position as money_position
-from lekhara.engines.obligations import Obligation, ProjectFacts, project_obligations
+from lekhara.engines.obligations import (
+    LapsingApproval,
+    Obligation,
+    ProjectFacts,
+    project_obligations,
+)
 from lekhara.engines.tax import (
     CessPosition,
     DelayExposure,
@@ -99,6 +104,7 @@ from lekhara.engines.tax import (
     procurement_meter,
 )
 from lekhara.models import (
+    Approval,
     Bill,
     ChecklistWaiver,
     CostLineRow,
@@ -379,6 +385,7 @@ def snapshot(
     handover = handover_for(session, project, as_of, collections, rules)
     disputes = disputes_for(session, project, as_of, rules)
     expiring_docs = expiring_documents(session, project, as_of, rules)
+    lapsing = lapsing_approvals(session, project, as_of, rules)
     request = open_request(session, project)
     waiting_on = None
     if request is not None:
@@ -406,6 +413,7 @@ def snapshot(
         handover=handover,
         disputes=disputes,
         expiring_documents=expiring_docs,
+        lapsing_approvals=lapsing,
     )
     return ProjectSnapshot(
         project=project,
@@ -1112,6 +1120,21 @@ def current_documents(session: Session, project: Project) -> list[Document]:
         key=lambda d: (d.document_date or d.uploaded_at.date(), d.uploaded_at),
         reverse=True,
     )
+
+
+def lapsing_approvals(
+    session: Session, project: Project, as_of: date, rules: RulesPack = KARNATAKA
+) -> list[LapsingApproval]:
+    notice = rules.value("approvals.renewal_notice_days", as_of)
+    rows = session.scalars(
+        select(Approval).where(
+            Approval.project_id == project.id,
+            Approval.granted_on.is_not(None),
+            Approval.valid_until.is_not(None),
+            Approval.valid_until <= as_of + timedelta(days=notice),
+        )
+    )
+    return [LapsingApproval(a.id, a.name, a.authority, a.valid_until) for a in rows]
 
 
 def expiring_documents(

@@ -169,6 +169,28 @@ async function ImportView({ params }: { params: Promise<{ id: string }> }) {
               ))}
             </div>
           </Way>
+
+          <Way title="Landowners, approvals and filings" what="Payments to landowners, your approvals list, K-RERA filings already made">
+            <div>
+              {(
+                [
+                  ["landowner_payments", "Landowner payments", "Preview the payments"],
+                  ["approvals", "Approvals", "Preview the approvals"],
+                  ["filings", "K-RERA filings", "Preview the filings"],
+                ] as const
+              ).map(([kind, title, label]) => (
+                <div key={kind} className="way-part">
+                  <p className="row-title">
+                    {title}{" "}
+                    <a href={`/download/imports/templates/${kind}.xlsx`} className="link-action small">
+                      Template
+                    </a>
+                  </p>
+                  {can ? <Upload id={`${kind}-file`} label={label} accept=".xlsx,.xlsm,.csv" action={startImport.bind(null, id, kind)} /> : null}
+                </div>
+              ))}
+            </div>
+          </Way>
         </ul>
         {!can ? <p className="empty">Your role cannot import into this project.</p> : null}
       </section>

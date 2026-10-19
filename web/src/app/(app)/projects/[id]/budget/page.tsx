@@ -157,6 +157,14 @@ async function BudgetView({ params }: { params: Promise<{ id: string }> }) {
             <Link href={`/projects/${id}/import#purchases`} className="link-action">
               Import a sheet of orders
             </Link>
+            {orders.can_edit && orders.commitments.length > 0 ? (
+              <>
+                {"  ·  "}
+                <Link href={`/projects/${id}/table/commitments`} className="link-action">
+                  Edit as a table
+                </Link>
+              </>
+            ) : null}
           </p>
           {orders.can_edit ? (
             <details className="disclosure">

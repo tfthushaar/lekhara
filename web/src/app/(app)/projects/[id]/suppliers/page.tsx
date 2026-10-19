@@ -58,6 +58,14 @@ async function SuppliersView({ params }: { params: Promise<{ id: string }> }) {
           <Link href={`/projects/${id}/import#purchases`} className="link-action">
             Import a sheet of bills
           </Link>
+          {p.can_edit && p.bills.length > 0 ? (
+            <>
+              {"  ·  "}
+              <Link href={`/projects/${id}/table/bills`} className="link-action">
+                Edit as a table
+              </Link>
+            </>
+          ) : null}
         </p>
         {p.can_edit ? (
           <details className="disclosure">
@@ -119,6 +127,14 @@ async function SuppliersView({ params }: { params: Promise<{ id: string }> }) {
           <Link href={`/projects/${id}/import#purchases`} className="link-action">
             Import a list of suppliers
           </Link>
+          {p.can_edit && p.suppliers.length > 0 ? (
+            <>
+              {"  ·  "}
+              <Link href={`/projects/${id}/table/suppliers`} className="link-action">
+                Edit as a table
+              </Link>
+            </>
+          ) : null}
         </p>
         {p.can_edit ? (
           <details className="disclosure">

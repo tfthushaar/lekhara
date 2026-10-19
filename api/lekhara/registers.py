@@ -19,6 +19,7 @@ from lekhara.models import (
     DisputeCase,
     Document,
     Landowner,
+    LandownerPaymentRow,
     LedgerEntry,
     PaymentMilestone,
     ProgressCertificate,
@@ -534,6 +535,187 @@ def update_landowner(
             user_id=user_id,
             source="typed",
         )
+
+
+def landowners_of(session: Session, project: Project) -> list[Landowner]:
+    return list(
+        session.scalars(
+            select(Landowner).where(Landowner.project_id == project.id).order_by(Landowner.name)
+        )
+    )
+
+
+def find_landowner(session: Session, project: Project, text: str | None) -> Landowner | None:
+    """By name, ignoring case and spacing, or by PAN."""
+    wanted = re.sub(r"\s+", " ", (text or "").strip()).casefold()
+    if not wanted:
+        return None
+    for owner in landowners_of(session, project):
+        name = re.sub(r"\s+", " ", owner.name.strip()).casefold()
+        if wanted == name or (owner.pan and wanted == owner.pan.casefold()):
+            return owner
+    return None
+
+
+# Landowner payments. Their history is kept under the landowner, so the landowner's page shows
+# every payment added, changed or deleted.
+
+
+def landowner_payment_values(p: LandownerPaymentRow) -> dict:
+    return {
+        "landowner": p.landowner.name,
+        "paid_on": p.paid_on,
+        "amount": p.amount,
+        "tds_deducted": p.tds_deducted,
+        "deposit": not p.monetary_consideration,
+        "reference": p.note,
+    }
+
+
+def check_landowner_payment(values: dict, *, as_of: date) -> list[str]:
+    problems = []
+    if values.get("paid_on") is None:
+        problems.append("The date is missing.")
+    elif values["paid_on"] > as_of:
+        problems.append("The payment date cannot be in the future.")
+    if values.get("amount") is None:
+        problems.append("The amount is missing.")
+    elif values["amount"] <= 0:
+        problems.append("The amount should be above zero.")
+    return problems
+
+
+def _payment_log(session, project, owner, action, changes, *, user_id, source, batch_id=None):
+    log_change(
+        session,
+        project,
+        "landowner_payment",
+        owner.id,
+        action,
+        changes,
+        user_id=user_id,
+        source=source,
+        batch_id=batch_id,
+    )
+
+
+def create_landowner_payment(
+    session: Session,
+    project: Project,
+    owner: Landowner,
+    values: dict,
+    *,
+    as_of: date,
+    user_id: str | None,
+    source: str = "typed",
+    batch_id: str | None = None,
+) -> LandownerPaymentRow:
+    problems = check_landowner_payment(values, as_of=as_of)
+    if problems:
+        raise ServiceError(" ".join(problems))
+    payment = LandownerPaymentRow(
+        landowner_id=owner.id,
+        amount=values["amount"],
+        paid_on=values["paid_on"],
+        tds_deducted=values.get("tds_deducted") or ZERO,
+        monetary_consideration=not values.get("deposit"),
+        note=(values.get("reference") or "").strip()[:200] or None,
+        source_ref=f"import:{batch_id}" if batch_id else None,
+    )
+    session.add(payment)
+    session.flush()
+    session.refresh(payment)
+    _payment_log(
+        session,
+        project,
+        owner,
+        "created",
+        {
+            k: [None, to_json(v)]
+            for k, v in landowner_payment_values(payment).items()
+            if v not in (None, False) and k != "landowner"
+        },
+        user_id=user_id,
+        source=source,
+        batch_id=batch_id,
+    )
+    return payment
+
+
+def _from_tally(payment: LandownerPaymentRow) -> bool:
+    return bool(payment.source_ref and payment.source_ref.startswith("tally:"))
+
+
+def update_landowner_payment(
+    session: Session,
+    project: Project,
+    payment: LandownerPaymentRow,
+    values: dict,
+    *,
+    as_of: date,
+    user_id: str | None,
+) -> dict:
+    if _from_tally(payment):
+        raise ServiceError("This payment came from Tally. Correct it in Tally and import again.")
+    before = landowner_payment_values(payment)
+    merged = {**before, **{k: v for k, v in values.items() if v is not None}}
+    problems = check_landowner_payment(merged, as_of=as_of)
+    if problems:
+        raise ServiceError(" ".join(problems))
+    payment.paid_on = merged["paid_on"]
+    payment.amount = merged["amount"]
+    payment.tds_deducted = merged.get("tds_deducted") or ZERO
+    payment.monetary_consideration = not merged.get("deposit")
+    if "reference" in values:
+        payment.note = (values["reference"] or "").strip()[:200] or None
+    after = landowner_payment_values(payment)
+    changes = {
+        k: [to_json(before[k]), to_json(after[k])]
+        for k in after
+        if to_json(before[k]) != to_json(after[k])
+    }
+    if changes:
+        changes = {"paid_on": [to_json(before["paid_on"]), to_json(after["paid_on"])]} | changes
+        _payment_log(
+            session, project, payment.landowner, "updated", changes, user_id=user_id,
+            source="typed",
+        )  # fmt: skip
+    return changes
+
+
+def delete_landowner_payment(
+    session: Session,
+    project: Project,
+    payment: LandownerPaymentRow,
+    *,
+    user_id: str | None,
+    source: str = "typed",
+    batch_id: str | None = None,
+) -> None:
+    if _from_tally(payment) and source == "typed":
+        raise ServiceError("This payment came from Tally. Correct it in Tally and import again.")
+    _payment_log(
+        session,
+        project,
+        payment.landowner,
+        "deleted",
+        {
+            "paid_on": [to_json(payment.paid_on), None],
+            "amount": [to_json(payment.amount), None],
+        },
+        user_id=user_id,
+        source=source,
+        batch_id=batch_id,
+    )
+    session.delete(payment)
+
+
+def landowner_history(session: Session, owner: Landowner) -> list[ChangeEntry]:
+    return sorted(
+        history(session, "landowner", owner.id) + history(session, "landowner_payment", owner.id),
+        key=lambda c: c.at,
+        reverse=True,
+    )
 
 
 # Buyer payments

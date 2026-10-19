@@ -21,12 +21,16 @@ from openpyxl.utils.exceptions import InvalidFileException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from lekhara import purchases, registers
+from lekhara import purchases, registers, statutory
 from lekhara.models import (
+    Approval,
     Bill,
     Commitment,
+    Filing,
     ImportBatch,
     ImportMapping,
+    Landowner,
+    LandownerPaymentRow,
     Project,
     Receipt,
     Unit,
@@ -115,8 +119,22 @@ def start(
     data: bytes,
     user_id: str | None,
 ) -> ImportBatch:
+    return start_rows(
+        session, project, kind, filename=filename, rows=read_rows(filename, data), user_id=user_id
+    )
+
+
+def start_rows(
+    session: Session,
+    project: Project,
+    kind: str,
+    *,
+    filename: str,
+    rows: list[list],
+    user_id: str | None,
+    origin: str = "file",
+) -> ImportBatch:
     record = record_type(kind)
-    rows = read_rows(filename, data)
     if not rows:
         raise ServiceError("The file is empty.")
     header_at = find_header(record, rows)
@@ -148,6 +166,7 @@ def start(
         rows=json.dumps(body),
         mapping=json.dumps(mapping),
         created_by_user_id=user_id,
+        origin=origin,
     )
     session.add(batch)
     session.commit()
@@ -216,16 +235,18 @@ class UnitImport:
         action = "update" if changes else "unchanged"
         return {"key": label, "action": action, "messages": [], "changes": changes}
 
-    def add(self, session, project, values, *, user_id, batch_id, ctx) -> str:
+    def add(self, session, project, values, *, user_id, batch_id, ctx, source="import") -> str:
         unit = registers.create_unit(
-            session, project, values, user_id=user_id, source="import", batch_id=batch_id
+            session, project, values, user_id=user_id, source=source, batch_id=batch_id
         )
         return unit.id
 
-    def update(self, session, project, key, values, *, user_id, batch_id) -> tuple[str, dict]:
+    def update(
+        self, session, project, key, values, *, user_id, batch_id, source="import"
+    ) -> tuple[str, dict]:
         unit = registers.units_by_label(session, project)[key.casefold()]
         changes = registers.update_unit(
-            session, project, unit, values, user_id=user_id, source="import", batch_id=batch_id
+            session, project, unit, values, user_id=user_id, source=source, batch_id=batch_id
         )
         return unit.id, changes
 
@@ -323,14 +344,14 @@ class ReceiptImport:
             return {"key": label, "action": "unchanged", "messages": [], "changes": {}}
         return {"key": label, "action": "add", "messages": [], "changes": {}}
 
-    def add(self, session, project, values, *, user_id, batch_id, ctx) -> str:
+    def add(self, session, project, values, *, user_id, batch_id, ctx, source="import") -> str:
         unit = ctx["units"][values["unit"].casefold()]
         receipt = registers.create_receipt(
-            session, project, unit, values, user_id=user_id, source="import", batch_id=batch_id
+            session, project, unit, values, user_id=user_id, source=source, batch_id=batch_id
         )
         return receipt.id
 
-    def update(self, session, project, key, values, *, user_id, batch_id):
+    def update(self, session, project, key, values, *, user_id, batch_id, source="import"):
         raise ServiceError("Payments are only ever added.")
 
     def blocker(self, session, item) -> str | None:
@@ -419,22 +440,24 @@ class SupplierImport:
             "changes": changes,
         }
 
-    def add(self, session, project, values, *, user_id, batch_id, ctx) -> str:
+    def add(self, session, project, values, *, user_id, batch_id, ctx, source="import") -> str:
         vendor = purchases.create_vendor(
             session,
             project.organization_id,
             values,
             project=project,
             user_id=user_id,
-            source="import",
+            source=source,
             batch_id=batch_id,
         )
         return vendor.id
 
-    def update(self, session, project, key, values, *, user_id, batch_id) -> tuple[str, dict]:
+    def update(
+        self, session, project, key, values, *, user_id, batch_id, source="import"
+    ) -> tuple[str, dict]:
         vendor = session.get(Vendor, key)
         changes = purchases.update_vendor(
-            session, vendor, values, project=project, user_id=user_id, source="import",
+            session, vendor, values, project=project, user_id=user_id, source=source,
             batch_id=batch_id,
         )  # fmt: skip
         return vendor.id, changes
@@ -515,17 +538,19 @@ class BillImport:
             "changes": changes,
         }
 
-    def add(self, session, project, values, *, user_id, batch_id, ctx) -> str:
+    def add(self, session, project, values, *, user_id, batch_id, ctx, source="import") -> str:
         bill = purchases.create_bill(
-            session, project, values, as_of=ctx["as_of"], user_id=user_id, source="import",
+            session, project, values, as_of=ctx["as_of"], user_id=user_id, source=source,
             batch_id=batch_id,
         )  # fmt: skip
         return bill.id
 
-    def update(self, session, project, key, values, *, user_id, batch_id) -> tuple[str, dict]:
+    def update(
+        self, session, project, key, values, *, user_id, batch_id, source="import"
+    ) -> tuple[str, dict]:
         bill = session.get(Bill, key)
         changes = purchases.update_bill(
-            session, project, bill, values, as_of=date.max, user_id=user_id, source="import",
+            session, project, bill, values, as_of=date.max, user_id=user_id, source=source,
             batch_id=batch_id,
         )  # fmt: skip
         return bill.id, changes
@@ -596,17 +621,19 @@ class CommitmentImport:
             "changes": changes,
         }
 
-    def add(self, session, project, values, *, user_id, batch_id, ctx) -> str:
+    def add(self, session, project, values, *, user_id, batch_id, ctx, source="import") -> str:
         c = purchases.create_commitment(
-            session, project, values, as_of=ctx["as_of"], user_id=user_id, source="import",
+            session, project, values, as_of=ctx["as_of"], user_id=user_id, source=source,
             batch_id=batch_id,
         )  # fmt: skip
         return c.id
 
-    def update(self, session, project, key, values, *, user_id, batch_id) -> tuple[str, dict]:
+    def update(
+        self, session, project, key, values, *, user_id, batch_id, source="import"
+    ) -> tuple[str, dict]:
         c = session.get(Commitment, key)
         changes = purchases.update_commitment(
-            session, project, c, values, as_of=date.max, user_id=user_id, source="import",
+            session, project, c, values, as_of=date.max, user_id=user_id, source=source,
             batch_id=batch_id,
         )  # fmt: skip
         return c.id, changes
@@ -635,10 +662,264 @@ class CommitmentImport:
         ]
 
 
+class LandownerPaymentImport:
+    """Payments to landowners: each row is one payment, to a landowner found by name or PAN. A
+    payment already recorded with the same landowner, date, amount and reference is left alone,
+    so a file can be imported again."""
+
+    kind = "landowner_payments"
+
+    def context(self, session: Session, project: Project) -> dict:
+        recorded = {
+            self._key(p.landowner_id, p.paid_on, p.amount, p.note)
+            for p in session.scalars(
+                select(LandownerPaymentRow)
+                .join(Landowner)
+                .where(Landowner.project_id == project.id)
+            )
+        }
+        return {"session": session, "project": project, "recorded": recorded}
+
+    @staticmethod
+    def _key(owner_id, on, amount, reference) -> tuple:
+        return (owner_id, on, registers.to_json(amount), (reference or "").strip().casefold())
+
+    def evaluate(self, values: dict, problems: list[str], seen: set, ctx: dict) -> dict:
+        name = values.get("landowner")
+        owner = registers.find_landowner(ctx["session"], ctx["project"], name)
+        if name is None:
+            problems.insert(0, "The landowner is missing.")
+        elif owner is None:
+            problems.insert(
+                0, f"There is no landowner {name} in this project. Add them on the Units page."
+            )
+        if not problems:
+            problems = registers.check_landowner_payment(values, as_of=ctx["as_of"])
+        if problems:
+            return {"key": name, "action": "error", "messages": problems, "changes": {}}
+        key = self._key(owner.id, values["paid_on"], values["amount"], values.get("reference"))
+        if key in seen:
+            return {
+                "key": name,
+                "action": "error",
+                "messages": ["The same payment appears twice in the file."],
+                "changes": {},
+            }
+        seen.add(key)
+        action = "unchanged" if key in ctx["recorded"] else "add"
+        return {"key": owner.name, "action": action, "messages": [], "changes": {}}
+
+    def add(self, session, project, values, *, user_id, batch_id, ctx, source="import") -> str:
+        owner = registers.find_landowner(session, project, values["landowner"])
+        payment = registers.create_landowner_payment(
+            session, project, owner, values, as_of=ctx["as_of"], user_id=user_id, source=source,
+            batch_id=batch_id,
+        )  # fmt: skip
+        return payment.id
+
+    def update(self, session, project, key, values, *, user_id, batch_id, source="import"):
+        raise ServiceError("Payments are only ever added.")
+
+    def blocker(self, session, item) -> str | None:
+        if session.get(LandownerPaymentRow, item["id"]) is None:
+            return f"row {item['row']} (the payment has been deleted)"
+        return None
+
+    def reverse(self, session, project, item, *, user_id, batch_id) -> None:
+        payment = session.get(LandownerPaymentRow, item["id"])
+        registers.delete_landowner_payment(
+            session, project, payment, user_id=user_id, source="undo", batch_id=batch_id
+        )
+
+    def export_rows(self, session, project, record) -> list[list]:
+        payments = session.scalars(
+            select(LandownerPaymentRow)
+            .join(Landowner)
+            .where(Landowner.project_id == project.id)
+            .order_by(LandownerPaymentRow.paid_on, Landowner.name)
+        )
+        return [
+            [_display(record, k, v) for k, v in registers.landowner_payment_values(p).items()]
+            for p in payments
+        ]
+
+
+class ApprovalImport:
+    """Approvals: matched on what the approval is; new ones added, changed dates filled in."""
+
+    kind = "approvals"
+
+    def context(self, session: Session, project: Project) -> dict:
+        return {"session": session, "project": project}
+
+    def evaluate(self, values: dict, problems: list[str], seen: set, ctx: dict) -> dict:
+        session, project = ctx["session"], ctx["project"]
+        name = (values.get("name") or "").strip()
+        existing = statutory.find_approval(session, project, name) if name else None
+        if not problems:
+            problems = statutory.check_approval(values, as_of=ctx["as_of"], existing=existing)
+        if name:
+            if statutory._fold(name) in seen:
+                problems.insert(0, f"{name} appears more than once in the file.")
+            seen.add(statutory._fold(name))
+        if problems:
+            return {"key": name, "action": "error", "messages": problems, "changes": {}}
+        if existing is None:
+            return {"key": name, "action": "add", "messages": [], "changes": {}}
+        before = statutory.approval_values(existing)
+        changes = {
+            k: [registers.to_json(before[k]), registers.to_json(v)]
+            for k, v in values.items()
+            if v is not None and k != "name" and not _same(before[k], v)
+        }
+        return {
+            "key": existing.id,
+            "action": "update" if changes else "unchanged",
+            "messages": [],
+            "changes": changes,
+        }
+
+    def add(self, session, project, values, *, user_id, batch_id, ctx, source="import") -> str:
+        a = statutory.create_approval(
+            session, project, values, as_of=ctx["as_of"], user_id=user_id, source=source,
+            batch_id=batch_id,
+        )  # fmt: skip
+        return a.id
+
+    def update(
+        self, session, project, key, values, *, user_id, batch_id, source="import"
+    ) -> tuple[str, dict]:
+        a = session.get(Approval, key)
+        values = {k: v for k, v in values.items() if k != "name"}
+        changes = statutory.update_approval(
+            session, project, a, values, as_of=date.max, user_id=user_id, source=source,
+            batch_id=batch_id,
+        )  # fmt: skip
+        return a.id, changes
+
+    def blocker(self, session, item) -> str | None:
+        if session.get(Approval, item["id"]) is None:
+            return f"row {item['row']} (the approval has been deleted)"
+        return None
+
+    def reverse(self, session, project, item, *, user_id, batch_id) -> None:
+        a = session.get(Approval, item["id"])
+        if item["action"] == "add":
+            statutory.delete_approval(session, project, a, user_id=user_id)
+            return
+        record = record_type(self.kind)
+        before = {k: registers.from_json(record, k, b) for k, (b, _) in item["changes"].items()}
+        statutory.update_approval(
+            session, project, a, {k: v for k, v in before.items() if v is not None},
+            as_of=date.max, user_id=user_id, clear=tuple(k for k, v in before.items() if v is None),
+            source="undo", batch_id=batch_id,
+        )  # fmt: skip
+
+    def export_rows(self, session, project, record) -> list[list]:
+        return [
+            [_display(record, k, v) for k, v in statutory.approval_values(a).items()]
+            for a in statutory.approvals_of(session, project)
+        ]
+
+
+class FilingImport:
+    """K-RERA filings: matched on the kind of filing and the period it covers."""
+
+    kind = "filings"
+
+    def context(self, session: Session, project: Project) -> dict:
+        return {"session": session, "project": project}
+
+    def evaluate(self, values: dict, problems: list[str], seen: set, ctx: dict) -> dict:
+        session, project = ctx["session"], ctx["project"]
+        kind, end = values.get("kind"), values.get("period_end")
+        label = (
+            f"{statutory.FILING_LABEL.get(kind, 'Filing')}, {end.strftime('%d/%m/%Y')}"
+            if end
+            else statutory.FILING_LABEL.get(kind, "Filing")
+        )
+        existing = statutory.find_filing(session, project, kind, end) if kind and end else None
+        if not problems:
+            problems = statutory.check_filing(values, as_of=ctx["as_of"], existing=existing)
+        if kind and end:
+            if (kind, end) in seen:
+                problems.insert(0, f"{label} appears more than once in the file.")
+            seen.add((kind, end))
+        if problems:
+            return {"key": label, "action": "error", "messages": problems, "changes": {}}
+        if existing is None:
+            return {"key": label, "action": "add", "messages": [], "changes": {}}
+        before = statutory.filing_values(existing)
+        changes = {
+            k: [registers.to_json(before[k]), registers.to_json(v)]
+            for k, v in values.items()
+            if v is not None and k in ("filed_on", "reference") and not _same(before[k], v)
+        }
+        return {
+            "key": existing.id,
+            "action": "update" if changes else "unchanged",
+            "messages": [],
+            "changes": changes,
+        }
+
+    def add(self, session, project, values, *, user_id, batch_id, ctx, source="import") -> str:
+        f = statutory.create_filing(
+            session, project, values, as_of=ctx["as_of"], user_id=user_id, source=source,
+            batch_id=batch_id,
+        )  # fmt: skip
+        return f.id
+
+    def update(
+        self, session, project, key, values, *, user_id, batch_id, source="import"
+    ) -> tuple[str, dict]:
+        f = session.get(Filing, key)
+        values = {k: v for k, v in values.items() if k in ("filed_on", "reference")}
+        changes = statutory.update_filing(
+            session, project, f, values, as_of=date.max, user_id=user_id, source=source,
+            batch_id=batch_id,
+        )  # fmt: skip
+        return f.id, changes
+
+    def blocker(self, session, item) -> str | None:
+        if session.get(Filing, item["id"]) is None:
+            return f"row {item['row']} (the filing has been deleted)"
+        return None
+
+    def reverse(self, session, project, item, *, user_id, batch_id) -> None:
+        f = session.get(Filing, item["id"])
+        if item["action"] == "add":
+            statutory.delete_filing(session, project, f, user_id=user_id)
+            return
+        record = record_type(self.kind)
+        before = {k: registers.from_json(record, k, b) for k, (b, _) in item["changes"].items()}
+        statutory.update_filing(
+            session, project, f, before, as_of=date.max, user_id=user_id, source="undo",
+            batch_id=batch_id,
+        )  # fmt: skip
+
+    def export_rows(self, session, project, record) -> list[list]:
+        return [
+            [_display(record, k, v) for k, v in statutory.filing_values(f).items()]
+            for f in statutory.filings_of(session, project)
+        ]
+
+
 HANDLERS = {
     h.kind: h
-    for h in (UnitImport(), ReceiptImport(), SupplierImport(), BillImport(), CommitmentImport())
+    for h in (
+        UnitImport(),
+        ReceiptImport(),
+        SupplierImport(),
+        BillImport(),
+        CommitmentImport(),
+        LandownerPaymentImport(),
+        ApprovalImport(),
+        FilingImport(),
+    )
 }
+
+EDITABLE_AS_TABLE = ("units", "suppliers", "bills", "commitments", "approvals")
+"""Record types whose existing rows can be edited as a table: those an import can update."""
 
 
 def evaluate(session: Session, batch: ImportBatch, *, as_of: date | None = None) -> list[dict]:
@@ -673,6 +954,7 @@ def apply(
     rows = evaluate(session, batch, as_of=as_of)
     ctx = handler.context(session, project)
     ctx["as_of"] = as_of or date.today()
+    source = "edited" if batch.origin == "table" else "import"
     done = []
     for row in rows:
         if row["action"] not in ("add", "update"):
@@ -680,15 +962,17 @@ def apply(
         values = {k: registers.from_json(record, k, v) for k, v in row["values"].items()}
         if row["action"] == "add":
             record_id = handler.add(
-                session, project, values, user_id=user_id, batch_id=batch.id, ctx=ctx
-            )
+                session, project, values, user_id=user_id, batch_id=batch.id, ctx=ctx,
+                source=source,
+            )  # fmt: skip
             done.append(
                 {"row": row["row"], "action": "add", "id": record_id, "after": row["values"]}
             )
         else:
             record_id, changes = handler.update(
-                session, project, row["key"], values, user_id=user_id, batch_id=batch.id
-            )
+                session, project, row["key"], values, user_id=user_id, batch_id=batch.id,
+                source=source,
+            )  # fmt: skip
             done.append(
                 {"row": row["row"], "action": "update", "id": record_id, "changes": changes}
             )

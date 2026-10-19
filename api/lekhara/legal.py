@@ -309,6 +309,7 @@ def _purge_scoped(session: Session, org: Organization) -> list[str]:
         (m.CostLineRow, m.CostLineRow.project_id, projects),
         (m.ProgressCertificate, m.ProgressCertificate.project_id, projects),
         (m.Filing, m.Filing.project_id, projects),
+        (m.Approval, m.Approval.project_id, projects),
         (m.ChangeEntry, m.ChangeEntry.organization_id, [org.id]),
         (m.Unit, m.Unit.project_id, projects),
         (m.ProjectAccess, m.ProjectAccess.project_id, projects),

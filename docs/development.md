@@ -54,7 +54,13 @@ Main endpoints: `/today`, `/projects`, `/projects/{id}` (with `/money`, `/escrow
 
 ### Import centre
 
-Record types are defined once in `api/lekhara/records.py` (fields, aliases, parsing); `registers.py` adds, changes and deletes records with a change history; `imports.py` reads Excel or CSV, previews, applies and undoes. To add a record type, define it in `records.py`, add its register functions, and add a handler for it in `imports.py` (how a row is checked, added, updated, undone and exported). Units and buyers, and buyer payments, are in; try the template at `/imports/templates/units.xlsx`.
+Record types are defined once in `api/lekhara/records.py` (fields, aliases, parsing); `registers.py` adds, changes and deletes records with a change history; `imports.py` reads Excel or CSV, previews, applies and undoes. To add a record type, define it in `records.py`, add its register functions, and add a handler for it in `imports.py` (how a row is checked, added, updated, undone and exported). Units and buyers, buyer payments, suppliers, bills, orders, landowner payments, approvals and K-RERA filings are in; try the template at `/imports/templates/units.xlsx`.
+
+Editing as a table (`/projects/{id}/table/{kind}`) shows a page of a record type's export rows as inputs and turns the submitted rows into an import batch with `origin` table (`imports.start_rows`), so the change goes through the same preview, apply and undo, and the history records the source as `edited`. Only types an import can update are offered (`imports.EDITABLE_AS_TABLE`); the columns that identify a row are locked (`record_views.LOCKED`).
+
+### Approvals, filings and landowner payments
+
+`api/lekhara/statutory.py` holds approvals (with their status: to apply, applied, granted, lapsing within `approvals.renewal_notice_days`, lapsed) and K-RERA filings (a quarterly report covers a quarter end, an annual audit a 31 March). Landowner payments are in `registers.py`; their history is logged under the landowner, so the landowner's page keeps deleted payments too. `record_views.py` builds the landowner, approvals, K-RERA and table views. Lapsing approvals reach Today through `services.lapsing_approvals` and the obligations engine.
 
 ### Tally import
 

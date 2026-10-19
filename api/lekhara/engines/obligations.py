@@ -58,6 +58,7 @@ class Area(StrEnum):
     HANDOVER = "handover"
     DISPUTES = "disputes"
     DOCUMENTS = "documents"
+    APPROVALS = "approvals"
     KRERA = "krera"
     TAX = "tax"
     UNITS = "units"
@@ -87,6 +88,14 @@ class Obligation:
 
 
 @dataclass(frozen=True)
+class LapsingApproval:
+    approval_id: str
+    name: str
+    authority: str | None
+    valid_until: date
+
+
+@dataclass(frozen=True)
 class ProjectFacts:
     project_id: str
     project_name: str
@@ -112,6 +121,7 @@ class ProjectFacts:
     handover: HandoverPosition | None = None
     disputes: DisputesPosition | None = None
     expiring_documents: list[Expiring] = field(default_factory=list)
+    lapsing_approvals: list[LapsingApproval] = field(default_factory=list)
 
 
 def _quarter_ends(start: date, end: date) -> list[date]:
@@ -427,6 +437,24 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
             ref=e.document_id,
         )
 
+    # Approvals about to lapse
+    for a in f.lapsing_approvals:
+        lapsed = a.valid_until < f.as_of
+        add(
+            key=f"approval:{a.approval_id}",
+            title=f"{a.name} has lapsed" if lapsed else f"Renew {a.name}",
+            detail=(
+                f"It {'lapsed' if lapsed else 'lapses'} on {_fmt(a.valid_until)}. Apply for the "
+                "renewal and record the new validity in the approvals list."
+            ),
+            owed_to=a.authority or "The authority",
+            status=_dated_status(a.valid_until, f.as_of, soon),
+            area=Area.APPROVALS,
+            due_on=a.valid_until,
+            rule_key="approvals.renewal_notice_days",
+            action="Open the approvals",
+        )
+
     # Quarterly progress reports
     late_fee = None
     with suppress(RuleNotFound):
@@ -467,28 +495,31 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
         )
         break
 
-    # Annual project audit
+    # Annual project audit, for every financial year ended since registration
     months = rules.value("krera.annual_audit_months", f.as_of)
     fy_start, _ = financial_year(f.as_of)
-    previous_fy_end = fy_start - timedelta(days=1)
-    if previous_fy_end > f.registered_on and (fy_start.year - 1) not in f.audits_done:
-        due = _month_end_after(previous_fy_end, months)
-        status = _dated_status(due, f.as_of, soon)
-        if status != ObligationStatus.UPCOMING or (due - f.as_of).days <= 60:
-            add(
-                key=f"audit:{fy_start.year - 1}",
-                title="Annual project audit",
-                detail=(
-                    f"Project accounts for {fy_start.year - 1}-{str(fy_start.year)[2:]} must be "
-                    f"audited by a CA by {_fmt(due)}."
-                ),
-                owed_to="K-RERA",
-                status=status,
-                area=Area.KRERA,
-                due_on=due,
-                rule_key="krera.annual_audit_months",
-                action="Prepare the audit pack",
-            )
+    fy_end = fy_start - timedelta(days=1)
+    while fy_end > f.registered_on:
+        year = fy_end.year - 1
+        if year not in f.audits_done:
+            due = _month_end_after(fy_end, months)
+            status = _dated_status(due, f.as_of, soon)
+            if status != ObligationStatus.UPCOMING or (due - f.as_of).days <= 60:
+                add(
+                    key=f"audit:{year}",
+                    title="Annual project audit",
+                    detail=(
+                        f"Project accounts for {year}-{str(year + 1)[2:]} must be audited by a CA "
+                        f"by {_fmt(due)}."
+                    ),
+                    owed_to="K-RERA",
+                    status=status,
+                    area=Area.KRERA,
+                    due_on=due,
+                    rule_key="krera.annual_audit_months",
+                    action="Prepare the audit pack",
+                )
+        fy_end = date(fy_end.year - 1, 3, 31)
 
     # Delay interest and the possession date
     d = f.delay

@@ -1108,7 +1108,7 @@ h3 {
     grid-template-columns: repeat(3, 1fr);
   }
   .topbar-inner {
-    gap: 20px;
+    gap: 16px;
   }
   .org {
     display: none;
@@ -1116,4 +1116,51 @@ h3 {
   .user-menu {
     gap: 8px;
   }
+  /* One line of tabs that scrolls sideways, rather than rows of wrapped tabs. */
+  .nav,
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav {
+    gap: 18px;
+  }
+  .nav a,
+  .tabs a,
+  .user-menu a,
+  .user-menu button {
+    white-space: nowrap;
+  }
+  .tabs {
+    column-gap: 20px;
+  }
+  .tabs-gap {
+    flex: 0 0 12px;
+  }
+}
+
+/* Records edited as a table */
+
+.table-scroll {
+  overflow-x: auto;
+  margin: 16px 0;
+}
+
+.grid-edit td {
+  padding: 4px 6px;
+}
+
+.grid-edit input,
+.grid-edit select {
+  width: 100%;
+  min-width: 96px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.grid-locked {
+  color: var(--ink-2);
+  white-space: nowrap;
+  font-weight: 600;
 }

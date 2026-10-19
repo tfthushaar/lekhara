@@ -55,10 +55,12 @@ const TABS = [
   { segment: "/handover", label: "Handover", team: true, data: false },
   { segment: "/disputes", label: "Disputes", team: true, data: false },
   { segment: "/tax", label: "Tax", team: true, data: false },
+  { segment: "/krera", label: "K-RERA", team: true, data: false },
   { segment: "/documents", label: "Documents", team: true, data: false },
   { segment: "/units", label: "Units", team: true, data: true },
   { segment: "/suppliers", label: "Suppliers", team: true, data: true },
   { segment: "/budget", label: "Budget", team: true, data: true },
+  { segment: "/approvals", label: "Approvals", team: true, data: true },
   { segment: "/import", label: "Import", team: true, data: true },
   { segment: "/setup", label: "Set-up", team: true, data: true },
 ];

@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-18, with the commit "Point the status to the new plan and decisions".
+Last updated: 2026-10-19, with the commit "Add approvals, K-RERA filings, landowner payments and editing as a table".
 
 ## What we are building
 
@@ -195,10 +195,18 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - An access log of sign-ins (and failed ones), exports, documents opened, invitations, role changes and people removed, with the address and browser they came from, kept a year (CERT-In asks for 180 days in India); the owner and finance see it in Settings, and it is part of the firm's export.
   - Anyone can delete their own account (their name and email are taken out; what they did stays under "A former user"), except a firm's only owner. An owner can close the firm's account: everything stays readable and downloadable for 30 days and the closing can be undone; then a daily job deletes all of the firm's projects, records, documents and files and takes out the people who worked only for it, keeping the access log.
   - Tested end to end: the three documents open without signing in, sign-up refused without agreeing, the access log in Settings, a firm closed and kept open, and the only owner unable to delete their account.
+- The last records that came only from the demo data or Tally, each now added, changed, imported, exported and with a history:
+  - Landowner payments: a page for each landowner with every payment (from Tally, imported or typed in), the TDS each one should have had under s.194-IC and any shortfall, refundable deposits told apart from consideration, and the landowner's details. Tally's payments are corrected in Tally. The history keeps every payment added, changed or deleted.
+  - Approvals: a new Approvals tab with each approval, consent and NOC, its authority and number, when it was applied for, granted and until when it holds. The usual twelve for a Karnataka residential project (land conversion to occupancy certificate) are set up in one step and trimmed to what applies. An approval lapsing within 90 days, or already lapsed, is on Today.
+  - K-RERA filings: a new K-RERA tab with every quarter's progress report and every year's annual audit since registration, each due, late, current or filed, and recorded as filed with its acknowledgement in one step. Today now checks the audit for every year since registration, not only the last one.
+- Editing as a table: units, suppliers, bills, orders and approvals can be edited fifty rows at a time like a spreadsheet; the changes go through the same preview as an import before they are saved, can be undone for 30 days, and show in each record's history as edited as a table.
+- On a phone, the project's tabs and the top menu stay on one line that scrolls sideways.
+- Tested end to end: a landowner's payment with short TDS flagged and corrected, the usual approvals set up and one about to lapse shown on Today, a late quarter recorded as filed, payments, approvals and filings imported, and a unit's price changed as a table and saved with its history.
 
 ## In progress
 
-- Billing to the rules: one Razorpay subscription per firm; nothing charged without a mandate the builder sets up; the price with GST shown before paying; reminders before the free month ends; pre-debit notices; cancelling in one click, as easy as subscribing; a GST invoice for every payment.
+- The filing packs: the bank withdrawal pack, the quarterly progress report and the annual audit pack.
+- Billing to the rules: one Razorpay subscription per firm; nothing charged without a mandate the builder sets up; the price with GST shown before paying; reminders before the free month ends; pre-debit notices; cancelling in one click, as easy as subscribing; a GST invoice for every payment. Built in test mode; going live waits on decisions about the company, prices, refunds and GST.
 
 ## Left
 
@@ -207,7 +215,6 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 In this order:
 
 - Self-serve start, still to do: sign-in with Google and by phone code, limits on sign-ups and resets per network address, and row-level security in Postgres as a second wall between firms when production moves to Postgres.
-- Add, edit, import and export for the remaining records that today come only from the demo data or Tally: landowner payments typed in, approvals, filings; spreadsheet-style bulk editing; change history for each.
 - Import centre, still to do: known CRM export formats, templates in Kannada, AI column mapping for unfamiliar sheets.
 - Tally import, after that: debit notes netted off bills, sales vouchers matched to demands, testing against real exports from design partners.
 - Onboarding: the firm from its GSTIN, projects from the K-RERA certificate, engines that work with partial data and say what is missing, first-run help.

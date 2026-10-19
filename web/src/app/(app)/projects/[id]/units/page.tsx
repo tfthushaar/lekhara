@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { createLandowner, createUnit, updateLandowner } from "@/app/actions";
+import { createLandowner, createUnit } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { LandownerFields } from "@/components/landowner-fields";
 import { UnitFields } from "@/components/unit-fields";
 import { api } from "@/lib/api";
 import { inr, pct } from "@/lib/format";
@@ -99,17 +100,9 @@ async function UnitsView({
               {u.landowners.map((o) => (
                 <tr key={o.id}>
                   <td>
-                    {o.name}
+                    <Link href={`/landowners/${o.id}`}>{o.name}</Link>
                     <br />
                     <span className="small muted">{o.pan ? `PAN ${o.pan}` : "PAN not recorded"}</span>
-                    {list.can_import ? (
-                      <details className="disclosure">
-                        <summary>Change</summary>
-                        <ActionForm action={updateLandowner.bind(null, o.id)} label="Save" pendingLabel="Saving" secondary>
-                          <LandownerFields prefix={`lo-${o.id}`} owner={o} />
-                        </ActionForm>
-                      </details>
-                    ) : null}
                   </td>
                   <td>
                     {pct(o.share_pct)} of {o.share_type === "area" ? "the built area" : "revenue"}
@@ -141,6 +134,11 @@ async function UnitsView({
           <a href={`/download/projects/${id}/exports/units.csv`} className="link-action">
             or CSV
           </a>
+          {list.can_import && u.units.length > 0 ? (
+            <Link href={`/projects/${id}/table/units`} className="link-action">
+              Edit as a table
+            </Link>
+          ) : null}
         </p>
         {list.can_import ? (
           <details className="disclosure">
@@ -237,41 +235,5 @@ async function UnitsView({
         ) : null}
       </section>
     </>
-  );
-}
-
-function LandownerFields({
-  prefix,
-  owner,
-}: {
-  prefix: string;
-  owner?: { name: string; share_type: string; share_pct: string; refundable_deposit: string; pan: string | null };
-}) {
-  return (
-    <div className="field-grid">
-      <div className="field">
-        <label htmlFor={`${prefix}-name`}>Name</label>
-        <input id={`${prefix}-name`} name="name" defaultValue={owner?.name ?? ""} required={!owner} />
-      </div>
-      <div className="field">
-        <label htmlFor={`${prefix}-type`}>Share of</label>
-        <select id={`${prefix}-type`} name="share_type" defaultValue={owner?.share_type ?? "area"}>
-          <option value="area">The built area</option>
-          <option value="revenue">Revenue</option>
-        </select>
-      </div>
-      <div className="field">
-        <label htmlFor={`${prefix}-pct`}>Share (per cent)</label>
-        <input id={`${prefix}-pct`} name="share_pct" inputMode="decimal" defaultValue={owner?.share_pct ?? ""} required={!owner} />
-      </div>
-      <div className="field">
-        <label htmlFor={`${prefix}-deposit`}>Refundable deposit (rupees)</label>
-        <input id={`${prefix}-deposit`} name="refundable_deposit" defaultValue={owner?.refundable_deposit ?? ""} />
-      </div>
-      <div className="field">
-        <label htmlFor={`${prefix}-pan`}>PAN</label>
-        <input id={`${prefix}-pan`} name="pan" defaultValue={owner?.pan ?? ""} placeholder="ABCDE1234F" />
-      </div>
-    </div>
   );
 }

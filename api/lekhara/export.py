@@ -27,6 +27,7 @@ from lekhara.db import Money, Percent
 from lekhara.models import (
     Acceptance,
     AccessEvent,
+    Approval,
     BankAccount,
     BankPayer,
     Bill,
@@ -166,6 +167,7 @@ SHEETS = [
         lambda s: WithdrawalCertificate.request_id.in_(s.requests),
     ),
     Sheet("Filings", Filing, lambda s: Filing.project_id.in_(s.projects)),
+    Sheet("Approvals", Approval, lambda s: Approval.project_id.in_(s.projects)),
     Sheet("Cases", DisputeCase, lambda s: DisputeCase.project_id.in_(s.projects)),
     Sheet("Hearings", DisputeHearing, lambda s: DisputeHearing.case_id.in_(s.cases)),
     Sheet("Orders", DisputeOrder, lambda s: DisputeOrder.case_id.in_(s.cases)),

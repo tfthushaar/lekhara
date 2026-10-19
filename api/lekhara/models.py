@@ -263,6 +263,23 @@ class Filing(Base):
     reference: Mapped[str | None] = mapped_column(String(200))
 
 
+class Approval(Base):
+    """An approval, consent or no-objection certificate the project needs: when it was applied
+    for, when it was granted and until when it holds."""
+
+    __tablename__ = "approvals"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    authority: Mapped[str | None] = mapped_column(String(200))
+    reference: Mapped[str | None] = mapped_column(String(200))
+    applied_on: Mapped[date | None] = mapped_column(Date)
+    granted_on: Mapped[date | None] = mapped_column(Date)
+    valid_until: Mapped[date | None] = mapped_column(Date)
+    note: Mapped[str | None] = mapped_column(String(500))
+
+
 class WithdrawalRequest(Base):
     __tablename__ = "withdrawal_requests"
 
@@ -667,6 +684,8 @@ class ImportBatch(Base):
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     kind: Mapped[str] = mapped_column(String(32))
     filename: Mapped[str] = mapped_column(String(300))
+    origin: Mapped[str] = mapped_column(String(16), default="file", server_default="file")
+    """file, for a spreadsheet brought in, or table, for rows edited as a table in Lekhara."""
     status: Mapped[str] = mapped_column(String(16), default="preview")
     """preview, applied or undone."""
     headers: Mapped[str] = mapped_column(Text)

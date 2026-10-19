@@ -516,6 +516,15 @@ _rules = (
         effective_from=ALWAYS,
     ),
     Rule(
+        key="approvals.renewal_notice_days",
+        value=90,
+        title="Days before an approval lapses when Lekhara starts showing its renewal on Today",
+        basis="Lekhara setting: renewals such as a fire NOC or a consent to operate take weeks",
+        source_quality=SourceQuality.LEKHARA_DEFAULT,
+        confirm_against="Not a legal rule",
+        effective_from=ALWAYS,
+    ),
+    Rule(
         key="documents.room_max_days",
         value=90,
         title="Longest a data room link stays open",

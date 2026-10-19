@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { deleteReceipt, deleteUnit, markUnsold, recordReceipt, updateHandover, updateUnit } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { History } from "@/components/history";
 import { LinkedDocuments } from "@/components/documents";
 import { PrintButton } from "@/components/print-button";
 import { UnitFields } from "@/components/unit-fields";
@@ -25,7 +26,6 @@ function stepClass(u: UnitHandover, stage: string, done: boolean): string {
   return u.blocker === stage ? "step step-current" : "step";
 }
 
-const SOURCE: Record<string, string> = { typed: "typed in", import: "imported", undo: "import undone" };
 
 async function UnitView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -121,29 +121,7 @@ function UnitDetails({ unit }: { unit: UnitDetail }) {
           ) : null}
         </>
       ) : null}
-      {unit.history.length > 0 ? (
-        <details className="disclosure">
-          <summary>History ({unit.history.length})</summary>
-          <ul className="rows">
-            {unit.history.map((h, i) => (
-              <li key={`${h.at}-${i}`} className="row">
-                <div className="small muted">{h.at.replace("T", ", ").slice(0, 17)}</div>
-                <div>
-                  <p className="row-title">
-                    {`${h.action === "created" ? "Added" : h.action === "deleted" ? "Deleted" : "Changed"} by ${h.by}, ${SOURCE[h.source] ?? h.source}`}
-                  </p>
-                  {h.changes.map((c) => (
-                    <p key={c.field} className="row-detail">
-                      {`${c.field}: ${c.before ?? "blank"} to ${c.after ?? "blank"}`}
-                    </p>
-                  ))}
-                </div>
-                <div />
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+      <History entries={unit.history} />
     </section>
   );
 }

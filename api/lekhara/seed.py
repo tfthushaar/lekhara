@@ -35,6 +35,7 @@ from lekhara.legal import VERSION
 from lekhara.migrate import upgrade
 from lekhara.models import (
     Acceptance,
+    Approval,
     Bill,
     ChecklistWaiver,
     Commitment,
@@ -708,15 +709,32 @@ class Seeder:
                 )
             )
         fy_start, _ = financial_year(self.today)
-        previous_end = fy_start - timedelta(days=1)
-        if audit_done and previous_end > p.registered_on:
+        year_end = fy_start - timedelta(days=1)
+        while audit_done and year_end > p.registered_on:
             self.s.add(
                 Filing(
                     project_id=p.id,
                     kind="annual_audit",
-                    period_end=previous_end,
-                    filed_on=min(previous_end + timedelta(days=150), self.today),
-                    reference=f"Audit FY ending {previous_end.isoformat()}",
+                    period_end=year_end,
+                    filed_on=min(year_end + timedelta(days=150), self.today),
+                    reference=f"Audit FY ending {year_end.isoformat()}",
+                )
+            )
+            year_end = date(year_end.year - 1, 3, 31)
+
+    def approvals(self, p: Project, specs: list[tuple]) -> None:
+        """(name, authority, reference, applied days ago, granted days ago, valid days ahead);
+        None where a date is not known yet."""
+        for name, authority, reference, applied, granted, valid in specs:
+            self.s.add(
+                Approval(
+                    project_id=p.id,
+                    name=name,
+                    authority=authority,
+                    reference=reference,
+                    applied_on=self.ago(applied) if applied is not None else None,
+                    granted_on=self.ago(granted) if granted is not None else None,
+                    valid_until=self.ahead(valid) if valid is not None else None,
                 )
             )
 
@@ -850,6 +868,64 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
         wf, sd.vendor("Sri Lakshmi Fabricators", True, "micro"), "SLF-118", lakh("9.4"), 40
     )
     sd.filings(wf, skip_latest_due_qpr=False, audit_done=True)
+    sd.approvals(
+        wf,
+        [
+            (
+                "Land conversion (DC conversion)",
+                "Deputy Commissioner",
+                "ALN/DC/2022/311",
+                1200,
+                1100,
+                None,
+            ),
+            ("Building plan sanction", "Planning authority", "LP/DEMO/2024", 960, 880, 400),
+            ("Commencement certificate", "Planning authority", "CC/DEMO/2024/77", 870, 840, None),
+            (
+                "Consent to establish",
+                "Karnataka State Pollution Control Board",
+                "KSPCB/CFE/2024/5521",
+                900,
+                860,
+                960,
+            ),
+            (
+                "Fire NOC (provisional)",
+                "Karnataka State Fire and Emergency Services",
+                "KSFES/NOC/2024/1187",
+                900,
+                850,
+                300,
+            ),
+            (
+                "Height clearance",
+                "Airports Authority of India",
+                "AAI/NOC/2024/BLR/2290",
+                950,
+                900,
+                1500,
+            ),
+            ("Power supply sanction", "BESCOM", None, 60, None, None),
+            ("Water supply and sewerage", "BWSSB", None, 45, None, None),
+            (
+                "Fire NOC (final)",
+                "Karnataka State Fire and Emergency Services",
+                None,
+                None,
+                None,
+                None,
+            ),
+            (
+                "Consent to operate",
+                "Karnataka State Pollution Control Board",
+                None,
+                None,
+                None,
+                None,
+            ),
+            ("Occupancy certificate", "Planning authority", None, None, None, None),
+        ],
+    )
     session.flush()
     released = WithdrawalRequest(
         project_id=wf.id,
@@ -979,6 +1055,30 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
         hb, sd.vendor("Nandi Electricals", True, "micro", agreement=False), "NE-77", lakh("4.2"), 10
     )
     sd.filings(hb, skip_latest_due_qpr=True, audit_done=True)
+    sd.approvals(
+        hb,
+        [
+            ("Building plan sanction", "Planning authority", "LP/HB/2025/0912", 600, 520, 1300),
+            ("Commencement certificate", "Planning authority", "CC/HB/2025/031", 510, 490, None),
+            ("Environmental clearance", "SEIAA, Karnataka", "SEIAA/36/CON/2025", 640, 560, None),
+            (
+                "Consent to establish",
+                "Karnataka State Pollution Control Board",
+                "KSPCB/CFE/2025/0418",
+                560,
+                520,
+                40,
+            ),
+            (
+                "Fire NOC (provisional)",
+                "Karnataka State Fire and Emergency Services",
+                "KSFES/NOC/2025/0204",
+                540,
+                500,
+                230,
+            ),
+        ],
+    )
 
     # Sarjapur Greens: JDA revenue share, nearly complete, possession late.
     sg = sd.project(
@@ -1080,6 +1180,30 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
         interest=cr("1.1"),
         balance=cr("5.7"),
         last_withdrawal_days=70,
+    )
+    sd.approvals(
+        sg,
+        [
+            ("Building plan sanction", "Planning authority", "LP/SG/2023/0127", 1300, 1220, None),
+            ("Commencement certificate", "Planning authority", "CC/SG/2023/014", 1210, 1190, None),
+            (
+                "Fire NOC (final)",
+                "Karnataka State Fire and Emergency Services",
+                "KSFES/FNOC/2026/0045",
+                150,
+                120,
+                610,
+            ),
+            (
+                "Consent to operate",
+                "Karnataka State Pollution Control Board",
+                "KSPCB/CFO/2025/0877",
+                420,
+                385,
+                -20,
+            ),
+            ("Occupancy certificate", "Planning authority", "OC/SG/2026/0021", 130, 100, None),
+        ],
     )
     owner = Landowner(
         project_id=sg.id,

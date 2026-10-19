@@ -17,7 +17,7 @@ Built for builders in Karnataka. Starting in Bengaluru.
 Lekhara works out what your costs entitle you to draw from the designated account. It prepares the architect's, engineer's and CA's certificates, checks that their figures agree before anything goes to the bank, and follows the request until the money is released.
 
 **Never miss a K-RERA deadline.**
-Quarterly progress reports and the annual audit are prepared from your own records. If possession runs late, Lekhara shows the delay interest building up, month by month.
+Quarterly progress reports and the annual audit are prepared from your own records, and each one shows as due, late or filed until you record it with its acknowledgement. If possession runs late, Lekhara shows the delay interest building up, month by month.
 
 **See tax traps before they become bills.**
 - The 80% registered-supplier test for residential GST, tracked through the year.
@@ -56,7 +56,8 @@ If you already use other tools, keep them. Lekhara reads from them instead. If y
 - **Agreements:** generated from your data, e-stamped and e-signed.
 - **A buyer portal:** payments, documents, certified progress and registration readiness, on WhatsApp.
 - **Payables on WhatsApp:** approve bills with the budget, contract and tax position in front of you.
-- **Contractor bills, purchase prices and an approvals tracker.**
+- **Approvals:** every approval, consent and NOC with when it lapses, and a reminder in time to renew it.
+- **Contractor bills and purchase prices.**
 - **Site progress from ordinary site photos.**
 - **Snags, defects and the five-year defect liability.**
 - **A document vault:** every paper filed against its project, unit, case or approval, and searchable to the page it is on. A checklist of what banks and K-RERA ask for, reminders before approvals and policies lapse, and data rooms for lenders that close on the date you choose, with every visit recorded.
@@ -64,7 +65,7 @@ If you already use other tools, keep them. Lekhara reads from them instead. If y
 
 ## How it works
 
-1. **Start in minutes.** Sign up and use Lekhara free for a month. Add your company from its GSTIN and each project from its K-RERA certificate, then drop in what you already have: Tally exports, bank statements, your CRM or Excel unit list, approvals. Each project shows what is already in, what is out of date, and what each missing piece switches on, with a link straight to where it comes in. Nothing to install, and no call with us needed.
+1. **Start in minutes.** Sign up and use Lekhara free for a month. Add your company from its GSTIN and each project from its K-RERA certificate, then drop in what you already have: Tally exports, bank statements, your CRM or Excel unit list, approvals. Each project shows what is already in, what is out of date, and what each missing piece switches on, with a link straight to where it comes in. Change many records at once by editing them as a table, and check the changes before they are saved. Nothing to install, and no call with us needed.
 2. **Lekhara reads.** Agreements, approvals, bills, certificates and payments are read for you, including documents in Kannada. You can still type in or correct anything yourself.
 3. **Lekhara prepares.** Filings, certificates, letters and packs are ready before they are due, with every figure traced to the document it came from.
 4. **People sign.** Your architect, engineer and CA review and sign from their own Lekhara access. Nothing is filed, signed or paid without the responsible person.

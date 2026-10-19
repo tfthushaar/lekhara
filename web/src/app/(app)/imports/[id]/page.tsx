@@ -124,6 +124,39 @@ const WORDS: Record<string, Words> = {
     undone: "The orders are as they were before it.",
     undo: "New orders are removed and changed ones go back to what they were.",
   },
+  landowner_payments: {
+    one: "payment",
+    many: "payments",
+    column: "Landowner",
+    fresh: "Payments not recorded yet",
+    changed: "Payments are only added",
+    link: "/units",
+    linkLabel: "See the landowners",
+    undone: "The payments it added have been removed.",
+    undo: "The payments it added are removed.",
+  },
+  approvals: {
+    one: "approval",
+    many: "approvals",
+    column: "Approval",
+    fresh: "Approvals not listed yet",
+    changed: "Approvals whose dates or details differ",
+    link: "/approvals",
+    linkLabel: "See the approvals",
+    undone: "The approvals are as they were before it.",
+    undo: "New approvals are removed and changed ones go back to what they were.",
+  },
+  filings: {
+    one: "filing",
+    many: "filings",
+    column: "Filing",
+    fresh: "Filings not recorded yet",
+    changed: "Filings whose date or acknowledgement differ",
+    link: "/krera",
+    linkLabel: "See K-RERA filings",
+    undone: "The filings are as they were before it.",
+    undo: "New filings are removed and changed ones go back to what they were.",
+  },
 };
 
 function wordsFor(kind: string): Words {
@@ -273,7 +306,7 @@ function Result({ b, base }: { b: ImportBatch; base: string }) {
       <p className="status-line">
         {b.status === "undone"
           ? `This import was undone. ${w.undone}`
-          : b.kind === "receipts"
+          : b.kind === "receipts" || b.kind === "landowner_payments"
             ? `Imported: ${r ? plural(r.added, "payment") : ""} recorded.`
             : `Imported: ${r ? `${plural(r.added, w.one, w.many)} added, ${plural(r.updated, w.one, w.many)} changed` : ""}.`}
       </p>
