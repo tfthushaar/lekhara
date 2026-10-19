@@ -14,6 +14,7 @@ import { ActionForm } from "@/components/action-form";
 import { InboundBox } from "@/components/inbound";
 import { Steps, Way } from "@/components/ways";
 import { type ConnectorList, PUBLIC_API_URL, api } from "@/lib/api";
+import { moment } from "@/lib/format";
 
 export default function ImportPage({ params }: PageProps<"/projects/[id]/import">) {
   return (
@@ -33,7 +34,7 @@ const STATE: Record<string, string> = {
 type Entry = { id: string; at: string; what: string; file: string; state: string; href: string };
 
 function when(iso: string): string {
-  return iso.replace("T", ", ").slice(0, 17);
+  return moment(iso);
 }
 
 type Action = (previous: ActionState, form: FormData) => Promise<ActionState>;

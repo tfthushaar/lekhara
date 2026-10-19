@@ -3,6 +3,7 @@ import Link from "next/link";
 import { allowInbound, rejectInbound, retryInbound } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import type { Inbound, InboundItem, InboundMessage } from "@/lib/api";
+import { moment } from "@/lib/format";
 
 const ITEM: Record<InboundItem["status"], { label: string; className: string }> = {
   queued: { label: "Waiting", className: "tag tag-upcoming" },
@@ -74,7 +75,7 @@ export function InboundBox({ box }: { box: Inbound }) {
 function Message({ m, canEdit }: { m: InboundMessage; canEdit: boolean }) {
   return (
     <li className="row">
-      <div className="small muted">{m.received_at.replace("T", ", ").slice(0, 17)}</div>
+      <div className="small muted">{moment(m.received_at)}</div>
       <div>
         <p className="row-title">{m.subject ?? "No subject"}</p>
         <p className="row-detail">{`From ${m.from_name ? `${m.from_name}, ` : ""}${m.from_address}. ${MESSAGE[m.status] ?? m.status}.`}</p>

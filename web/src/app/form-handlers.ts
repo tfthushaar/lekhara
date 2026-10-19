@@ -5,8 +5,8 @@ import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { VISITOR_COOKIE, send, sendForm } from "@/lib/api";
-import { SESSION_COOKIE, SESSION_DAYS } from "@/lib/session-cookie";
+import { VISITOR_COOKIE, endSession, send, sendForm } from "@/lib/api";
+import { SESSION_COOKIE, SESSION_DAYS, STAFF_COOKIE } from "@/lib/session-cookie";
 
 export type ActionState = { error?: string; ok?: string; link?: string };
 
@@ -65,7 +65,8 @@ export async function startTwoStep(_previous: ActionState): Promise<ActionState>
 export async function confirmTwoStep(_previous: ActionState, form: FormData): Promise<ActionState> {
   const result = await send<{ recovery_codes: string[] }>("POST", "/auth/two-step/confirm", { code: text(form, "code") });
   if (!result.ok) return { error: result.error };
-  refresh();
+  // No refresh: the page would redraw this section as "on" and the codes, shown only once,
+  // would go with the form. They stay on screen; the section reads "on" from the next visit.
   return {
     ok: `Two-step sign-in is on. Keep these recovery codes somewhere safe, away from your phone; each gets you in once if the phone is lost: ${result.data.recovery_codes.join("  ")}`,
   };
@@ -79,7 +80,9 @@ export async function disableTwoStep(_previous: ActionState, form: FormData): Pr
 }
 
 async function startSession(token: string): Promise<void> {
-  (await cookies()).set({
+  const jar = await cookies();
+  if (jar.has(STAFF_COOKIE)) jar.delete(STAFF_COOKIE);
+  jar.set({
     name: SESSION_COOKIE,
     value: token,
     httpOnly: true,
@@ -807,8 +810,84 @@ export async function createProject(_previous: ActionState, form: FormData): Pro
 
 export async function signOut(): Promise<void> {
   await send("POST", "/auth/logout");
-  (await cookies()).delete(SESSION_COOKIE);
+  const jar = await cookies();
+  const own = jar.get(STAFF_COOKIE)?.value;
+  if (own) {
+    await endSession(own);
+    jar.delete(STAFF_COOKIE);
+  }
+  jar.delete(SESSION_COOKIE);
   redirect("/login");
+}
+
+// Support access, as the firm allows it
+
+export async function allowSupport(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", "/organization/support", { days: Number(text(form, "days")) });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Lekhara support can now see your workspace, read-only." };
+}
+
+export async function withdrawSupport(_previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", "/organization/support/withdraw");
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Support can no longer see your workspace." };
+}
+
+// Our admin console
+
+export async function extendTrial(orgId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", `/staff/firms/${orgId}/trial`, filled(form, ["ends_on", "reason"]));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "The free month is extended." };
+}
+
+const PAYMENT_FIELDS = ["amount", "paid_on", "method", "reference", "covers_from", "covers_to", "note"];
+
+export async function recordPayment(orgId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", `/staff/firms/${orgId}/payments`, filled(form, PAYMENT_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Payment recorded." };
+}
+
+export async function removePayment(paymentId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/staff/payments/${paymentId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+/** Opens the firm's workspace as support: staff's own session is kept aside until they end it. */
+export async function openSupport(orgId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send<{ token: string }>("POST", `/staff/firms/${orgId}/support`);
+  if (!result.ok) return { error: result.error };
+  const jar = await cookies();
+  const own = jar.get(SESSION_COOKIE)?.value;
+  const options = {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+  };
+  if (own) jar.set({ name: STAFF_COOKIE, value: own, ...options, maxAge: SESSION_DAYS * 24 * 60 * 60 });
+  jar.set({ name: SESSION_COOKIE, value: result.data.token, ...options, maxAge: 2 * 60 * 60 });
+  redirect("/");
+}
+
+export async function endSupport(): Promise<void> {
+  await send("POST", "/auth/logout");
+  const jar = await cookies();
+  const own = jar.get(STAFF_COOKIE)?.value;
+  if (!own) {
+    jar.delete(SESSION_COOKIE);
+    redirect("/login");
+  }
+  await startSession(own);
+  redirect("/admin");
 }
 
 export async function startWithdrawal(

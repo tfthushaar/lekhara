@@ -1,4 +1,5 @@
 import type { HistoryEntry } from "@/lib/api";
+import { moment } from "@/lib/format";
 
 const SOURCE: Record<string, string> = {
   typed: "typed in",
@@ -23,7 +24,7 @@ export function History({ entries }: { entries: HistoryEntry[] }) {
       <ul className="rows">
         {entries.map((h, i) => (
           <li key={`${h.at}-${i}`} className="row">
-            <div className="small muted">{h.at.replace("T", ", ").slice(0, 17)}</div>
+            <div className="small muted">{moment(h.at)}</div>
             <div>
               <p className="row-title">
                 {`${h.subject ? `${h.subject} ${verb(h.action).toLowerCase()}` : verb(h.action)} by ${h.by}, ${SOURCE[h.source] ?? h.source}`}

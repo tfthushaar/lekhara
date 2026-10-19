@@ -60,6 +60,9 @@ export type Me = {
   user: { id: string; name: string; email: string; firm: string | null };
   role_label: string;
   kind: "team" | "certifier";
+  is_staff: boolean;
+  /** Set while a member of staff looks at a firm as support. */
+  support: { firm_id: string; firm: string; until: string | null } | null;
   organizations: string[];
   organization: {
     id: string;
@@ -67,6 +70,7 @@ export type Me = {
     gstin: string | null;
     access: Access;
     trial_ends_on: string | null;
+    paid_until: string | null;
     days_left: number | null;
     is_sample: boolean;
     delete_after: string | null;
@@ -86,6 +90,7 @@ export type Firm = {
   constitution: string | null;
   access: Access;
   trial_ends_on: string | null;
+  paid_until: string | null;
   days_left: number | null;
   is_sample: boolean;
   closing_on: string | null;
@@ -913,6 +918,70 @@ export type LegalInfo = {
   sub_processors: { what: string; who: string }[];
 };
 
+export type SupportState = {
+  allowed_until: string | null;
+  allowed_by: string | null;
+  days: number[];
+  can_manage: boolean;
+};
+
+export type StaffFirmRow = {
+  id: string;
+  name: string;
+  created_on: string | null;
+  access: Access;
+  trial_ends_on: string | null;
+  paid_until: string | null;
+  people: number;
+  projects: number;
+  last_sign_in: string | null;
+  support_until: string | null;
+  closing: string | null;
+  is_sample: boolean;
+};
+
+export type StaffFirm = StaffFirmRow & {
+  legal_name: string | null;
+  gstin: string | null;
+  members: { name: string; email: string; role: string; two_step: boolean; last_sign_in: string | null }[];
+  projects_list: { name: string; registration: string; units: number }[];
+  payments: {
+    id: string;
+    paid_on: string;
+    amount: string;
+    method: string;
+    reference: string;
+    covers_from: string;
+    covers_to: string;
+    note: string | null;
+    recorded_by: string;
+  }[];
+  staff_log: { at: string; who: string | null; action: string; detail: string | null }[];
+  methods: { value: string; label: string }[];
+};
+
+/** Our admin console's list of firms, or why it is closed to this person (two-step is off). */
+export async function staffFirms(q: string): Promise<{ firms: StaffFirmRow[] } | { closed: string }> {
+  const response = await fetch(`${BASE}/staff/firms?q=${encodeURIComponent(q)}`, {
+    cache: "no-store",
+    headers: await authHeaders(),
+  });
+  if (response.status === 401) redirect("/login");
+  if (response.status === 404) notFound();
+  if (response.status === 403) return { closed: (await response.json()).detail };
+  if (!response.ok) throw new Error(`Lekhara API ${response.status} on /staff/firms`);
+  return response.json();
+}
+
+/** Ends a session other than the one in the cookie: staff's own, kept aside during support. */
+export async function endSession(token: string): Promise<void> {
+  await fetch(`${BASE}/auth/logout`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+}
+
 export type AccessLog = {
   keep_days: number;
   events: { at: string; who: string | null; action: string; detail: string | null; ip: string | null }[];
@@ -1560,6 +1629,8 @@ export const api = {
   inbound: (projectId: string) => get<Inbound>(`/projects/${projectId}/inbound`),
   review: () => get<ReviewQueue>("/review"),
   legal: () => get<LegalInfo>("/legal"),
+  support: () => get<SupportState>("/organization/support"),
+  staffFirm: (id: string) => get<StaffFirm>(`/staff/firms/${id}`),
   accessLog: () => get<AccessLog>("/organization/access-log"),
   gstImports: (projectId: string) => get<GstList>(`/projects/${projectId}/gst`),
   gst: (id: string) => get<GstReview>(`/gst/${id}`),

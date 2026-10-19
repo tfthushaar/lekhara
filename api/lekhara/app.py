@@ -34,6 +34,7 @@ from lekhara import (
     rls,
     scan,
     services,
+    staff,
     statutory,
     two_step,
     views,
@@ -63,6 +64,7 @@ from lekhara.models import (
     Project,
     Receipt,
     StatementPassword,
+    SubscriptionPayment,
     TrustedSender,
     Unit,
     User,
@@ -586,7 +588,9 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     AsOf = Annotated[date, Depends(as_of)]
 
     def current_principal(
-        session: SessionDep, authorization: Annotated[str | None, Header()] = None
+        session: SessionDep,
+        request: Request,
+        authorization: Annotated[str | None, Header()] = None,
     ) -> auth.Principal:
         token = _bearer(authorization)
         if token is None:
@@ -594,6 +598,14 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         principal = auth.principal_for(session, token, settings.as_of())
         if principal is None:
             raise ServiceError("Your session has ended. Sign in again.", 401)
+        if principal.support_for is not None:
+            # Support, with the firm's consent: it can look but not change anything, and the
+            # firm's access log shows everything it looked at.
+            if request.method not in ("GET", "HEAD"):
+                raise ServiceError("Support can look but not change anything.", 403)
+            if request.url.path != "/auth/me":
+                log(session, request, "support_view", user=session.get(User, principal.user_id),
+                    organization_id=principal.support_for, detail=request.url.path)  # fmt: skip
         # From here on Postgres, too, limits rows to the person's firms, the sample firm and the
         # projects they certify.
         sample = set(session.scalars(select(Organization.id).where(Organization.is_sample)))
@@ -716,6 +728,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
                 "gstin": org.gstin,
                 "access": services.access_state(org, on),
                 "trial_ends_on": views.d(org.trial_ends_on),
+                "paid_until": views.d(org.paid_until),
                 "days_left": services.trial_days_left(org, on),
                 "is_sample": org.is_sample,
                 "delete_after": views.d(org.delete_after),
@@ -725,6 +738,14 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         return {
             "user": {"id": me.user_id, "name": me.name, "email": me.email, "firm": me.firm},
             "role_label": me.describe(),
+            "is_staff": me.is_staff,
+            "support": None
+            if me.support_for is None
+            else {
+                "firm_id": me.support_for,
+                "firm": session.get(Organization, me.support_for).name,
+                "until": staff.iso(me.support_ends),
+            },
             "kind": "certifier" if me.is_certifier_only else "team",
             "organizations": organizations,
             "organization": firm,
@@ -875,6 +896,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             **accounts.gstin_facts(org.gstin),
             "access": services.access_state(org, on),
             "trial_ends_on": views.d(org.trial_ends_on),
+            "paid_until": views.d(org.paid_until),
             "days_left": services.trial_days_left(org, on),
             "is_sample": org.is_sample,
             "closing_on": views.d(org.closing_on),
@@ -929,6 +951,123 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         accounts.require_manager(me, org, owner=True)
         accounts.update_org(session, org, body.model_dump(exclude_unset=True))
         return firm_view(session, me, org, on)
+
+    # Support access, as the firm allows it
+
+    class SupportBody(BaseModel):
+        days: int
+
+    @app.get("/organization/support")
+    def support_state(session: SessionDep, me: Me) -> dict:
+        org = accounts.current_org(session, me)
+        role = me.org_roles[org.id]
+        return {
+            **staff.support_view(session, org),
+            "can_manage": me.support_for is None
+            and role in (auth.OrgRole.OWNER, auth.OrgRole.FINANCE),
+        }
+
+    @app.post("/organization/support")
+    def allow_support(body: SupportBody, session: SessionDep, me: Me, request: Request) -> dict:
+        org = accounts.current_org(session, me)
+        accounts.require_manager(me, org)
+        until = staff.allow_support(session, org, session.get(User, me.user_id), body.days)
+        log(session, request, "support_allowed", me=me, organization_id=org.id,
+            detail=f"until {staff.iso(until)}")  # fmt: skip
+        return support_state(session, me)
+
+    @app.post("/organization/support/withdraw")
+    def withdraw_support(session: SessionDep, me: Me, request: Request) -> dict:
+        org = accounts.current_org(session, me)
+        accounts.require_manager(me, org)
+        if staff.withdraw_support(session, org, session.get(User, me.user_id)):
+            log(session, request, "support_withdrawn", me=me, organization_id=org.id)
+        session.commit()
+        return support_state(session, me)
+
+    # Our admin console (staff only; see staff.py)
+
+    def current_staff(
+        session: SessionDep, authorization: Annotated[str | None, Header()] = None
+    ) -> User:
+        token = _bearer(authorization)
+        if token is None:
+            raise ServiceError("Sign in to continue.", 401)
+        principal = auth.principal_for(session, token, settings.as_of())
+        if principal is None:
+            raise ServiceError("Your session has ended. Sign in again.", 401)
+        if principal.support_for is not None:
+            raise ServiceError("Not found.", 404)
+        # Not restricted by row-level security: the console reads across firms by design.
+        return staff.require_staff(session.get(User, principal.user_id))
+
+    StaffDep = Annotated[User, Depends(current_staff)]
+
+    class TrialBody(BaseModel):
+        ends_on: str | None = None
+        reason: str | None = None
+
+    class PaymentBody(BaseModel):
+        amount: str | None = None
+        paid_on: str | None = None
+        method: str | None = None
+        reference: str | None = None
+        covers_from: str | None = None
+        covers_to: str | None = None
+        note: str | None = None
+
+    @app.get("/staff/firms")
+    def staff_firms(session: SessionDep, who: StaffDep, on: AsOf, q: str = "") -> dict:
+        return {"firms": staff.firm_rows(session, on, q)}
+
+    @app.get("/staff/firms/{org_id}")
+    def staff_firm(org_id: str, session: SessionDep, who: StaffDep, on: AsOf) -> dict:
+        return staff.firm_detail(session, staff.get_firm(session, org_id), on)
+
+    @app.post("/staff/firms/{org_id}/trial")
+    def staff_trial(
+        org_id: str, body: TrialBody, session: SessionDep, who: StaffDep, on: AsOf,
+        request: Request,
+    ) -> dict:  # fmt: skip
+        org = staff.get_firm(session, org_id)
+        detail = staff.extend_trial(session, org, body.model_dump(), on)
+        log(session, request, "staff_trial_extended", user=who, organization_id=org.id,
+            detail=detail)  # fmt: skip
+        return staff.firm_detail(session, org, on)
+
+    @app.post("/staff/firms/{org_id}/payments")
+    def staff_payment(
+        org_id: str, body: PaymentBody, session: SessionDep, who: StaffDep, on: AsOf,
+        request: Request,
+    ) -> dict:  # fmt: skip
+        org = staff.get_firm(session, org_id)
+        detail = staff.record_payment(session, org, body.model_dump(), who)
+        log(session, request, "staff_payment_recorded", user=who, organization_id=org.id,
+            detail=detail)  # fmt: skip
+        return staff.firm_detail(session, org, on)
+
+    @app.post("/staff/payments/{payment_id}/delete")
+    def staff_remove_payment(
+        payment_id: str, session: SessionDep, who: StaffDep, on: AsOf, request: Request
+    ) -> dict:
+        payment = session.get(SubscriptionPayment, payment_id)
+        if payment is None:
+            raise ServiceError("Payment not found.", 404)
+        org_id = payment.organization_id
+        detail = staff.remove_payment(session, payment)
+        log(session, request, "staff_payment_removed", user=who, organization_id=org_id,
+            detail=detail)  # fmt: skip
+        return staff.firm_detail(session, staff.get_firm(session, org_id), on)
+
+    @app.post("/staff/firms/{org_id}/support")
+    def staff_open_support(
+        org_id: str, session: SessionDep, who: StaffDep, request: Request
+    ) -> dict:
+        org = staff.get_firm(session, org_id)
+        token, until = auth.start_support_session(session, who, org.id)
+        log(session, request, "support_opened", user=who, organization_id=org.id,
+            detail=f"until {staff.iso(until)}")  # fmt: skip
+        return {"token": token, "until": staff.iso(until)}
 
     @app.get("/organization/export")
     def export_workspace(
@@ -1040,7 +1179,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     def create_project(body: NewProject, session: SessionDep, me: Me, on: AsOf) -> dict:
         org = accounts.current_org(session, me)
         if services.access_state(org, on) == "read_only":
-            raise ServiceError(auth.READ_ONLY, 402)
+            raise ServiceError(services.read_only_message(org), 402)
         project = accounts.create_project(session, org, me, body.model_dump())
         return {"id": project.id}
 
@@ -1881,7 +2020,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             if role not in (auth.OrgRole.OWNER, auth.OrgRole.FINANCE, auth.OrgRole.ACCOUNTS):
                 raise ServiceError("Your role cannot change suppliers.", 403)
             if services.access_state(org, me.as_of) == "read_only":
-                raise ServiceError(auth.READ_ONLY, 402)
+                raise ServiceError(services.read_only_message(org), 402)
         return vendor, org
 
     def names_for(session: Session, changes) -> dict:
@@ -2132,7 +2271,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         org = accounts.current_org(session, me)
         accounts.require_manager(me, org)
         if services.access_state(org, me.as_of) == "read_only":
-            raise ServiceError(auth.READ_ONLY, 402)
+            raise ServiceError(services.read_only_message(org), 402)
         return org
 
     def senders_payload(session: Session, me: auth.Principal) -> dict:

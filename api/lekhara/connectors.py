@@ -143,8 +143,8 @@ def sync(
     org = session.get(Organization, connector.organization_id)
     if services.access_state(org, settings.as_of()) == "read_only":
         raise ServiceError(
-            "The free month has ended, so Lekhara is not taking new data for this firm until it "
-            "subscribes.",
+            "This firm's workspace is read-only, so Lekhara is not taking new data for it until "
+            "the subscription is paid.",
             402,
         )
     if not masters and not vouchers:

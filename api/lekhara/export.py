@@ -93,6 +93,8 @@ NOT_EXPORTED = {
     "connectors": "links to the firm's own computers, holding their keys",
     "gst_imports": "GST returns downloaded from the portal, already in the bills they made",
     "statement_passwords": "sealed passwords, never given out",
+    "support_grants": "when support was allowed in, which the access log records",
+    "subscription_payments": "Lekhara's own billing records, sent as invoices",
 }
 """Tables left out of the export, and why."""
 

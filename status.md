@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-19, with the commit "Add the public website: home, pricing, contact and the payment policies".
+Last updated: 2026-10-19, with the commit "Add our admin console, with support access only by the firm's consent".
 
 ## What we are building
 
@@ -250,10 +250,19 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - Cancellation and refunds, and shipping and delivery, next to the terms, privacy notice and data processing terms, as Razorpay asks for. The refund rules follow decision 11's recommendation: monthly runs to the end of the month paid; yearly is 12 months for the price of 10 with unused whole months refunded; refunds within 7 working days.
   - The sign-in pages' wordmark leads back to the website.
 - Tested end to end: the website signed out, the price not yet set, the policy pages, private pages still asking to sign in, and `/` as Today once signed in; screenshots on a computer and a phone.
+- Our admin console, at `/admin` for Lekhara's own staff:
+  - Staff are marked from the command line (`python -m lekhara.staff add someone@lekhara.in`), and the console opens only once they have two-step sign-in on. To everyone else it does not exist.
+  - Every firm, found by its name or a member's email: where it stands (free month to a date, paid to a date, read-only, closing), people, projects, last sign-in, and whether support is allowed. A firm's page lists its people (with their two-step), projects with unit counts, payments, and what we did.
+  - Extending a free month, with the reason recorded. Recording a payment received by bank transfer, UPI or cheque, with its reference and the period it pays for: the firm is then paid to that day, and becomes read-only after it (no grace period yet; decision 12). A payment recorded by mistake can be removed. Payments are kept when a closed firm's data is deleted, as our record of what was paid.
+  - Support access only with the firm's consent: the owner or finance allows it in Settings for 1, 3, 7 or 14 days, and can withdraw it at any time, which ends any support session at once. Staff then see the workspace as a viewer, read-only, for two hours at a time, with a banner saying so and a way back to the console. Every page support opens, and everything we do to the firm's account, is in the firm's own access log.
+  - The workspace is read-only once the period paid for runs out, and says so in those words.
+- Times in the access log, history, imports, the review queue and emails received are now shown in India time; they were shown in UTC.
+- Two-step sign-in: the recovery codes stay on screen after turning it on; before, the page redrew and they were gone before they could be copied.
+- Tested end to end: the console closed to a builder and to staff without two-step, a firm found by email, its free month extended and a payment recorded (and seen in the builder's Settings), support refused before consent, then allowed, opened read-only, ended, and seen in the builder's access log, and withdrawn.
 
 ## In progress
 
-- Our admin console: firms, trials, payments, and support access only with the firm's consent and always logged.
+- A written incident-response runbook: CERT-In within 6 hours, affected firms within 24, the Data Protection Board within 72.
 
 ## Left
 
@@ -266,7 +275,6 @@ In this order:
 - Tally import, after that: testing against real exports from design partners.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
 - S3-compatible file storage.
-- A written incident-response runbook: CERT-In within 6 hours, affected firms within 24, the Data Protection Board within 72.
 - Automatic feeds, decided on 2026-10-18 (everything except what needs a bank partnership), still to do: Sell.Do and other CRMs by API; GSTR-2B fetched through a GSP (an OTP about once a month), once there is a GSP account. Bank APIs and the Account Aggregator wait.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
 - Collections, next steps: reminders through the team's own WhatsApp or email.

@@ -39,6 +39,21 @@ export function day(iso: string | null | undefined): string {
   });
 }
 
+/** A moment the API recorded, which it keeps in UTC, as the time in India: 19 Oct 2026, 2:05 pm. */
+export function moment(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const at = new Date(/(z|[+-]\d\d:\d\d)$/i.test(iso) ? iso : `${iso}Z`);
+  if (Number.isNaN(at.getTime())) return iso;
+  return at.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Kolkata",
+  });
+}
+
 /** "today", "in 5 days", "3 days ago". */
 export function relative(iso: string | null | undefined, today: string): string {
   if (!iso) return "";

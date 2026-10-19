@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import {
+  allowSupport,
+  withdrawSupport,
   addSender,
   closeFirm,
   confirmTwoStep,
@@ -20,7 +22,7 @@ import {
 } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { type Firm, api } from "@/lib/api";
-import { day } from "@/lib/format";
+import { day, moment } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -46,7 +48,8 @@ function accessLine(f: Firm): string {
   if (f.is_sample) return "This is the sample firm. It never expires.";
   if (f.access === "trial")
     return `Free month: ${f.days_left === 1 ? "1 day" : `${f.days_left} days`} left, until ${day(f.trial_ends_on)}.`;
-  if (f.access === "active") return "Subscribed.";
+  if (f.access === "active") return f.paid_until ? `Subscribed, paid to ${day(f.paid_until)}.` : "Subscribed.";
+  if (f.paid_until) return `The subscription was paid to ${day(f.paid_until)}. You can still see and export everything.`;
   return "Your free month has ended. You can still see and export everything.";
 }
 
@@ -93,6 +96,12 @@ async function SettingsView() {
       </section>
 
       <YourAccount f={f} />
+
+      {!f.is_sample ? (
+        <Suspense fallback={<p className="loading">Loading support access</p>}>
+          <SupportAccess />
+        </Suspense>
+      ) : null}
 
       <Suspense fallback={<p className="loading">Loading email settings</p>}>
         <EmailIn />
@@ -463,7 +472,52 @@ const ACTION_LABEL: Record<string, string> = {
   account_deleted: "Deleted their account",
   firm_close_requested: "Asked to close the firm",
   firm_close_cancelled: "Kept the firm open",
+  support_allowed: "Allowed Lekhara support in",
+  support_withdrawn: "Withdrew Lekhara support",
+  support_opened: "Lekhara support opened the workspace",
+  support_view: "Lekhara support looked at",
+  staff_trial_extended: "Lekhara extended the free month",
+  staff_payment_recorded: "Lekhara recorded a payment",
+  staff_payment_removed: "Lekhara removed a payment",
 };
+
+async function SupportAccess() {
+  const s = await api.support();
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>Support access</h2>
+        <p>Let Lekhara support see your workspace, read-only, to help you</p>
+      </div>
+      <p className="status-line" style={{ marginTop: 16 }}>
+        {s.allowed_until
+          ? `Support can see your workspace until ${moment(s.allowed_until)}${s.allowed_by ? `, as ${s.allowed_by} allowed` : ""}. Everything they open is in the access log below.`
+          : "Lekhara support cannot see your workspace."}
+      </p>
+      {!s.can_manage ? (
+        <p className="small">The owner or finance can change this.</p>
+      ) : s.allowed_until ? (
+        <ActionForm action={withdrawSupport} label="Withdraw it now" pendingLabel="Withdrawing" secondary />
+      ) : (
+        <ActionForm action={allowSupport} label="Allow support" pendingLabel="Allowing" secondary>
+          <div className="field" style={{ maxWidth: 260 }}>
+            <label htmlFor="support-days">For</label>
+            <select id="support-days" name="days" defaultValue="3">
+              {s.days.map((n) => (
+                <option key={n} value={n}>
+                  {n === 1 ? "1 day" : `${n} days`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="small muted" style={{ maxWidth: 640, marginBottom: 12 }}>
+            They can look but not change anything, and not download everything. You can withdraw it at any time.
+          </p>
+        </ActionForm>
+      )}
+    </section>
+  );
+}
 
 async function AccessLogView() {
   const log = await api.accessLog();
@@ -486,7 +540,7 @@ async function AccessLogView() {
           <tbody>
             {log.events.slice(0, 100).map((e, i) => (
               <tr key={`${e.at}-${i}`}>
-                <td className="nowrap">{e.at.replace("T", ", ").slice(0, 17)}</td>
+                <td className="nowrap">{moment(e.at)}</td>
                 <td>{e.who ?? ""}</td>
                 <td>
                   {ACTION_LABEL[e.action] ?? e.action}

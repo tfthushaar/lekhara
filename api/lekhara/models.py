@@ -46,11 +46,13 @@ class Organization(Base):
     access: Mapped[str] = mapped_column(String(16), default="active", server_default="active")
     """trial, active (paid) or suspended."""
     trial_ends_on: Mapped[date | None] = mapped_column(Date)
+    paid_until: Mapped[date | None] = mapped_column(Date)
+    """The last day paid for; None for a firm that is active with no end (the demo, pilots)."""
     is_sample: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    """The sample projects every signed-in person can look at, read-only."""
     closing_on: Mapped[date | None] = mapped_column(Date)
     """When an owner asked to close the firm's account; its data is deleted after a wait."""
     delete_after: Mapped[date | None] = mapped_column(Date)
-    """The sample projects every signed-in person can look at, read-only."""
 
     projects: Mapped[list["Project"]] = relationship(back_populates="organization")
 
@@ -648,6 +650,8 @@ class User(Base):
     """The time step of the last code accepted, so a code cannot be used twice."""
     recovery_codes: Mapped[str | None] = mapped_column(Text)
     """Hashes of the unused recovery codes, as JSON."""
+    is_staff: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    """Works for Lekhara and may open the admin console (set with `python -m lekhara.staff`)."""
 
     memberships: Mapped[list["Membership"]] = relationship(back_populates="user")
     project_access: Mapped[list["ProjectAccess"]] = relationship(back_populates="user")
@@ -691,6 +695,8 @@ class UserSession(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
+    support_org_id: Mapped[str | None] = mapped_column(String(64))
+    """Set on a support session: Lekhara staff seeing this firm, read-only, with its consent."""
 
 
 class OneTimeToken(Base):
@@ -1124,3 +1130,39 @@ def _forbid(_mapper, _connection, target) -> None:
 for _model in (LedgerEntry, EscrowTxn, DisputePayment, DataRoomVisit, ChangeEntry):
     event.listen(_model, "before_update", _forbid)
     event.listen(_model, "before_delete", _forbid)
+
+
+class SupportGrant(Base):
+    """A firm's consent for Lekhara support to see its workspace, read-only, until a time."""
+
+    __tablename__ = "support_grants"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    granted_by: Mapped[str] = mapped_column(String(64))
+    granted_at: Mapped[datetime] = mapped_column(DateTime)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime)
+    withdrawn_by: Mapped[str | None] = mapped_column(String(64))
+
+
+class SubscriptionPayment(Base):
+    """A payment for a firm's subscription, recorded by us for now (a bank transfer, a cheque).
+    Kept when a firm's data is deleted, as the record of what was paid, so it names the firm
+    rather than pointing at it."""
+
+    __tablename__ = "subscription_payments"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(String(64), index=True)
+    firm_name: Mapped[str] = mapped_column(String(200))
+    amount: Mapped[Decimal] = mapped_column(Money)
+    """Rupees received, GST included."""
+    paid_on: Mapped[date] = mapped_column(Date)
+    method: Mapped[str] = mapped_column(String(24))
+    reference: Mapped[str] = mapped_column(String(120))
+    covers_from: Mapped[date] = mapped_column(Date)
+    covers_to: Mapped[date] = mapped_column(Date)
+    note: Mapped[str | None] = mapped_column(String(500))
+    recorded_by: Mapped[str] = mapped_column(String(320))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

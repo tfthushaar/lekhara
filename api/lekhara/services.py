@@ -169,12 +169,27 @@ class ProjectSnapshot:
 
 
 def access_state(org: Organization, as_of: date) -> str:
-    """active (paid, or the sample), trial, or read_only once the free month has ended unpaid."""
-    if org.is_sample or org.access == "active":
+    """active (paid, or the sample), trial, or read_only once the free month or the period paid
+    for has run out."""
+    if org.is_sample:
         return "active"
+    if org.access == "active":
+        return "active" if org.paid_until is None or org.paid_until >= as_of else "read_only"
     if org.access == "trial" and org.trial_ends_on is not None and org.trial_ends_on >= as_of:
         return "trial"
     return "read_only"
+
+
+def read_only_message(org: Organization) -> str:
+    if org.access == "active" and org.paid_until is not None:
+        return (
+            f"The subscription was paid to {org.paid_until.day} {org.paid_until:%B %Y}. Renew it "
+            "to keep adding and changing data; you can still see and export everything."
+        )
+    return (
+        "Your free month has ended. Subscribe to keep adding and changing data; you can still "
+        "see and export everything."
+    )
 
 
 def trial_days_left(org: Organization, as_of: date) -> int | None:

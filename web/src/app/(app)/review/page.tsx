@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { type ReviewQueue, api } from "@/lib/api";
-import { plural } from "@/lib/format";
+import { moment, plural } from "@/lib/format";
 
 export const metadata: Metadata = { title: "To review" };
 
@@ -56,7 +56,7 @@ async function ReviewView() {
                   <div>
                     <p className="row-title">{i.title}</p>
                     <p className="row-detail">{i.detail}</p>
-                    <p className="row-meta">{`Since ${i.since.replace("T", ", ").slice(0, 17)}`}</p>
+                    <p className="row-meta">{`Since ${moment(i.since)}`}</p>
                   </div>
                   <div className="row-side">
                     <Link href={i.href} className="link-action">

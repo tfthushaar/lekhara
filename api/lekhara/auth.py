@@ -24,8 +24,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from lekhara.engines.escrow import CertifierRole
-from lekhara.models import Membership, Project, ProjectAccess, User, UserSession
-from lekhara.services import ServiceError, access_state
+from lekhara.models import Membership, Project, ProjectAccess, SupportGrant, User, UserSession
+from lekhara.services import ServiceError, access_state, read_only_message
 
 SESSION_DAYS = 14
 _SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 1
@@ -147,6 +147,11 @@ class Principal:
     """Project id to the certifying roles the person holds on it."""
     as_of: date = date.min
     """Today, for deciding whether a firm's workspace can still be changed."""
+    is_staff: bool = False
+    """Works for Lekhara (see `staff.py`)."""
+    support_for: str | None = None
+    """On a support session: the firm being seen, read-only, with its consent."""
+    support_ends: datetime | None = None
 
     def org_role(self, project: Project) -> OrgRole | None:
         return self.org_roles.get(project.organization_id)
@@ -192,6 +197,8 @@ class Principal:
         return not self.org_roles and bool(self.project_roles)
 
     def describe(self) -> str:
+        if self.support_for is not None:
+            return "Lekhara support, read-only"
         if self.org_roles:
             return ORG_ROLE_LABEL[next(iter(self.org_roles.values()))]
         roles = {role for roles in self.project_roles.values() for role in roles}
@@ -248,6 +255,21 @@ def principal_for(session: Session, token: str, as_of: date = date.min) -> Princ
     user = session.get(User, row.user_id)
     if user is None or not user.is_active:
         return None
+    if row.support_org_id is not None:
+        # Support sees the one firm, as a viewer, only while the firm's consent lasts.
+        if not user.is_staff or support_grant(session, row.support_org_id) is None:
+            return None
+        return Principal(
+            user_id=user.id,
+            name=user.name,
+            email=user.email,
+            firm=user.firm,
+            org_roles={row.support_org_id: OrgRole.VIEWER},
+            project_roles={},
+            as_of=as_of,
+            support_for=row.support_org_id,
+            support_ends=row.expires_at,
+        )
     org_roles = {
         m.organization_id: OrgRole(m.role)
         for m in session.scalars(select(Membership).where(Membership.user_id == user.id))
@@ -263,7 +285,48 @@ def principal_for(session: Session, token: str, as_of: date = date.min) -> Princ
         org_roles=org_roles,
         project_roles={k: frozenset(v) for k, v in project_roles.items()},
         as_of=as_of,
+        is_staff=user.is_staff,
     )
+
+
+SUPPORT_HOURS = 2
+
+
+def support_grant(session: Session, organization_id: str) -> SupportGrant | None:
+    """The firm's consent for support to see its workspace, if it holds now."""
+    return session.scalars(
+        select(SupportGrant)
+        .where(
+            SupportGrant.organization_id == organization_id,
+            SupportGrant.withdrawn_at.is_(None),
+            SupportGrant.expires_at > _now(),
+        )
+        .order_by(SupportGrant.expires_at.desc())
+    ).first()
+
+
+def start_support_session(
+    session: Session, staff: User, organization_id: str
+) -> tuple[str, datetime]:
+    """A read-only session in the firm's workspace for a member of staff, for two hours at most
+    and never past the firm's consent."""
+    grant = support_grant(session, organization_id)
+    if grant is None:
+        raise ServiceError("This firm has not allowed support to see its workspace.", 403)
+    token = secrets.token_urlsafe(32)
+    now = _now()
+    ends = min(grant.expires_at, now + timedelta(hours=SUPPORT_HOURS))
+    session.add(
+        UserSession(
+            user_id=staff.id,
+            token_hash=_token_hash(token),
+            created_at=now,
+            expires_at=ends,
+            support_org_id=organization_id,
+        )
+    )
+    session.commit()
+    return token, ends
 
 
 # Checks used by the API. A project outside someone's access looks the same as one that
@@ -275,15 +338,9 @@ def require_view(principal: Principal, project: Project) -> None:
         raise ServiceError("Project not found.", 404)
 
 
-READ_ONLY = (
-    "Your free month has ended. Subscribe to keep adding and changing data; you can still "
-    "see and export everything."
-)
-
-
 def require_writable(principal: Principal, project: Project) -> None:
     if access_state(project.organization, principal.as_of) == "read_only":
-        raise ServiceError(READ_ONLY, 402)
+        raise ServiceError(read_only_message(project.organization), 402)
 
 
 def require_team(principal: Principal, project: Project) -> None:

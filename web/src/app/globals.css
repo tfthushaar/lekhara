@@ -880,6 +880,11 @@ h3 {
   color: var(--paper);
 }
 
+.banner-strong .link-button {
+  color: var(--paper);
+  font-size: 14px;
+}
+
 .table .inline-form,
 .banner .inline-form {
   display: flex;

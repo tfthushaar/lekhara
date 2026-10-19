@@ -326,6 +326,8 @@ def _purge_scoped(session: Session, org: Organization) -> list[str]:
         (m.TrustedSender, m.TrustedSender.organization_id, [org.id]),
         (m.StatementPassword, m.StatementPassword.organization_id, [org.id]),
         (m.Invitation, m.Invitation.organization_id, [org.id]),
+        (m.SupportGrant, m.SupportGrant.organization_id, [org.id]),
+        (m.UserSession, m.UserSession.support_org_id, [org.id]),
     ]
     for model, column, ids in steps:
         if ids:

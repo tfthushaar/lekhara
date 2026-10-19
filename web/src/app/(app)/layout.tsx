@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { acceptTerms, resendVerification, signOut } from "@/app/actions";
+import { acceptTerms, endSupport, resendVerification, signOut } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { Nav, PlainNav } from "@/components/nav";
 import { api } from "@/lib/api";
+import { day, moment } from "@/lib/format";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -40,7 +41,19 @@ async function Banners() {
   const org = me.organization;
   return (
     <>
-      {!me.terms_accepted ? (
+      {me.support ? (
+        <div className="banner banner-strong" role="status">
+          <span>
+            {`You are seeing ${me.support.firm} as Lekhara support, read-only${me.support.until ? `, until ${moment(me.support.until)}` : ""}. Every page you open is in their access log.`}
+          </span>
+          <form action={endSupport}>
+            <button type="submit" className="link-button">
+              End and go back
+            </button>
+          </form>
+        </div>
+      ) : null}
+      {!me.terms_accepted && !me.support ? (
         <div className="banner banner-strong" role="status">
           <span>
             {"We have updated our "}
@@ -61,8 +74,9 @@ async function Banners() {
       {org && org.access === "read_only" ? (
         <div className="banner banner-strong" role="status">
           <span>
-            Your free month has ended. You can still see and export everything; subscribe to keep
-            adding and changing data.
+            {org.paid_until
+              ? `The subscription was paid to ${day(org.paid_until)}. You can still see and export everything; renew it to keep adding and changing data.`
+              : "Your free month has ended. You can still see and export everything; subscribe to keep adding and changing data."}
           </span>
           <Link href="/settings">Subscription</Link>
         </div>
@@ -73,7 +87,7 @@ async function Banners() {
           <Link href="/settings">Subscription</Link>
         </div>
       ) : null}
-      {!me.email_verified ? (
+      {!me.email_verified && !me.support ? (
         <div className="banner">
           <span>{`Confirm your email address with the link we sent to ${me.user.email}.`}</span>
           <ActionForm action={resendVerification} label="Send it again" pendingLabel="Sending" secondary className="inline-form" />
@@ -90,6 +104,11 @@ async function UserMenu() {
       <span className="org">
         {me.user.name}, {me.role_label}
       </span>
+      {me.is_staff ? (
+        <Link href="/admin" className="link-button">
+          Admin
+        </Link>
+      ) : null}
       <form action={signOut}>
         <button type="submit" className="link-button">
           Sign out
