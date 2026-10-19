@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-19, with the commit "Add the withdrawal, quarterly report and audit packs".
+Last updated: 2026-10-19, with the commit "Add possession letters, the association handover and cancelled bookings".
 
 ## What we are building
 
@@ -209,10 +209,16 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - Downloaded from the withdrawal page and from each period on the K-RERA tab. Each bank's own format, and K-RERA's form layout, will follow from design partners' samples.
 - The sample projects' designated accounts now draw down quarter by quarter and never run below zero, and the released withdrawal carries the figures its certificates were signed with.
 - Tested end to end: the bank pack from a withdrawal, the quarterly report and the audit pack from the K-RERA tab as PDF and Excel, and a wrong quarter refused.
+- Handing homes and the project over:
+  - A possession letter for each buyer once the occupancy certificate is in, from the unit page: the certificate, the date to take possession by (two months, RERA s.19(10)), any balance due, the estimated stamp duty and fees, the inspection before handover, and the five-year defect liability (s.14(3)). Printable, sent from the builder's own address.
+  - Handing over to the residents' association: a checklist on the Handover tab once the certificate is in, from forming the association to conveying the common areas, with the corpus, maintenance deposits, drawings, fire systems, lifts, plant, warranties, utilities, insurance, keys and contractors in between; each marked done with a date and a note, with its history. Forming the association and conveying the common areas keep the project's own dates in step.
+  - Grouped units on the Handover tab open on their own only when the group is short.
+- Cancelling a booking: from the unit page (the date, any refund and why), or from a case once the refund under an order or a settlement is paid. The unit is free to sell again; the buyer's demands and payments stay on record under the cancelled booking, still count in the 70% check and in the case, and the unit page lists earlier bookings. A unit registered in the buyer's name is refused, since that needs a cancellation deed. Marking a unit unsold is kept for bookings entered by mistake.
+- Tested end to end: the possession letter, an association item marked done, and a refund case paid in full cancelling the booking, with the unit free and its earlier booking kept.
 
 ## In progress
 
-- Handover and disputes: possession letters, the association handover checklist, and cancelling a unit when a refund under an order is paid.
+- The data room visitor gate: a name and email asked of anyone opening a lender's data room link, recorded with each visit.
 
 ## Left
 
@@ -229,8 +235,7 @@ In this order:
 - Automatic feeds, decided on 2026-10-18 (everything except what needs a bank partnership), still to do: Sell.Do and other CRMs by API; GSTR-2B fetched through a GSP (an OTP about once a month), once there is a GSP account. Bank APIs and the Account Aggregator wait.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
 - Collections, next steps: reminders through the team's own WhatsApp or email.
-- Registration and handover, next steps: possession letters, the association handover checklist.
-- Disputes, next steps: reading complaints and orders with AI, reply outlines for the lawyer, cancelling the unit when a refund is paid.
+- Disputes, next steps: reading complaints and orders with AI, reply outlines for the lawyer.
 - Document vault, next steps: reading scans and filing documents by themselves, an optional name and email gate for data room visitors.
 - Bank withdrawal pack (PDF); quarterly progress report and annual audit packs.
 - Form errors shown without JavaScript too (today the browser's own checks catch most cases; the server's message appears once the page has loaded its scripts).

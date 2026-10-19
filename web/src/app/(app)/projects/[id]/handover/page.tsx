@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { setAssociationItem } from "@/app/actions";
+import { ActionForm } from "@/components/action-form";
 import { type Handover, type UnitReadiness, api } from "@/lib/api";
 import { day, inr, plural } from "@/lib/format";
 
@@ -99,7 +101,7 @@ async function HandoverView({ params }: { params: Promise<{ id: string }> }) {
           <p className="empty">No unit is booked yet.</p>
         ) : (
           groups(h).map((g, i) => (
-            <details key={g.stage} className="disclosure" open={i === 0}>
+            <details key={g.stage} className="disclosure" open={i === 0 && g.units.length <= 12}>
               <summary>
                 {g.text} ({plural(g.units.length, "unit")})
               </summary>
@@ -141,6 +143,55 @@ async function HandoverView({ params }: { params: Promise<{ id: string }> }) {
           the guidance value. The buyer pays them; confirm the rates before quoting.
         </p>
       </section>
+
+      {ocIn ? <Association h={h} projectId={id} /> : null}
     </>
+  );
+}
+
+function Association({ h, projectId }: { h: Handover; projectId: string }) {
+  const done = h.association.filter((i) => i.done_on).length;
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>Handing over to the residents&apos; association</h2>
+        <p>{`${done} of ${h.association.length} done`}</p>
+      </div>
+      <ul className="rows">
+        {h.association.map((item) => (
+          <li key={item.key} className="row">
+            <div>
+              <span className={item.done_on ? "tag tag-done" : "tag tag-upcoming"}>{item.done_on ? "Done" : "To do"}</span>
+            </div>
+            <div>
+              <p className="row-title">{item.label}</p>
+              {item.done_on || item.note ? (
+                <p className="row-detail">
+                  {[item.done_on ? `Done ${day(item.done_on)}` : null, item.note].filter(Boolean).join("  ·  ")}
+                </p>
+              ) : null}
+              {h.can_edit ? (
+                <details className="disclosure">
+                  <summary>{item.done_on ? "Change" : "Mark as done"}</summary>
+                  <ActionForm action={setAssociationItem.bind(null, projectId, item.key)} label="Save" pendingLabel="Saving" secondary>
+                    <div className="field-grid">
+                      <div className="field">
+                        <label htmlFor={`as-${item.key}-on`}>Done on</label>
+                        <input id={`as-${item.key}-on`} name="done_on" type="date" defaultValue={item.done_on ?? ""} />
+                      </div>
+                      <div className="field">
+                        <label htmlFor={`as-${item.key}-note`}>Note</label>
+                        <input id={`as-${item.key}-note`} name="note" defaultValue={item.note ?? ""} />
+                      </div>
+                    </div>
+                  </ActionForm>
+                </details>
+              ) : null}
+            </div>
+            <div />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

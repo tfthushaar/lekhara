@@ -479,6 +479,37 @@ export type Handover = {
   summary: { units: number; registered: number; handed_over: number; money_waiting: string };
   stages: { stage: string; label: string; blocked: number }[];
   units: UnitReadiness[];
+  association: { key: string; label: string; done_on: string | null; note: string | null }[];
+};
+
+export type PossessionLetter = {
+  unit_id: string;
+  project_id: string;
+  from: string;
+  project: string;
+  krera_registration: string;
+  date: string;
+  to: string;
+  unit: string;
+  subject: string;
+  paragraphs: string[];
+  lines: { label: string; value: string }[];
+  take_by: string;
+  after: string[];
+  note: string;
+};
+
+export type EarlierBooking = {
+  id: string;
+  buyer_name: string | null;
+  booked_on: string | null;
+  cancelled_on: string;
+  agreement_value: string | null;
+  paid: string;
+  refunded: string | null;
+  refunded_on: string | null;
+  reason: string | null;
+  case_id: string | null;
 };
 
 export type UnitHandover = UnitReadiness & {
@@ -558,6 +589,14 @@ export type CaseOrder = {
 };
 
 export type CaseDetail = CaseRow & {
+  booking: {
+    unit_id: string;
+    unit: string;
+    refund_paid: boolean;
+    registered: boolean;
+    can_cancel: boolean;
+    cancelled_on: string | null;
+  } | null;
   project_id: string;
   project_name: string;
   can_edit: boolean;
@@ -740,6 +779,7 @@ export type UnitDetail = {
   can_edit: boolean;
   can_delete: boolean;
   dependents: string[];
+  earlier_bookings: EarlierBooking[];
   history: { at: string; action: string; source: string; by: string; changes: FieldChange[] }[];
   receipts: {
     id: string;
@@ -1437,6 +1477,7 @@ export const api = {
   collections: (id: string) => get<Collections>(`/projects/${id}/collections`),
   handover: (id: string) => get<Handover>(`/projects/${id}/handover`),
   unitHandover: (unitId: string) => get<UnitHandover>(`/units/${unitId}/handover`),
+  possessionLetter: (unitId: string) => get<PossessionLetter>(`/units/${unitId}/possession-letter`),
   disputes: (id: string) => get<Disputes>(`/projects/${id}/disputes`),
   case: (id: string) => get<CaseDetail>(`/cases/${id}`),
   documents: (id: string) => get<DocumentsView>(`/projects/${id}/documents`),

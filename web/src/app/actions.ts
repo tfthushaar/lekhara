@@ -1194,3 +1194,25 @@ export async function saveTable(
   if (!result.ok) return { error: result.error };
   redirect(`/imports/${result.data.id}`);
 }
+
+export async function cancelBooking(unitId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", `/units/${unitId}/cancel-booking`, filled(form, ["cancelled_on", "refunded", "refunded_on", "reason"]));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "The booking is cancelled; the unit can be sold again." };
+}
+
+export async function cancelCaseBooking(caseId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/cases/${caseId}/cancel-booking`, {});
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "The booking is cancelled; the unit can be sold again." };
+}
+
+export async function setAssociationItem(projectId: string, key: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const body = { done_on: text(form, "done_on"), note: text(form, "note") };
+  const result = await send("PUT", `/projects/${projectId}/association/${key}`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Saved." };
+}

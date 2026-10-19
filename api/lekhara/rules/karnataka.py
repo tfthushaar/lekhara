@@ -178,6 +178,25 @@ _rules = (
         effective_from=RERA_IN_FORCE,
         note="The Karnataka position on associations and conveyance is unsettled.",
     ),
+    Rule(
+        key="rera.s19_possession_months",
+        value=2,
+        title="Months after the occupancy certificate within which buyers take possession",
+        basis=f"{_RERA_ACT}, s.19(10)",
+        source_quality=SourceQuality.OFFICIAL,
+        confirm_against=_KRERA_RULES,
+        effective_from=RERA_IN_FORCE,
+    ),
+    Rule(
+        key="rera.s14_defect_liability_years",
+        value=5,
+        title="Years after possession during which the promoter rectifies defects buyers report",
+        basis=f"{_RERA_ACT}, s.14(3)",
+        source_quality=SourceQuality.OFFICIAL,
+        confirm_against=_KRERA_RULES,
+        effective_from=RERA_IN_FORCE,
+        note="Defects reported in this period are to be rectified within 30 days.",
+    ),
     # Registration of sale deeds
     Rule(
         key="reg.stamp_duty_rate",

@@ -1152,6 +1152,7 @@ def unit_detail(
     can_edit: bool,
     dependents: list[str],
     receipts: list = (),
+    earlier: list[dict] = (),
 ) -> dict:
     record = RECORD_TYPES["units"]
     labels = {f.key: f.label for f in record.fields}
@@ -1176,6 +1177,7 @@ def unit_detail(
         "can_delete": can_edit and not dependents,
         "dependents": dependents,
         "receipts": receipt_rows(list(receipts)),
+        "earlier_bookings": list(earlier),
         "history": [
             {
                 "at": c.at.replace(microsecond=0).isoformat(),

@@ -26,7 +26,7 @@ Quarterly progress reports and the annual audit are prepared from your own recor
 - TDS on payments to landowners, labour cess, and payments to MSME suppliers approaching the 45-day limit.
 
 **Get every unit registered.**
-See unit by unit what stands between a buyer and registration: occupancy certificate, e-Khata, final payment, sale deed, appointment. See how much money is waiting on it. Each unit comes with a fact sheet for your lawyer's sale deed and an estimate of the buyer's stamp duty and fees, and Lekhara reminds you when the common areas are due to go to the residents' association.
+See unit by unit what stands between a buyer and registration: occupancy certificate, e-Khata, final payment, sale deed, appointment. See how much money is waiting on it. Each unit comes with a fact sheet for your lawyer's sale deed and an estimate of the buyer's stamp duty and fees, and Lekhara reminds you when the common areas are due to go to the residents' association. Send each buyer a possession letter once the occupancy certificate is in, and tick off everything the association needs, from the corpus fund to the keys.
 
 **Stay ahead of complaints.**
 Every K-RERA, consumer and civil case in one register, with hearings, deadlines and what each one could cost, worked out from what the buyer actually paid. When an order is passed, Lekhara shows what it directs to the rupee, the date to comply by, and the last day to appeal with the deposit an appeal needs. Weigh a settlement against the order before you agree to it.

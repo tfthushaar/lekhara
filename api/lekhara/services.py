@@ -106,6 +106,7 @@ from lekhara.engines.tax import (
 from lekhara.models import (
     Approval,
     Bill,
+    BookingCancellation,
     ChecklistWaiver,
     CostLineRow,
     DataRoom,
@@ -492,14 +493,23 @@ def collections_for(
     session: Session, project: Project, as_of: date, rules: RulesPack = KARNATAKA
 ) -> CollectionsPosition:
     progress = _latest_progress(session, project, as_of)
+    # Demands and payments of cancelled bookings no longer count for the unit, but the money
+    # still came in, so it stays in the 70% check.
     demands = [
         DemandIn(d.id, d.unit_id, d.milestone_id, d.amount, d.gst, d.raised_on, d.due_on)
-        for d in session.scalars(select(DemandRow).where(DemandRow.project_id == project.id))
+        for d in session.scalars(
+            select(DemandRow).where(
+                DemandRow.project_id == project.id, DemandRow.cancellation_id.is_(None)
+            )
+        )
     ]
+    receipts = list(session.scalars(select(Receipt).where(Receipt.project_id == project.id)))
     payments = [
         Payment(r.unit_id, r.amount, r.received_on, r.tds_deducted)
-        for r in session.scalars(select(Receipt).where(Receipt.project_id == project.id))
+        for r in receipts
+        if r.cancellation_id is None
     ]
+    all_payments = [Payment(r.unit_id, r.amount, r.received_on, r.tds_deducted) for r in receipts]
     deposits = [
         (t.txn_date, t.amount)
         for t in session.scalars(
@@ -513,6 +523,7 @@ def collections_for(
         units=_booked_units(session, project, as_of),
         demands=demands,
         payments=payments,
+        all_payments=all_payments,
         deposits=deposits,
         certified_progress_pct=progress.completion_pct if progress else None,
         certified_on=progress.as_of if progress else None,
@@ -601,6 +612,7 @@ def handover_for(
                 DemandRow.project_id == project.id,
                 DemandRow.milestone_id == possession,
                 DemandRow.raised_on <= as_of,
+                DemandRow.cancellation_id.is_(None),
             )
         )
     }
@@ -725,7 +737,7 @@ def _case_in(
         reply_due_on=row.reply_due_on,
         reply_filed_on=row.reply_filed_on,
         next_hearing_on=row.next_hearing_on,
-        buyer_payments=tuple(sorted(receipts.get(row.unit_id, []), key=lambda p: p.on)),
+        buyer_payments=tuple(sorted(receipts.get(row.id, []), key=lambda p: p.on)),
         possession_due_on=project.possession_due_on,
         possession_on=possession.get(row.unit_id) if row.unit_id else None,
         orders=tuple(
@@ -752,13 +764,24 @@ def _case_inputs(
 ) -> list[CaseIn]:
     unit_ids = {r.unit_id for r in rows if r.unit_id}
     units = {u.id: u for u in session.scalars(select(Unit).where(Unit.id.in_(unit_ids)))}
-    receipts: dict[str, list[DisputePaymentIn]] = {}
+    # A case about a booking since cancelled counts that booking's payments; any other case
+    # counts what the unit's current buyer paid.
+    cancelled = {
+        c.case_id: c.id
+        for c in session.scalars(
+            select(BookingCancellation).where(BookingCancellation.case_id.in_([r.id for r in rows]))
+        )
+    }
+    paid: dict[tuple[str, str | None], list[DisputePaymentIn]] = {}
     for r in session.scalars(
         select(Receipt).where(Receipt.unit_id.in_(unit_ids), Receipt.received_on <= as_of)
     ):
-        receipts.setdefault(r.unit_id, []).append(
+        paid.setdefault((r.unit_id, r.cancellation_id), []).append(
             DisputePaymentIn(r.received_on, r.amount + r.tds_deducted)
         )
+    receipts = {
+        row.id: paid.get((row.unit_id, cancelled.get(row.id)), []) for row in rows if row.unit_id
+    }
     possession = {
         h.unit_id: h.possession_on
         for h in session.scalars(select(UnitHandover).where(UnitHandover.unit_id.in_(unit_ids)))

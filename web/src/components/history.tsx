@@ -5,6 +5,7 @@ const SOURCE: Record<string, string> = {
   import: "imported",
   edited: "edited as a table",
   undo: "import undone",
+  cancellation: "booking cancelled",
 };
 
 function verb(action: string): string {

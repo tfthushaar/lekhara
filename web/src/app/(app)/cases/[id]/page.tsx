@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { addHearing, addOrder, addPayment, updateCase } from "@/app/actions";
+import { addHearing, addOrder, addPayment, cancelCaseBooking, updateCase } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { LinkedDocuments } from "@/components/documents";
 import { type CaseDetail, type CaseOrder, api } from "@/lib/api";
@@ -282,6 +282,24 @@ async function CaseView({ params }: { params: Promise<{ id: string }> }) {
               </div>
             </ActionForm>
           </details>
+        ) : null}
+        {c.booking?.cancelled_on ? (
+          <p className="status-line" style={{ marginTop: 16 }}>
+            {`The booking of unit ${c.booking.unit} was cancelled on ${day(c.booking.cancelled_on)}; the unit can be sold again.`}
+          </p>
+        ) : null}
+        {c.booking?.refund_paid && c.booking.registered && !c.booking.cancelled_on ? (
+          <p className="notice" style={{ marginTop: 16 }}>
+            {`The refund is paid, but unit ${c.booking.unit} is registered in the buyer's name. Taking it back needs a cancellation deed; ask your lawyer.`}
+          </p>
+        ) : null}
+        {c.booking?.can_cancel && c.can_edit ? (
+          <div className="notice" style={{ marginTop: 16 }}>
+            <p>{`The refund is paid. Cancel the booking of unit ${c.booking.unit} so it can be sold again; what the buyer paid stays on record under this case.`}</p>
+            <div style={{ marginTop: 12 }}>
+              <ActionForm action={cancelCaseBooking.bind(null, c.id)} label={`Cancel the booking of unit ${c.booking.unit}`} pendingLabel="Cancelling" secondary />
+            </div>
+          </div>
         ) : null}
       </section>
 

@@ -2,7 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { deleteReceipt, deleteUnit, markUnsold, recordReceipt, updateHandover, updateUnit } from "@/app/actions";
+import {
+  cancelBooking,
+  deleteReceipt,
+  deleteUnit,
+  markUnsold,
+  recordReceipt,
+  updateHandover,
+  updateUnit,
+} from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { History } from "@/components/history";
 import { LinkedDocuments } from "@/components/documents";
@@ -102,12 +110,39 @@ function UnitDetails({ unit }: { unit: UnitDetail }) {
           </details>
           {unit.booked ? (
             <details className="disclosure">
-              <summary>The booking was cancelled</summary>
+              <summary>Cancel the booking</summary>
               <p className="small muted" style={{ margin: "8px 0 12px", maxWidth: 640 }}>
-                Marks the unit unsold and clears the buyer. Not possible once demands have been
-                raised or money received.
+                The unit can then be sold again. The buyer&apos;s demands and payments stay on record under the
+                cancelled booking, and still count in the RERA account&apos;s 70% check.
               </p>
-              <ActionForm action={markUnsold.bind(null, unit.id)} label="Mark as unsold" pendingLabel="Saving" secondary />
+              <ActionForm action={cancelBooking.bind(null, unit.id)} label="Cancel the booking" pendingLabel="Cancelling" secondary>
+                <div className="field-grid">
+                  <div className="field">
+                    <label htmlFor="cancel-on">Cancelled on</label>
+                    <input id="cancel-on" name="cancelled_on" type="date" required />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="cancel-refund">Refunded (rupees)</label>
+                    <input id="cancel-refund" name="refunded" placeholder="Leave blank if not yet" />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="cancel-refund-on">Refunded on</label>
+                    <input id="cancel-refund-on" name="refunded_on" type="date" />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="cancel-reason">Why</label>
+                    <input id="cancel-reason" name="reason" placeholder="Buyer withdrew" />
+                  </div>
+                </div>
+              </ActionForm>
+              {unit.receipts.length === 0 ? (
+                <p className="small" style={{ marginTop: 12 }}>
+                  Entered by mistake, with nothing paid or demanded?{" "}
+                  <span style={{ display: "inline-block" }}>
+                    <ActionForm action={markUnsold.bind(null, unit.id)} label="Just mark it unsold" pendingLabel="Saving" secondary />
+                  </span>
+                </p>
+              ) : null}
             </details>
           ) : null}
           {unit.can_delete ? (
@@ -122,6 +157,42 @@ function UnitDetails({ unit }: { unit: UnitDetail }) {
         </>
       ) : null}
       <History entries={unit.history} />
+      {unit.earlier_bookings.length > 0 ? (
+        <div style={{ marginTop: 24 }}>
+          <div className="section-head">
+            <h2>Earlier bookings</h2>
+            <p>Cancelled; their payments stay on record</p>
+          </div>
+          <ul className="rows">
+            {unit.earlier_bookings.map((b) => (
+              <li key={b.id} className="row">
+                <div>
+                  <span className="tag tag-done">Cancelled</span>
+                </div>
+                <div>
+                  <p className="row-title">{b.buyer_name ?? "Buyer not recorded"}</p>
+                  <p className="row-detail">
+                    {[
+                      b.booked_on ? `Booked ${day(b.booked_on)}` : null,
+                      `cancelled ${day(b.cancelled_on)}`,
+                      `paid ${inrFull(b.paid)}`,
+                      b.refunded ? `refunded ${inrFull(b.refunded)}${b.refunded_on ? ` on ${day(b.refunded_on)}` : ""}` : "refund not recorded",
+                    ]
+                      .filter(Boolean)
+                      .join("  ·  ")}
+                  </p>
+                  {b.reason ? (
+                    <p className="row-meta">
+                      {b.case_id ? <Link href={`/cases/${b.case_id}`}>{b.reason}</Link> : b.reason}
+                    </p>
+                  ) : null}
+                </div>
+                <div />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -143,7 +214,15 @@ async function HandoverView({ id }: { id: string }) {
       <div className="no-print">
         <div className="section-head">
           <h2>Handover</h2>
-          <p>From the occupancy certificate to possession</p>
+          <p>
+            {u.steps.some((s) => s.stage === "oc" && s.done) ? (
+              <Link href={`/units/${id}/possession`} className="link-action">
+                The possession letter
+              </Link>
+            ) : (
+              "From the occupancy certificate to possession"
+            )}
+          </p>
         </div>
         <p className="status-line">{u.blocker_text}</p>
         <ol className="steps steps-8" style={{ marginBottom: 40 }}>

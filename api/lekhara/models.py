@@ -216,6 +216,11 @@ class Receipt(Base):
     reference: Mapped[str | None] = mapped_column(String(200))
     """UTR, cheque or receipt number."""
     source_ref: Mapped[str | None] = mapped_column(String(200), index=True)
+    cancellation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("booking_cancellations.id"), index=True
+    )
+    """Set when the booking it was paid for was cancelled: it stays in the project's money,
+    but no longer counts towards the unit's current buyer."""
 
 
 class Landowner(Base):
@@ -360,6 +365,44 @@ class DemandRow(Base):
     certified_progress_pct: Mapped[Decimal | None] = mapped_column(Percent)
     """The certified progress that triggered the demand, if a stage triggered it."""
     created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    cancellation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("booking_cancellations.id"), index=True
+    )
+    """Set when the booking it was raised on was cancelled."""
+
+
+class BookingCancellation(Base):
+    """A booking that was cancelled: who the buyer was, what was refunded and why. The buyer's
+    demands and payments point here, so the unit can be sold again."""
+
+    __tablename__ = "booking_cancellations"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    unit_id: Mapped[str] = mapped_column(ForeignKey("units.id"), index=True)
+    cancelled_on: Mapped[date] = mapped_column(Date)
+    buyer_name: Mapped[str | None] = mapped_column(String(200))
+    booked_on: Mapped[date | None] = mapped_column(Date)
+    agreement_value: Mapped[Decimal | None] = mapped_column(Money)
+    refunded: Mapped[Decimal | None] = mapped_column(Money)
+    refunded_on: Mapped[date | None] = mapped_column(Date)
+    reason: Mapped[str | None] = mapped_column(String(500))
+    case_id: Mapped[str | None] = mapped_column(ForeignKey("dispute_cases.id"))
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
+class HandoverItem(Base):
+    """One item of handing the project over to the residents' association: done when, and a
+    note."""
+
+    __tablename__ = "handover_items"
+    __table_args__ = (UniqueConstraint("project_id", "key"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    key: Mapped[str] = mapped_column(String(48))
+    done_on: Mapped[date | None] = mapped_column(Date)
+    note: Mapped[str | None] = mapped_column(String(500))
 
 
 # Registration and handover

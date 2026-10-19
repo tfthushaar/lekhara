@@ -182,6 +182,7 @@ def collections_position(
     gst_rate_on_sale: Decimal,
     as_of: date,
     rules: RulesPack,
+    all_payments: list[Payment] | None = None,
 ) -> CollectionsPosition:
     interest_rate = rules.value("rera.sbi_mclr", as_of) + rules.value(
         "rera.delay_interest_margin", as_of
@@ -246,7 +247,9 @@ def collections_position(
                 )
             )
 
-    checks = _deposit_checks(payments, deposits, as_of, rules)
+    checks = _deposit_checks(
+        payments if all_payments is None else all_payments, deposits, as_of, rules
+    )
     overdue_accounts = [a for a in accounts if a.overdue > 0]
     return CollectionsPosition(
         as_of=as_of,

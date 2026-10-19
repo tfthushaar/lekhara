@@ -218,12 +218,14 @@ def update_unit(
 
 
 def clear_buyer(session: Session, project: Project, unit: Unit, *, user_id: str | None) -> None:
-    """Marks a unit unsold again, for a cancelled booking. Refused once money has moved."""
-    blockers = [b for b in unit_dependents(session, unit) if "demand" in b or "payment" in b]
-    if blockers:
-        raise ServiceError(
-            f"Unit {unit.label} has {blockers[0]}; cancel the booking through collections."
-        )
+    """Marks a unit unsold again, for a booking entered by mistake. Refused once money has
+    moved: then the booking is cancelled, which keeps its demands and payments."""
+    for model, words in ((DemandRow, "demands raised"), (Receipt, "payments received")):
+        moved = session.scalars(
+            select(model.id).where(model.unit_id == unit.id, model.cancellation_id.is_(None))
+        ).first()
+        if moved:
+            raise ServiceError(f"Unit {unit.label} has {words}; cancel the booking instead.")
     changes = {}
     for key in ("buyer_name", "buyer_phone", "buyer_email", "booked_on", "agreement_value"):
         if getattr(unit, key) is not None:
@@ -788,7 +790,9 @@ def delete_receipt(
 def unit_receipts(session: Session, unit: Unit) -> list[Receipt]:
     return list(
         session.scalars(
-            select(Receipt).where(Receipt.unit_id == unit.id).order_by(Receipt.received_on)
+            select(Receipt)
+            .where(Receipt.unit_id == unit.id, Receipt.cancellation_id.is_(None))
+            .order_by(Receipt.received_on)
         )
     )
 

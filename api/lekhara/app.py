@@ -20,6 +20,7 @@ from lekhara import (
     auth,
     connectors,
     export,
+    handover_desk,
     imports,
     inbound,
     jobs,
@@ -71,6 +72,9 @@ from lekhara.records import (
     LANDOWNER_PAYMENTS,
     RECEIPTS,
     SUPPLIERS,
+    UNITS,
+    ParseError,
+    parse_value,
 )
 from lekhara.rules import KARNATAKA
 from lekhara.secretbox import seal
@@ -343,6 +347,18 @@ class NewCase(BaseModel):
     next_hearing_on: date | None = None
     lawyer: str | None = None
     summary: str | None = None
+
+
+class CancelBooking(BaseModel):
+    cancelled_on: str | None = None
+    refunded: str | None = None
+    refunded_on: str | None = None
+    reason: str | None = None
+
+
+class AssociationItem(BaseModel):
+    done_on: str | None = None
+    note: str | None = None
 
 
 class CaseUpdate(BaseModel):
@@ -938,7 +954,53 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             can_edit=me.can_prepare(p) and not me.views_as_sample(p),
             dependents=registers.unit_dependents(session, unit),
             receipts=registers.unit_receipts(session, unit),
+            earlier=handover_desk.earlier_bookings(session, unit),
         )
+
+    def parse_day(value: str | None, label: str) -> date | None:
+        if not value or not value.strip():
+            return None
+        try:
+            return parse_value(UNITS.field("booked_on"), value)
+        except ParseError as exc:
+            raise ServiceError(f"{label} {exc}.") from None
+
+    def parse_rupees(value: str | None, label: str) -> Decimal | None:
+        if not value or not value.strip():
+            return None
+        try:
+            return parse_value(UNITS.field("list_price"), value)
+        except ParseError as exc:
+            raise ServiceError(f"{label} {exc}.") from None
+
+    @app.post("/units/{unit_id}/cancel-booking")
+    def cancel_booking(
+        unit_id: str, body: CancelBooking, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        unit, p = unit_for(session, me, unit_id, edit=True)
+        cancelled_on = parse_day(body.cancelled_on, "The cancellation date")
+        if cancelled_on is None:
+            raise ServiceError("Enter the date the booking was cancelled.")
+        handover_desk.cancel_booking(
+            session,
+            p,
+            unit,
+            cancelled_on=cancelled_on,
+            refunded=parse_rupees(body.refunded, "The refund"),
+            refunded_on=parse_day(body.refunded_on, "The refund date"),
+            reason=body.reason,
+            as_of=on,
+            user_id=me.user_id,
+        )
+        session.commit()
+        return unit_view(session, me, unit, p)
+
+    @app.get("/units/{unit_id}/possession-letter")
+    def possession_letter(unit_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        unit = services.get_unit(session, unit_id)
+        p = services.get_project(session, unit.project_id)
+        auth.require_team(me, p)
+        return handover_desk.possession_letter(session, p, unit, on)
 
     @app.post("/projects/{project_id}/units", status_code=201)
     def create_unit(project_id: str, body: UnitBody, session: SessionDep, me: Me) -> dict:
@@ -2347,11 +2409,36 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     # Registration and handover
 
+    def handover_view(session: Session, me: auth.Principal, p: Project, on: date) -> dict:
+        detail = views.handover(
+            services.handover_for(session, p, on), p, can_edit=me.can_prepare(p)
+        )
+        detail["association"] = handover_desk.association_items(session, p)
+        return detail
+
     @app.get("/projects/{project_id}/handover")
     def project_handover(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
         p = services.get_project(session, project_id)
         auth.require_team(me, p)
-        return views.handover(services.handover_for(session, p, on), p, can_edit=me.can_prepare(p))
+        return handover_view(session, me, p, on)
+
+    @app.put("/projects/{project_id}/association/{key}")
+    def association_item(
+        project_id: str, key: str, body: AssociationItem, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        handover_desk.set_association_item(
+            session,
+            p,
+            key,
+            done_on=parse_day(body.done_on, "The date"),
+            note=body.note,
+            as_of=on,
+            user_id=me.user_id,
+        )
+        session.commit()
+        return handover_view(session, me, p, on)
 
     @app.get("/units/{unit_id}/handover")
     def unit_handover(unit_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
@@ -2410,7 +2497,37 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     def case_view(session: Session, me: auth.Principal, row, p: Project, on: date) -> dict:
         session.refresh(row)
         position = services.case_position_for(session, row, p, on)
-        return views.case_detail(position, row, p, can_edit=me.can_prepare(p))
+        detail = views.case_detail(position, row, p, can_edit=me.can_prepare(p))
+        detail["booking"] = handover_desk.case_booking(session, row, position)
+        return detail
+
+    @app.post("/cases/{case_id}/cancel-booking")
+    def cancel_case_booking(
+        case_id: str, body: CancelBooking, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        row, p = case_for(session, me, case_id, edit=True)
+        position = services.case_position_for(session, row, p, on)
+        booking = handover_desk.case_booking(session, row, position)
+        if not booking or not booking["can_cancel"]:
+            raise ServiceError(
+                "The booking can be cancelled here once the refund under the order is paid."
+            )
+        unit = services.get_unit(session, row.unit_id)
+        last_paid = max((x.paid_on for x in row.payments), default=None)
+        handover_desk.cancel_booking(
+            session,
+            p,
+            unit,
+            cancelled_on=parse_day(body.cancelled_on, "The cancellation date") or on,
+            refunded=position.paid,
+            refunded_on=last_paid,
+            reason=f"Refund under case {row.case_number}",
+            case_id=row.id,
+            as_of=on,
+            user_id=me.user_id,
+        )
+        session.commit()
+        return case_view(session, me, row, p, on)
 
     @app.get("/cases/{case_id}")
     def get_case(case_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
