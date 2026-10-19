@@ -66,6 +66,7 @@ from lekhara.models import (
     WithdrawalRequest,
 )
 from lekhara.pdf import write_pdf
+from lekhara.rules import KARNATAKA
 from lekhara.storage import LocalStorage, Storage
 
 CR = Decimal("10000000")
@@ -592,42 +593,55 @@ class Seeder:
             Decimal("0.01")
         )
         deposits = Decimal("0")
+        events: list[tuple[date, Decimal]] = []
         for i, (year, month) in enumerate(months):
             if i < len(months) - 1:
                 amount = (by_month[(year, month)] * Decimal("0.70")).quantize(Decimal("0.01"))
             else:
                 amount = required - deposits - deposit_short
             month_end = date(year + month // 12, month % 12 + 1, 1) - timedelta(days=1)
-            self.s.add(
-                EscrowTxn(
-                    project_id=p.id,
-                    kind="deposit",
-                    amount=amount,
-                    txn_date=min(month_end, self.ago(1)),
-                )
-            )
+            on = min(month_end, self.ago(1))
+            self.s.add(EscrowTxn(project_id=p.id, kind="deposit", amount=amount, txn_date=on))
+            events.append((on, amount))
             deposits += amount
-        withdrawn = deposits + interest - balance
         self.s.add(
             EscrowTxn(project_id=p.id, kind="interest", amount=interest, txn_date=self.ago(15))
         )
-        earlier = (withdrawn * Decimal("0.75")).quantize(Decimal("0.01"))
-        self.s.add(
-            EscrowTxn(
-                project_id=p.id,
-                kind="withdrawal",
-                amount=earlier,
-                txn_date=self.ago(last_withdrawal_days + 120),
-                reference="Earlier withdrawals",
+        # Withdrawals: one at the end of each quarter, each within what the account then held,
+        # and a last one that leaves enough for the balance today to be at least `balance`
+        # once later deposits and interest come in. The balance never runs below zero.
+        last_on = self.ago(last_withdrawal_days)
+        later = sum((a for on, a in events if on > last_on), Decimal("0"))
+        later += interest if self.ago(15) > last_on else Decimal("0")
+        keep = max(balance - later, Decimal("0"))
+        held = Decimal("0")
+        for on, amount in events:
+            if on > last_on:
+                break
+            held += amount
+            if on.month not in (3, 6, 9, 12) or on > last_on - timedelta(days=30):
+                continue
+            draw = (held * Decimal("0.8")).quantize(Decimal("0.01"))
+            self.s.add(
+                EscrowTxn(
+                    project_id=p.id,
+                    kind="withdrawal",
+                    amount=draw,
+                    txn_date=on,
+                    reference=f"Withdrawal, quarter to {on.isoformat()}",
+                )
             )
-        )
-        last = withdrawn - earlier
+            held -= draw
+        if self.ago(15) <= last_on:
+            held += interest
+        last = held - keep
+        assert last > 0, f"{p.name}: nothing left for the last withdrawal"
         self.s.add(
             EscrowTxn(
                 project_id=p.id,
                 kind="withdrawal",
                 amount=last,
-                txn_date=self.ago(last_withdrawal_days),
+                txn_date=last_on,
                 reference="Last withdrawal",
             )
         )
@@ -834,7 +848,7 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
         receipts,
         deposit_short=Decimal("0"),
         interest=lakh("60"),
-        balance=cr("6.4"),
+        balance=cr("8.4"),
         last_withdrawal_days=80,
     )
     session.add(
@@ -934,8 +948,18 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
         submitted_on=sd.ago(88),
         released_on=sd.ago(80),
         released_amount=last,
-        bank_reference="Last withdrawal",
+        bank_reference=f"CNB-RTGS-{sd.ago(80):%Y%m%d}-0417",
     )
+    # The certificates carry the figures the books showed when they were signed.
+    from lekhara import services
+
+    signed_money = services._money(session, wf, sd.ago(92), KARNATAKA)
+    signed_escrow = services._escrow(session, wf, signed_money, sd.ago(92), KARNATAKA)
+    figures = {
+        "architect": {"completion_pct": signed_money.certified_progress_pct},
+        "engineer": {"development_cost_incurred": signed_money.development.incurred},
+        "ca": {"total_cost_incurred": signed_escrow.basis_amount, "withdrawable_amount": last},
+    }
     for account in DEMO_ACCOUNTS:
         if not account.certifier_role:
             continue
@@ -946,6 +970,7 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
                 signer_name=account.name,
                 signer_firm=account.firm,
                 issued_on=sd.ago(92),
+                **figures[account.certifier_role],
             )
         )
     session.add(released)
@@ -1032,7 +1057,7 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
         receipts,
         deposit_short=cr("1.8"),
         interest=lakh("20"),
-        balance=cr("4.1"),
+        balance=cr("4.5"),
         last_withdrawal_days=40,
     )
     sd.bills(
@@ -1178,7 +1203,7 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
         receipts,
         deposit_short=Decimal("0"),
         interest=cr("1.1"),
-        balance=cr("5.7"),
+        balance=cr("21.5"),
         last_withdrawal_days=70,
     )
     sd.approvals(

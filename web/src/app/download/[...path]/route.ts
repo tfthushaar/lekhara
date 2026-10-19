@@ -6,10 +6,12 @@ const ALLOWED = [
   /^projects\/[A-Za-z0-9_-]+\/exports\/[a-z_]+\.(xlsx|csv)$/,
   /^imports\/templates\/[a-z_]+\.(xlsx|csv)$/,
   /^organization\/export$/,
+  /^withdrawals\/[A-Za-z0-9_-]+\/pack\.pdf$/,
+  /^projects\/[A-Za-z0-9_-]+\/packs\/(qpr|audit)\/\d{4}-\d{2}-\d{2}\.(pdf|xlsx)$/,
 ];
 const PASS_ON = ["content-type", "content-disposition", "content-length"];
 
-/** Hands an export, the whole-workspace export or an import template to the browser, for the signed-in person. */
+/** Hands an export, the whole-workspace export, an import template or a pack to the browser, for the signed-in person. */
 export async function GET(request: NextRequest, ctx: RouteContext<"/download/[...path]">) {
   const { path } = await ctx.params;
   const joined = path.map(decodeURIComponent).join("/");

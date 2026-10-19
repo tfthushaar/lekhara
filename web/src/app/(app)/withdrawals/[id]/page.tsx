@@ -83,6 +83,11 @@ async function WithdrawalView({ params }: { params: Promise<{ id: string }> }) {
             {day(w.created_on)}.
           </p>
         </div>
+        <div>
+          <a href={`/download/withdrawals/${w.id}/pack.pdf`} className="button button-secondary">
+            The pack for the bank
+          </a>
+        </div>
       </div>
 
       <p className="status-line">{headline(w)}</p>

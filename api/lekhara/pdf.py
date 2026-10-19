@@ -2,7 +2,9 @@
 
 Text is read page by page so that a search result can say which page it came from.
 The writer makes simple text-only A4 pages in Helvetica: enough for demo documents
-and for packs Lekhara prepares. It handles Latin-1 text only.
+and for packs Lekhara prepares. It handles Latin-1 text only. A line starting with "## " is
+a heading, in bold; a line starting with "|| " is set in a fixed-width font, so that columns
+of figures line up; a line that is exactly "" starts a new page.
 """
 
 import textwrap
@@ -31,16 +33,40 @@ def _escape(line: str) -> str:
     return line.encode("latin-1", "replace").decode("latin-1")
 
 
+HEADING = "## "
+FIXED = "|| "
+NEW_PAGE = ""
+
+
 def _layout(pages: list[list[str]], wrap_at: int = _WRAP_AT) -> list[list[str]]:
     """Wraps long lines and spills over onto new pages."""
     out = []
     for lines in pages:
-        wrapped = []
+        chunks: list[list[str]] = [[]]
         for line in lines:
-            wrapped.extend(textwrap.wrap(line, wrap_at) or [""])
-        for start in range(0, max(len(wrapped), 1), _LINES_PER_PAGE):
-            out.append(wrapped[start : start + _LINES_PER_PAGE])
+            if line == NEW_PAGE:
+                chunks.append([])
+                continue
+            prefix = next((x for x in (HEADING, FIXED) if line.startswith(x)), "")
+            body = line[len(prefix) :]
+            if prefix == FIXED:
+                chunks[-1].append(line)
+                continue
+            chunks[-1].extend(prefix + piece for piece in textwrap.wrap(body, wrap_at) or [""])
+        for wrapped in chunks:
+            for start in range(0, max(len(wrapped), 1), _LINES_PER_PAGE):
+                out.append(wrapped[start : start + _LINES_PER_PAGE])
     return out
+
+
+def _line_ops(line: str, font_size: int) -> str:
+    if line.startswith(HEADING):
+        text = _escape(line[len(HEADING) :])
+        return f"/F2 {font_size + 1} Tf ({text}) Tj T* /F1 {font_size} Tf"
+    if line.startswith(FIXED):
+        text = _escape(line[len(FIXED) :])
+        return f"/F3 {font_size - 2} Tf ({text}) Tj T* /F1 {font_size} Tf"
+    return f"({_escape(line)}) Tj T*"
 
 
 def write_pdf(
@@ -52,17 +78,26 @@ def write_pdf(
         1: b"<< /Type /Catalog /Pages 2 0 R >>",
         3: b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
     }
+    first_extra = 5 + 2 * len(pages)
+    bold, fixed = first_extra, first_extra + 1
+    objects[bold] = (
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"
+    )
+    objects[fixed] = (
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>"
+    )
     kids = []
     for i, lines in enumerate(pages):
         page_id, content_id = 5 + 2 * i, 6 + 2 * i
         kids.append(f"{page_id} 0 R")
         ops = ["BT", f"/F1 {font_size} Tf", f"{font_size + 3} TL", f"36 {_PAGE_HEIGHT - 48} Td"]
-        ops += [f"({_escape(line)}) Tj T*" for line in lines]
+        ops += [_line_ops(line, font_size) for line in lines]
         ops.append("ET")
         stream = "\n".join(ops).encode("latin-1")
         objects[page_id] = (
             f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {_PAGE_WIDTH} {_PAGE_HEIGHT}] "
-            f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_id} 0 R >>"
+            f"/Resources << /Font << /F1 3 0 R /F2 {bold} 0 R /F3 {fixed} 0 R >> >> "
+            f"/Contents {content_id} 0 R >>"
         ).encode()
         objects[content_id] = (
             f"<< /Length {len(stream)} >>\nstream\n".encode() + stream + b"\nendstream"

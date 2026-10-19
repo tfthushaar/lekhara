@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-19, with the commit "Add approvals, K-RERA filings, landowner payments and editing as a table".
+Last updated: 2026-10-19, with the commit "Add the withdrawal, quarterly report and audit packs".
 
 ## What we are building
 
@@ -202,11 +202,17 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 - Editing as a table: units, suppliers, bills, orders and approvals can be edited fifty rows at a time like a spreadsheet; the changes go through the same preview as an import before they are saved, can be undone for 30 days, and show in each record's history as edited as a table.
 - On a phone, the project's tabs and the top menu stay on one line that scrolls sideways.
 - Tested end to end: a landowner's payment with short TDS flagged and corrected, the usual approvals set up and one about to lapse shown on Today, a late quarter recorded as filed, payments, approvals and filings imported, and a unit's price changed as a table and saved with its history.
+- The packs Lekhara prepares, each as a PDF to read, print and sign, from the project's own records:
+  - For the escrow bank, on every withdrawal: a covering letter for the promoter to sign, how the amount is worked out (estimated cost, cost incurred and paid, withdrawn so far, the balance), the 70% deposits, cost by head, the architect's, engineer's and CA's certificates with their statements (or a place to sign, with a note that the professional checks and signs under their own name), and the checks Lekhara ran.
+  - For each quarter's progress report on the K-RERA portal: units booked in the quarter and to date, the last certified completion, money from buyers and the designated account in the quarter and to date, cost, the approvals and open cases at the quarter's end. Also as Excel, to copy figures from.
+  - For each year's audit: money from buyers, the 70% deposits for the year, withdrawals released with who signed the certificates behind each, cost incurred in the year and to date, and a draft statement for the CA to examine, change and sign with a UDIN. Also as Excel.
+  - Downloaded from the withdrawal page and from each period on the K-RERA tab. Each bank's own format, and K-RERA's form layout, will follow from design partners' samples.
+- The sample projects' designated accounts now draw down quarter by quarter and never run below zero, and the released withdrawal carries the figures its certificates were signed with.
+- Tested end to end: the bank pack from a withdrawal, the quarterly report and the audit pack from the K-RERA tab as PDF and Excel, and a wrong quarter refused.
 
 ## In progress
 
-- The filing packs: the bank withdrawal pack, the quarterly progress report and the annual audit pack.
-- Billing to the rules: one Razorpay subscription per firm; nothing charged without a mandate the builder sets up; the price with GST shown before paying; reminders before the free month ends; pre-debit notices; cancelling in one click, as easy as subscribing; a GST invoice for every payment. Built in test mode; going live waits on decisions about the company, prices, refunds and GST.
+- Handover and disputes: possession letters, the association handover checklist, and cancelling a unit when a refund under an order is paid.
 
 ## Left
 

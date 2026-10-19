@@ -24,6 +24,7 @@ from lekhara import (
     inbound,
     jobs,
     legal,
+    packs,
     purchases,
     record_views,
     registers,
@@ -981,6 +982,8 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         media = (
             "text/csv; charset=utf-8"
             if filename.endswith(".csv")
+            else "application/pdf"
+            if filename.endswith(".pdf")
             else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
         return Response(
@@ -2725,6 +2728,29 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     @app.get("/withdrawals/{request_id}")
     def withdrawal(request_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
         return withdrawal_view(session, me, request_id, on)[0]
+
+    @app.get("/withdrawals/{request_id}/pack.pdf")
+    def withdrawal_pack(request_id: str, session: SessionDep, me: Me, on: AsOf) -> Response:
+        _, state, p = withdrawal_view(session, me, request_id, on)
+        data = packs.to_pdf(packs.withdrawal_pack(state, on))
+        name = f"{p.name} withdrawal {state.request.created_on.isoformat()}.pdf"
+        return file_download(data, name.replace(" ", "-"))
+
+    @app.get("/projects/{project_id}/packs/{kind}/{name}")
+    def filing_pack(project_id: str, kind: str, name: str, session: SessionDep, me: Me) -> Response:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        period, _, fmt = name.partition(".")
+        if kind not in ("qpr", "audit") or fmt not in ("pdf", "xlsx"):
+            raise ServiceError("Not found.", 404)
+        try:
+            end = date.fromisoformat(period)
+        except ValueError:
+            raise ServiceError("Not found.", 404) from None
+        pack = (packs.qpr_pack if kind == "qpr" else packs.audit_pack)(session, p, end)
+        data = packs.to_pdf(pack) if fmt == "pdf" else packs.to_xlsx(pack)
+        label = "quarterly report" if kind == "qpr" else "annual audit"
+        return file_download(data, f"{p.name} {label} {period}.{fmt}".replace(" ", "-"))
 
     @app.put("/withdrawals/{request_id}/certificates/{role}")
     def update_certificate(

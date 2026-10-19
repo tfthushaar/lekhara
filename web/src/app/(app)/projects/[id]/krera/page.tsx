@@ -128,6 +128,17 @@ function PeriodRow({
               ? `From ${day(q.period_start)}. Due ${day(q.due_on)}.`
               : `Due ${day(q.due_on)}`}
         </p>
+        {q.state !== "open" ? (
+          <p className="row-meta">
+            <a href={`/download/projects/${projectId}/packs/${kind === "qpr" ? "qpr" : "audit"}/${q.period_end}.pdf`} className="link-action">
+              {kind === "qpr" ? "The report's figures (PDF)" : "The audit pack (PDF)"}
+            </a>
+            {"  ·  "}
+            <a href={`/download/projects/${projectId}/packs/${kind === "qpr" ? "qpr" : "audit"}/${q.period_end}.xlsx`} className="link-action">
+              Excel
+            </a>
+          </p>
+        ) : null}
         {canEdit && !f && q.state !== "open" ? (
           <details className="disclosure">
             <summary>Record as filed</summary>

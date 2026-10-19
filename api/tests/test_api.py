@@ -71,7 +71,7 @@ def test_money_lines(owner) -> None:
 
 def test_escrow_explains_the_drawable_amount(owner) -> None:
     body = owner.get(f"/projects/{WF}/escrow").json()
-    assert D(body["drawable_now"]) == D("64000000")
+    assert D(body["drawable_now"]) == D("84000000")
     assert body["limited_by"] == "balance"
     assert len(body["steps"]) == 7
     assert [r["status"] for r in body["requests"]] == ["released"]
@@ -82,7 +82,7 @@ def test_withdrawal_from_request_to_release(accounts, architect, engineer, ca, c
     created = accounts.post(f"/projects/{WF}/withdrawals", json={})
     assert created.status_code == 201
     r = created.json()
-    assert D(r["amount"]) == D("64000000")
+    assert D(r["amount"]) == D("84000000")
     assert r["status"] == "awaiting_signatures"
     assert r["waiting_on"] == "the architect"
     assert [s["status"] for s in r["steps"]] == ["done", "current", "todo", "todo", "todo", "todo"]

@@ -17,7 +17,7 @@ Built for builders in Karnataka. Starting in Bengaluru.
 Lekhara works out what your costs entitle you to draw from the designated account. It prepares the architect's, engineer's and CA's certificates, checks that their figures agree before anything goes to the bank, and follows the request until the money is released.
 
 **Never miss a K-RERA deadline.**
-Quarterly progress reports and the annual audit are prepared from your own records, and each one shows as due, late or filed until you record it with its acknowledgement. If possession runs late, Lekhara shows the delay interest building up, month by month.
+Quarterly progress reports and the annual audit are prepared from your own records, and each one shows as due, late or filed until you record it with its acknowledgement. Download each quarter's figures for the K-RERA portal, and each year's audit pack for your CA, with a draft for the CA to check and sign. If possession runs late, Lekhara shows the delay interest building up, month by month.
 
 **See tax traps before they become bills.**
 - The 80% registered-supplier test for residential GST, tracked through the year.
