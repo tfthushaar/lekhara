@@ -804,6 +804,7 @@ export type ImportBatch = {
   kind: string;
   title: string;
   filename: string;
+  recognised: string | null;
   status: "preview" | "applied" | "undone";
   project_id: string;
   project_name: string;
@@ -1364,6 +1365,17 @@ export async function fetchSharedFile(path: string, visitor?: string): Promise<R
   return fetch(`${BASE}${path}`, { cache: "no-store", headers: visitor ? { "X-Lekhara-Visitor": visitor } : {} });
 }
 
+/** The API's own reason for a 401: a password or code that does not match, or an ended session. */
+async function unauthorised(response: Response): Promise<string> {
+  try {
+    const detail = (await response.json())?.detail;
+    if (typeof detail === "string" && detail) return detail;
+  } catch {
+    // Not JSON: fall through to the general message.
+  }
+  return "Your session has ended. Sign in again.";
+}
+
 /** Fetches a file from the API for a route handler to pass on to the browser. */
 export async function fetchFile(path: string, signedIn: boolean): Promise<Response> {
   return fetch(`${BASE}${path}`, {
@@ -1381,7 +1393,7 @@ export async function sendForm<T>(path: string, body: FormData): Promise<SendRes
     cache: "no-store",
   });
   if (response.ok) return { ok: true, data: (await response.json()) as T };
-  if (response.status === 401) return { ok: false, error: "Your session has ended. Sign in again." };
+  if (response.status === 401) return { ok: false, error: await unauthorised(response) };
   if (response.status === 413) return { ok: false, error: "The file is too large." };
   try {
     const detail = (await response.json()).detail;
@@ -1406,7 +1418,7 @@ export async function send<T>(
   });
   if (response.status === 204) return { ok: true, data: undefined as T };
   if (response.ok) return { ok: true, data: (await response.json()) as T };
-  if (response.status === 401) return { ok: false, error: "Your session has ended. Sign in again." };
+  if (response.status === 401) return { ok: false, error: await unauthorised(response) };
   try {
     const problem = await response.json();
     const detail = problem?.detail;
@@ -1560,6 +1572,7 @@ export const api = {
   units: (id: string) => get<Units>(`/projects/${id}/units`),
   withdrawal: (id: string) => get<Withdrawal>(`/withdrawals/${id}`),
   rules: () => get<Rules>("/rules"),
+  twoStep: () => get<{ on: boolean; since: string | null; recovery_left: number }>("/auth/two-step"),
   landowner: (id: string) => get<LandownerDetail>(`/landowners/${id}`),
   approvals: (projectId: string) => get<Approvals>(`/projects/${projectId}/approvals`),
   krera: (projectId: string) => get<Krera>(`/projects/${projectId}/krera`),

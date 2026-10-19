@@ -17,10 +17,64 @@ export async function signIn(_previous: ActionState, form: FormData): Promise<Ac
   const email = text(form, "email");
   const password = String(form.get("password") ?? "");
   if (!email || !password) return { error: "Enter your email and password." };
-  const result = await send<{ token: string }>("POST", "/auth/login", { email, password });
+  const result = await send<{ token?: string; two_step?: boolean; ticket?: string }>("POST", "/auth/login", {
+    email,
+    password,
+  });
   if (!result.ok) return { error: result.error };
+  if (result.data.two_step && result.data.ticket) {
+    (await cookies()).set({
+      name: TWO_STEP_COOKIE,
+      value: result.data.ticket,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/login",
+      maxAge: 10 * 60,
+    });
+    redirect("/login/two-step");
+  }
+  await startSession(result.data.token ?? "");
+  redirect("/");
+}
+
+const TWO_STEP_COOKIE = "lekhara_two_step";
+
+/** The second step of signing in: the code from the authenticator app, or a recovery code. */
+export async function signInCode(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const jar = await cookies();
+  const ticket = jar.get(TWO_STEP_COOKIE)?.value;
+  if (!ticket) return { error: "This sign-in has timed out. Enter your email and password again." };
+  const result = await send<{ token: string }>("POST", "/auth/login/two-step", { ticket, code: text(form, "code") });
+  if (!result.ok) return { error: result.error };
+  jar.delete({ name: TWO_STEP_COOKIE, path: "/login" });
   await startSession(result.data.token);
   redirect("/");
+}
+
+export async function startTwoStep(_previous: ActionState): Promise<ActionState> {
+  const result = await send<{ secret: string; uri: string }>("POST", "/auth/two-step/start");
+  if (!result.ok) return { error: result.error };
+  return {
+    ok: `In your authenticator app, add an account and enter this key: ${result.data.secret}. Then enter the six-digit code it shows, below. On a phone, the link below opens the app directly.`,
+    link: result.data.uri,
+  };
+}
+
+export async function confirmTwoStep(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send<{ recovery_codes: string[] }>("POST", "/auth/two-step/confirm", { code: text(form, "code") });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {
+    ok: `Two-step sign-in is on. Keep these recovery codes somewhere safe, away from your phone; each gets you in once if the phone is lost: ${result.data.recovery_codes.join("  ")}`,
+  };
+}
+
+export async function disableTwoStep(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", "/auth/two-step/disable", { password: String(form.get("password") ?? "") });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Two-step sign-in is off." };
 }
 
 async function startSession(token: string): Promise<void> {
@@ -600,6 +654,7 @@ export async function signUp(_previous: ActionState, form: FormData): Promise<Ac
     email: text(form, "email"),
     password: String(form.get("password") ?? ""),
     accept_terms: form.get("accept_terms") === "yes",
+    code: text(form, "code") || null,
   });
   if (!result.ok) return { error: result.error };
   await startSession(result.data.token);

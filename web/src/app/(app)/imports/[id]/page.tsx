@@ -168,6 +168,7 @@ function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
   return (
     <>
       <p className="status-line">
+        {b.recognised ? `Recognised as a ${b.recognised} export; its columns are matched for you. ` : ""}
         Nothing is saved yet. Check the columns and the rows, then import.
       </p>
       <div className="stats">

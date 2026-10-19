@@ -125,6 +125,9 @@ async function ImportView({ params }: { params: Promise<{ id: string }> }) {
 
           <Way title="Units and buyers" what="From your sales sheet or CRM export">
             <p className="small muted">
+              Exports from Sell.Do, LeadSquared, Zoho CRM, Salesforce and HubSpot are recognised as they come.{" "}
+            </p>
+            <p className="small muted">
               Any Excel or CSV file: columns are matched by name, such as Flat No or Customer Name, and you check the matching
               before anything is saved. Units are matched on their number; blank cells never erase what is there.{" "}
               <a href="/download/imports/templates/units.xlsx" className="link-action">

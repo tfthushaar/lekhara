@@ -31,8 +31,11 @@ from lekhara import (
     record_views,
     registers,
     review,
+    rls,
+    scan,
     services,
     statutory,
+    two_step,
     views,
 )
 from lekhara.bank import service as bank
@@ -304,6 +307,16 @@ class Acceptance(BaseModel):
     password: str | None = None
     firm: str | None = None
     accept_terms: bool | None = None
+    code: str | None = None
+
+
+class TwoStepLogin(BaseModel):
+    ticket: str
+    code: str
+
+
+class TwoStepCode(BaseModel):
+    code: str
 
 
 class PasswordCheck(BaseModel):
@@ -501,6 +514,30 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         upgrade(engine)
     session_factory = make_sessionmaker(engine)
     throttle = auth.LoginThrottle()
+    by_address = {
+        "signup": auth.LoginThrottle(
+            settings.signups_per_hour,
+            3600,
+            "Too many sign-ups from this network. Try again in an hour.",
+        ),
+        "forgot": auth.LoginThrottle(
+            settings.resets_per_hour,
+            3600,
+            "Too many reset emails asked for from this network. Try again in an hour.",
+        ),
+        "login": auth.LoginThrottle(
+            settings.failed_logins_per_address,
+            900,
+            "Too many failed sign-ins from this network. Wait fifteen minutes, then try again.",
+        ),
+        "visitor": auth.LoginThrottle(
+            30, 3600, "Too many visitors from this network. Try again in an hour."
+        ),
+    }
+
+    def address_of(request: Request) -> str:
+        ip, _ = client(request)
+        return ip or "unknown"
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -557,6 +594,10 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         principal = auth.principal_for(session, token, settings.as_of())
         if principal is None:
             raise ServiceError("Your session has ended. Sign in again.", 401)
+        # From here on Postgres, too, limits rows to the person's firms, the sample firm and the
+        # projects they certify.
+        sample = set(session.scalars(select(Organization.id).where(Organization.is_sample)))
+        rls.restrict(session, set(principal.org_roles) | sample, set(principal.project_roles))
         return principal
 
     Me = Annotated[auth.Principal, Depends(current_principal)]
@@ -581,17 +622,71 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/auth/login")
     def login(body: Login, session: SessionDep, request: Request) -> dict:
+        address = address_of(request)
+        by_address["login"].check(address)
         try:
             token, user = auth.login(session, body.email, body.password, throttle)
         except ServiceError:
             session.rollback()
+            by_address["login"].failed(address)
             log(session, request, "sign_in_failed", detail=(body.email or "")[:200])
             raise
+        if token is None:
+            return {"two_step": True, "ticket": two_step.ticket(session, user)}
+        return signed_in(session, request, token, user)
+
+    def signed_in(session: Session, request: Request, token: str, user: User) -> dict:
         orgs = list(
             session.scalars(select(Membership.organization_id).where(Membership.user_id == user.id))
         )
         log(session, request, "sign_in", user=user, organization_id=orgs[0] if orgs else None)
         return {"token": token, "user": {"id": user.id, "name": user.name, "email": user.email}}
+
+    @app.post("/auth/login/two-step")
+    def login_two_step(body: TwoStepLogin, session: SessionDep, request: Request) -> dict:
+        key = f"two_step:{body.ticket[:64]}"
+        throttle.check(key)
+        try:
+            token, user = two_step.finish(session, settings, body.ticket, body.code)
+        except ServiceError:
+            session.rollback()
+            throttle.failed(key)
+            log(session, request, "sign_in_failed", detail="two-step code")
+            raise
+        session.commit()
+        return signed_in(session, request, token, user)
+
+    @app.get("/auth/two-step")
+    def two_step_state(session: SessionDep, me: Me) -> dict:
+        user = session.get(User, me.user_id)
+        return {
+            "on": user.two_step_on is not None,
+            "since": user.two_step_on.date().isoformat() if user.two_step_on else None,
+            "recovery_left": two_step.remaining_recovery_codes(user),
+        }
+
+    @app.post("/auth/two-step/start")
+    def two_step_start(session: SessionDep, me: Me) -> dict:
+        user = session.get(User, me.user_id)
+        if user.two_step_on is not None:
+            raise ServiceError("Two-step sign-in is already on.")
+        return two_step.start(session, settings, user)
+
+    @app.post("/auth/two-step/confirm")
+    def two_step_confirm(body: TwoStepCode, session: SessionDep, me: Me, request: Request) -> dict:
+        user = session.get(User, me.user_id)
+        codes = two_step.confirm(session, settings, user, body.code)
+        log(session, request, "two_step_on", user=user)
+        return {"recovery_codes": codes}
+
+    @app.post("/auth/two-step/disable")
+    def two_step_disable(
+        body: PasswordCheck, session: SessionDep, me: Me, request: Request
+    ) -> dict:
+        user = session.get(User, me.user_id)
+        two_step.disable(session, user, body.password)
+        log(session, request, "two_step_off", user=user)
+        return {"ok": True}
 
     @app.post("/auth/logout", status_code=204)
     def logout(
@@ -655,6 +750,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     @app.post("/auth/signup", status_code=201)
     def signup(body: Signup, session: SessionDep, on: AsOf, request: Request) -> dict:
         legal.require_acceptance(body.accept_terms)
+        by_address["signup"].count(address_of(request))
         token, user = accounts.signup(
             session,
             settings,
@@ -686,9 +782,10 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         return {"ok": True}
 
     @app.post("/auth/forgot")
-    def forgot(body: Forgot, session: SessionDep) -> dict:
+    def forgot(body: Forgot, session: SessionDep, request: Request) -> dict:
         key = f"forgot:{(body.email or '').strip().casefold()}"
         throttle.check(key)
+        by_address["forgot"].count(address_of(request))
         throttle.failed(key)  # counts every request, so the form cannot be used to flood a mailbox
         accounts.forgot_password(session, settings, body.email)
         return {"ok": True}
@@ -918,7 +1015,13 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         if new_account:
             legal.require_acceptance(body.accept_terms)
         session_token = accounts.accept_invitation(
-            session, settings, token, name=body.name, password=body.password, firm=body.firm
+            session,
+            settings,
+            token,
+            name=body.name,
+            password=body.password,
+            firm=body.firm,
+            code=body.code,
         )
         principal = auth.principal_for(session, session_token, settings.as_of())
         user = session.get(User, principal.user_id)
@@ -945,6 +1048,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     def read_krera_certificate(session: SessionDep, me: Me, file: UploadFile) -> dict:
         accounts.current_org(session, me)
         data = file.file.read(settings.max_upload_mb * 1_000_000 + 1)
+        scan.check(settings, data, file.filename or "The file")
         if len(data) > settings.max_upload_mb * 1_000_000:
             raise ServiceError(f"Files can be up to {settings.max_upload_mb} MB.")
         reading = krera_certificate.read_certificate(file.filename or "", data)
@@ -1105,6 +1209,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         p = services.get_project(session, project_id)
         auth.require_prepare(me, p)
         data = file.file.read(settings.max_upload_mb * 1_000_000 + 1)
+        scan.check(settings, data, file.filename or "The file")
         if len(data) > settings.max_upload_mb * 1_000_000:
             raise ServiceError(f"Files can be up to {settings.max_upload_mb} MB.")
         batch = imports.start(
@@ -1607,6 +1712,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         auth.require_prepare(me, p)
         limit = settings.tally_upload_mb * 1_000_000
         data = file.file.read(limit + 1)
+        scan.check(settings, data, file.filename or "The file")
         if len(data) > limit:
             raise ServiceError(
                 f"Tally files can be up to {settings.tally_upload_mb} MB. Export a shorter period."
@@ -1686,6 +1792,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         auth.require_prepare(me, p)
         limit = settings.max_upload_mb * 1_000_000
         data = file.file.read(limit + 1)
+        scan.check(settings, data, file.filename or "The file")
         if len(data) > limit:
             raise ServiceError(
                 f"Statements can be up to {settings.max_upload_mb} MB. Download a shorter period."
@@ -2167,6 +2274,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
                 raise ServiceError(
                     f"Tally data over {settings.tally_upload_mb} MB; sync a shorter period."
                 )
+            scan.check(settings, data, f"Tally {name}")
             return data or None
 
         return connectors.sync(
@@ -2200,6 +2308,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         p = services.get_project(session, project_id)
         auth.require_prepare(me, p)
         data = file.file.read(settings.max_upload_mb * 1_000_000 + 1)
+        scan.check(settings, data, file.filename or "The file")
         if len(data) > settings.max_upload_mb * 1_000_000:
             raise ServiceError(f"Files can be up to {settings.max_upload_mb} MB.")
         row = gst.upload(
@@ -2662,6 +2771,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         auth.require_prepare(me, p)
         limit = settings.max_upload_mb * 1_000_000
         data = file.file.read(limit + 1)
+        scan.check(settings, data, file.filename or "The file")
         doc = services.store_document(
             session,
             app.state.storage,
@@ -2864,6 +2974,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         token: str, body: Visitor, request: Request, session: SessionDep, on: AsOf
     ) -> dict:
         room = services.open_room(session, token, on)
+        by_address["visitor"].count(address_of(request))
         ip, _ = client(request)
         return {"visitor": services.register_visitor(session, room, body.name, body.email, ip=ip)}
 

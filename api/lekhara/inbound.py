@@ -32,7 +32,7 @@ from urllib.parse import unquote, urlparse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from lekhara import imports, jobs, services
+from lekhara import imports, jobs, scan, services
 from lekhara.bank import service as bank
 from lekhara.bank.reader import read_statement
 from lekhara.config import Settings
@@ -224,14 +224,22 @@ def receive(
     limit = settings.tally_upload_mb * 1_000_000
     for filename, data in files:
         too_big = len(data) > limit
+        infected = None
+        if not too_big:
+            try:
+                scan.check(settings, data, _safe(filename))
+            except scan.Infected as exc:
+                infected = exc.message
+        refused = too_big or infected is not None
         session.add(
             InboundItem(
                 message_id=message.id,
                 filename=_safe(filename),
                 size=len(data),
-                storage_key=storage.put(data) if not too_big else "",
-                status="ignored" if too_big else "queued",
-                note=f"Larger than {settings.tally_upload_mb} MB." if too_big else None,
+                storage_key=storage.put(data) if not refused else "",
+                status="ignored" if refused else "queued",
+                note=infected
+                or (f"Larger than {settings.tally_upload_mb} MB." if too_big else None),
             )
         )
     if not files:

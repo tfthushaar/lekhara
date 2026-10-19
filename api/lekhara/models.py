@@ -639,6 +639,15 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    two_step_on: Mapped[datetime | None] = mapped_column(DateTime)
+    """When two-step sign-in with an authenticator app was turned on; None while it is off."""
+    totp_secret: Mapped[str | None] = mapped_column(String(300))
+    """The authenticator app's shared secret, sealed with the server's key."""
+    totp_pending: Mapped[str | None] = mapped_column(String(300))
+    totp_last_step: Mapped[int | None] = mapped_column(Integer)
+    """The time step of the last code accepted, so a code cannot be used twice."""
+    recovery_codes: Mapped[str | None] = mapped_column(Text)
+    """Hashes of the unused recovery codes, as JSON."""
 
     memberships: Mapped[list["Membership"]] = relationship(back_populates="user")
     project_access: Mapped[list["ProjectAccess"]] = relationship(back_populates="user")
@@ -746,6 +755,8 @@ class ImportBatch(Base):
     kind: Mapped[str] = mapped_column(String(32))
     filename: Mapped[str] = mapped_column(String(300))
     origin: Mapped[str] = mapped_column(String(16), default="file", server_default="file")
+    recognised: Mapped[str | None] = mapped_column(String(100))
+    """The system the file came from, when Lekhara recognises its layout (such as Sell.Do)."""
     """file, for a spreadsheet brought in, or table, for rows edited as a table in Lekhara."""
     status: Mapped[str] = mapped_column(String(16), default="preview")
     """preview, applied or undone."""

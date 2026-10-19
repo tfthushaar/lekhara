@@ -93,6 +93,7 @@ Lekhara tells you what needs you today, in order of what matters most. Approve w
 - **Traceable.** Every number leads back to its source document.
 - **Yours to take away, or to delete.** Download everything at any time. Anyone can delete their own account, and an owner can close the firm's account: everything stays available to download for 30 days, then all of it is deleted.
 - **Every sign-in and download recorded.** An access log your owner can read, kept a year.
+- **Locked down.** Two-step sign-in with an authenticator app, every file checked for viruses, and your firm's records kept apart from every other firm's in the database itself.
 
 ## What Lekhara does not do
 

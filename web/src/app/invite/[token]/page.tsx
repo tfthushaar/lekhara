@@ -79,6 +79,12 @@ async function Invitation({ params }: { params: Promise<{ token: string }> }) {
             required
           />
         </div>
+        {invite.has_account ? (
+          <div className="field">
+            <label htmlFor="code">If you use two-step sign-in: the code from your app</label>
+            <input id="code" name="code" inputMode="numeric" autoComplete="one-time-code" />
+          </div>
+        ) : null}
         {invite.has_account ? null : (
           <div className="checks" style={{ marginTop: 4 }}>
             <label>

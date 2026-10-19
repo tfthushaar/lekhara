@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     secret_key: str | None = None
     """Seals secrets kept for firms, such as statement passwords. Set it in production."""
     worker: bool = True
+    clamav_url: str | None = None
+    """tcp://host:3310 of a clamd daemon to check every file for viruses; unset, nothing is
+    scanned."""
+    signups_per_hour: int = 10
+    """Sign-ups allowed from one network address in an hour."""
+    resets_per_hour: int = 10
+    """Password reset emails asked for from one network address in an hour."""
+    failed_logins_per_address: int = 30
+    """Failed sign-ins from one network address in fifteen minutes, across all emails."""
     company_name: str = "Lekhara"
     """The legal entity that runs Lekhara, as named in the terms and on invoices."""
     company_address: str = "Bengaluru, Karnataka, India"

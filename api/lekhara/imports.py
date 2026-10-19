@@ -21,7 +21,7 @@ from openpyxl.utils.exceptions import InvalidFileException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from lekhara import purchases, registers, statutory
+from lekhara import crm, purchases, registers, statutory
 from lekhara.models import (
     Approval,
     Bill,
@@ -140,6 +140,8 @@ def start_rows(
     header_at = find_header(record, rows)
     headers = [str(v) for v in rows[header_at]]
     body = rows[header_at + 1 :]
+    recognised = crm.recognise(headers) if origin == "file" else None
+    headers, body = crm.prepare(kind, headers, body)
     if not body:
         raise ServiceError("The file has a header row but no rows below it.")
     if len(body) > MAX_ROWS:
@@ -167,6 +169,7 @@ def start_rows(
         mapping=json.dumps(mapping),
         created_by_user_id=user_id,
         origin=origin,
+        recognised=recognised,
     )
     session.add(batch)
     session.commit()

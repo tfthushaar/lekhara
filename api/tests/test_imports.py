@@ -280,3 +280,46 @@ def test_who_can_import(app, ca) -> None:
     client, _ = firm(app)
     assert upload(client, SG, CSV).status_code == 403  # the sample is read-only
     assert ca.get(f"/projects/{SG}/imports").status_code == 403
+
+
+SELLDO = (
+    "Booking ID,Project Name,Tower Name,Unit Name,Carpet Area (Sq.Ft),Base Price,Status,"
+    "Primary Lead Name,Primary Phone,Primary Email,Booking Date,Agreement Value\n"
+    "BK-101,Kaveri Heights,Tower A,A-101,1100,90 lakh,Booked,"
+    "Priya Sharma,9845012345,priya@example.com,01/03/2026,90 lakh\n"
+    "BK-102,Kaveri Heights,Tower A,A-102,1150,95 lakh,Blocked,Rahul Kumar,9845012346,,,\n"
+    ",Kaveri Heights,Tower A,A-103,1150,95 lakh,Available,,,,,\n"
+)
+
+LEADSQUARED = (
+    "Prospect ID,First Name,Last Name,EmailAddress,mx_Unit_Number,mx_Tower,mx_Carpet_Area,"
+    "Lead Stage,Booking Date,Deal Value\n"
+    "P-1,Anand,Rao,anand@example.com,B-201,Tower B,1200,Booked,05/03/2026,1 crore\n"
+    "P-2,Meera,Iyer,meera@example.com,B-202,Tower B,1200,Site Visit Done,,\n"
+)
+
+
+def test_crm_exports_are_read_as_they_come(app) -> None:
+    client, project = firm(app)
+
+    def bring_in(text: str, name: str) -> dict:
+        batch = client.get(f"/imports/{upload(client, project, text, name).json()['id']}").json()
+        client.post(f"/imports/{batch['id']}/apply")
+        return batch
+
+    def units() -> dict:
+        return {u["label"]: u for u in client.get(f"/projects/{project}/units").json()["units"]}
+
+    batch = bring_in(SELLDO, "selldo.csv")
+    assert batch["recognised"] == "Sell.Do" and batch["counts"]["add"] == 3
+    got = units()
+    assert got["A-101"]["booked"] and got["A-101"]["buyer_name"] == "Priya Sharma"
+    # A blocked unit is not a sale, even with a name against it.
+    assert not got["A-102"]["booked"] and not got["A-103"]["booked"]
+
+    batch = bring_in(LEADSQUARED, "leadsquared.csv")
+    assert batch["recognised"] == "LeadSquared"
+    got = units()
+    assert got["B-201"]["buyer_name"] == "Anand Rao"
+    assert D(got["B-201"]["agreement_value"]) == D("10000000")
+    assert not got["B-202"]["booked"]  # only a site visit so far

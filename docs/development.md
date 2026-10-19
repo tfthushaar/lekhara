@@ -56,6 +56,8 @@ Main endpoints: `/today`, `/projects`, `/projects/{id}` (with `/money`, `/escrow
 
 Record types are defined once in `api/lekhara/records.py` (fields, aliases, parsing); `registers.py` adds, changes and deletes records with a change history; `imports.py` reads Excel or CSV, previews, applies and undoes. To add a record type, define it in `records.py`, add its register functions, and add a handler for it in `imports.py` (how a row is checked, added, updated, undone and exported). Units and buyers, buyer payments, suppliers, bills, orders, landowner payments, approvals and K-RERA filings are in; try the template at `/imports/templates/units.xlsx`.
 
+CRM exports: their column names are aliases in `records.py`; `crm.py` recognises the CRM from a signature set of headers (stored on `ImportBatch.recognised` and shown on the preview), joins first and last names, and blanks the buyer on a unit whose status is not booked. To add a CRM, add its headers to `crm.SOURCES` and any new column names to the record type's aliases.
+
 Editing as a table (`/projects/{id}/table/{kind}`) shows a page of a record type's export rows as inputs and turns the submitted rows into an import batch with `origin` table (`imports.start_rows`), so the change goes through the same preview, apply and undo, and the history records the source as `edited`. Only types an import can update are offered (`imports.EDITABLE_AS_TABLE`); the columns that identify a row are locked (`record_views.LOCKED`).
 
 Debit notes (`plan._net_debit_notes`) reduce the bill they reference before payments are tied to it (`_settle` leaves debit notes out); the service updates a bill already brought in and records its earlier figures in the result as `bills_changed`, which undo restores. Sales vouchers are matched to Lekhara's demands (`plan._sales`, with the demands passed in `Context.demands`); demands with no voucher are reported only when at least one sales voucher matched a demand.
@@ -81,6 +83,13 @@ A data room that asks who is visiting (`DataRoom.ask_visitor`) shows nothing unt
 ### Packs
 
 `api/lekhara/packs.py` builds the withdrawal pack for the escrow bank, the quarterly progress report and the annual audit pack as a `Pack` of headed sections of figures, written as a PDF by `to_pdf` or as an Excel workbook by `to_xlsx`, so the two always agree. Routes: `/withdrawals/{id}/pack.pdf` and `/projects/{id}/packs/{qpr|audit}/{period end}.{pdf|xlsx}`. The PDF writer in `pdf.py` takes lines; a line starting with `## ` is a bold heading, one starting with `|| ` is fixed-width (for figures that line up), and a line that is exactly `\f` starts a new page. Historical figures come from `services._money` and `services._escrow` at the period's end, not a full snapshot, so older periods do not need every rule to have been in force.
+
+### Security
+
+- **Two-step sign-in** (`two_step.py`): TOTP per RFC 6238 with the standard library; the secret is sealed with `LEKHARA_SECRET_KEY`. `POST /auth/login` answers `{"two_step": true, "ticket": ...}` for someone who has it on, and `POST /auth/login/two-step` exchanges the ticket and a code (or a recovery code) for a session. Invitations accepted by an existing account with two-step on need the code too.
+- **Limits per network address** (`auth.LoginThrottle`, in memory per process): `LEKHARA_SIGNUPS_PER_HOUR`, `LEKHARA_RESETS_PER_HOUR`, `LEKHARA_FAILED_LOGINS_PER_ADDRESS`. Run the local servers with them raised for the end-to-end scripts, which sign up many firms from one address.
+- **Virus checks** (`scan.py`): set `LEKHARA_CLAMAV_URL=tcp://host:3310` to stream every upload, emailed attachment and connector file to clamd. Unset, nothing is scanned.
+- **Row-level security** (`rls.py`, Postgres only): `migrate.upgrade` puts a policy on every table holding a firm's data after each migration, from the models, so a new table with `organization_id` or `project_id` is covered by itself; a table that is a child of one goes in `rls.CHILDREN`. A signed-in person's session is restricted in `current_principal`; everything else (sign-up, shared links, the forwarding address, the connector, jobs, the seed) is unrestricted. In production, run migrations as the database owner and connect the API as a separate role that is not a superuser (`rls.grant` makes one); superusers and owners skip the policies. To run the tests on Postgres: `LEKHARA_TEST_DATABASE_URL=postgresql+psycopg://user:password@host/db python -m pytest` (it drops and recreates the schema, and creates the role `lekhara_app`).
 
 ### Terms, privacy and the access log
 

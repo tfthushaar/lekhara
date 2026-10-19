@@ -23,10 +23,16 @@ def alembic_config(url: str | None = None) -> Config:
 
 
 def upgrade(engine: Engine, revision: str = "head") -> None:
+    """Brings the schema up to date, then (on Postgres) puts the row-level security policies on
+    every table that holds a firm's data, including tables the migrations just added."""
     cfg = alembic_config()
     with engine.begin() as connection:
         cfg.attributes["connection"] = connection
         command.upgrade(cfg, revision)
+        if connection.dialect.name == "postgresql":
+            from lekhara import rls
+
+            rls.install(connection)
 
 
 def main(argv: list[str]) -> None:

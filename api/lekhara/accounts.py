@@ -444,6 +444,7 @@ def accept_invitation(
     name: str | None,
     password: str | None,
     firm: str | None,
+    code: str | None = None,
 ) -> str:
     row = invitation_by_token(session, token)
     user = session.scalars(select(User).where(User.email == row.email)).first()
@@ -463,6 +464,14 @@ def accept_invitation(
         send_verification(session, settings, user)
     elif not verify_password(password or "", user.password_hash):
         raise ServiceError("That password does not match your existing Lekhara account.", 401)
+    elif user.two_step_on is not None:
+        from lekhara import two_step
+
+        if not code:
+            raise ServiceError(
+                "You use two-step sign-in. Enter the code from your authenticator app too.", 401
+            )
+        two_step.check_code(session, settings, user, code)
     if row.org_role:
         if (
             session.scalars(

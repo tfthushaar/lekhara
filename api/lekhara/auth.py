@@ -91,11 +91,21 @@ def _now() -> datetime:
 
 
 class LoginThrottle:
-    """Slows down password guessing: a few failures per email, then a pause."""
+    """Slows down password guessing: a few failures per email, then a pause. The same counter,
+    with another limit and message, caps requests from one network address.
 
-    def __init__(self, limit: int = 5, window_seconds: int = 900) -> None:
+    It counts in memory, per API process: enough for one server. With several, each counts on
+    its own, so the limits loosen by that factor."""
+
+    def __init__(
+        self,
+        limit: int = 5,
+        window_seconds: int = 900,
+        message: str = "Too many attempts. Wait fifteen minutes, then try again.",
+    ) -> None:
         self.limit = limit
         self.window = window_seconds
+        self.message = message
         self._failures: dict[str, deque[float]] = defaultdict(deque)
         self._lock = threading.Lock()
 
@@ -109,7 +119,12 @@ class LoginThrottle:
     def check(self, key: str) -> None:
         with self._lock:
             if len(self._recent(key)) >= self.limit:
-                raise ServiceError("Too many attempts. Wait fifteen minutes, then try again.", 429)
+                raise ServiceError(self.message, 429)
+
+    def count(self, key: str) -> None:
+        """Refuses once `key` has reached the limit, then counts this request."""
+        self.check(key)
+        self.failed(key)
 
     def failed(self, key: str) -> None:
         with self._lock:
@@ -198,7 +213,11 @@ def start_session(session: Session, user: User) -> str:
     return token
 
 
-def login(session: Session, email: str, password: str, throttle: LoginThrottle) -> tuple[str, User]:
+def login(
+    session: Session, email: str, password: str, throttle: LoginThrottle
+) -> tuple[str | None, User]:
+    """A session token, or None when the person uses two-step sign-in and still has to give the
+    code from their authenticator app."""
     key = email.strip().casefold()
     throttle.check(key)
     user = session.scalars(select(User).where(User.email == key)).first()
@@ -206,6 +225,8 @@ def login(session: Session, email: str, password: str, throttle: LoginThrottle) 
         throttle.failed(key)
         raise ServiceError("That email and password do not match.", 401)
     throttle.succeeded(key)
+    if user.two_step_on is not None:
+        return None, user
     return start_session(session, user), user
 
 

@@ -1228,6 +1228,7 @@ def import_batch(
         "kind": batch.kind,
         "title": record.title,
         "filename": batch.filename,
+        "recognised": batch.recognised,
         "status": batch.status,
         "project_id": project.id,
         "project_name": project.name,

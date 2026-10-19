@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-19, with the commit "Read projects from their K-RERA certificate and say what is missing".
+Last updated: 2026-10-19, with the commit "Add two-step sign-in, limits per address, virus checks, row-level security and CRM exports".
 
 ## What we are building
 
@@ -228,10 +228,23 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - K-RERA filings due before the firm started using Lekhara are not counted as late: Today asks once to record them, and the K-RERA tab marks them "Not recorded", with one step to record them all as filed on time.
   - A project with no locality no longer shows a stray comma in its heading.
 - Tested end to end: the GSTIN step, a project read from its certificate and added, the new project's start block and honest figures, the escrow tab saying what it needs, and earlier filings recorded at once.
+- Security:
+  - Two-step sign-in with an authenticator app (Google Authenticator, Microsoft Authenticator and the like): turned on in Settings with a key the app takes, then a six-digit code after the password at every sign-in, and on joining another firm by invitation. Eight recovery codes, each good once, for a lost phone. A code once used cannot be used again; the secret is sealed with the server's key. Recommended in Settings for owners and finance; turning it on and off is in the access log.
+  - Limits per network address, on top of the limits per email: sign-ups, password reset emails, failed sign-ins across all emails, and data room visitors. The numbers are settings.
+  - Every file uploaded, emailed to a project's address or sent by the Tally connector is checked for viruses by ClamAV when a scanner is set up (`LEKHARA_CLAMAV_URL`); a file carrying one is refused by name, and if the scanner cannot be reached, files are refused rather than let through.
+  - Row-level security in Postgres, as a second wall between firms beneath the checks in the code: every table holding a firm's data has a policy, and while a signed-in person's request runs, Postgres shows and accepts only rows of their firms, the sample firm and the projects they certify. The policies are put on after every migration. The whole test suite runs on Postgres with them in force (a new CI job), and a test shows another firm's rows hidden and writes refused with the code's own checks out of the way.
+  - A wrong password or code now shows its own message instead of "Your session has ended".
+- Tested end to end: two-step sign-in turned on, a sign-in asking for the code, a wrong code refused, the right code and a recovery code accepted, and turned off.
+- CRM exports read as they come:
+  - Unit and payment exports from Sell.Do, LeadSquared, Zoho CRM, Salesforce and HubSpot are matched by their own column names (Unit Name, Primary Lead Name, mx_Unit_Number, Deal Name, Closing Date, Amount and the like); the preview says which CRM it recognised.
+  - A first and a last name in separate columns are joined into the buyer's name.
+  - A unit whose status says it is blocked, on hold, available or lost is brought in unsold, even with a name against it.
+  - Built from the CRMs' published field names; to be checked against real exports from design partners.
+- Tested end to end: a Sell.Do inventory export recognised on the preview and imported, with the blocked unit left unsold.
 
 ## In progress
 
-- Security: limits on sign-ups and password resets from the same network address, two-step sign-in with an authenticator app, virus scanning of uploads, and Postgres row-level security.
+- Form errors shown without JavaScript.
 
 ## Left
 
@@ -239,8 +252,8 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 
 In this order:
 
-- Self-serve start, still to do: sign-in with Google and by phone code, limits on sign-ups and resets per network address, and row-level security in Postgres as a second wall between firms when production moves to Postgres.
-- Import centre, still to do: known CRM export formats, templates in Kannada, AI column mapping for unfamiliar sheets.
+- Self-serve start, still to do: sign-in with Google and by phone code (decision 18).
+- Import centre, still to do: templates in Kannada, AI column mapping for unfamiliar sheets.
 - Tally import, after that: testing against real exports from design partners.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
 - S3-compatible file storage.
@@ -249,14 +262,13 @@ In this order:
 - Collections, next steps: reminders through the team's own WhatsApp or email.
 - Disputes, next steps: reading complaints and orders with AI, reply outlines for the lawyer.
 - Document vault, next steps: reading scans and filing documents by themselves.
-- Bank withdrawal pack (PDF); quarterly progress report and annual audit packs.
 - Form errors shown without JavaScript too (today the browser's own checks catch most cases; the server's message appears once the page has loaded its scripts).
 
 ### v2
 
 - Home-loan disbursements, guarantees and insurance, approval conditions and environmental reports, vendor check.
 - Certifier practice workspace.
-- Buyer portal, payables on WhatsApp, contractor billing, approvals tracker, notices.
+- Buyer portal, payables on WhatsApp, contractor billing, notices.
 - Mailbox connection (read-only) and documents sent on WhatsApp.
 - Kannada voice, the Monday briefing, back-office agents.
 

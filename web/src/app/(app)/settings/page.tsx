@@ -4,7 +4,9 @@ import { Suspense } from "react";
 import {
   addSender,
   closeFirm,
+  confirmTwoStep,
   deleteAccount,
+  disableTwoStep,
   keepFirm,
   addStatementPassword,
   cancelInvitation,
@@ -13,6 +15,7 @@ import {
   removeMember,
   removeSender,
   removeStatementPassword,
+  startTwoStep,
   updateFirm,
 } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
@@ -396,6 +399,9 @@ function YourAccount({ f }: { f: Firm }) {
           {`The firm's account is closing: its data will be deleted after ${f.delete_after}. Download everything before then.`}
         </p>
       ) : null}
+      <Suspense fallback={null}>
+        <TwoStep manager={f.can_manage} />
+      </Suspense>
       {f.can_manage ? (
         <Suspense fallback={null}>
           <AccessLogView />
@@ -443,6 +449,8 @@ function YourAccount({ f }: { f: Firm }) {
 const ACTION_LABEL: Record<string, string> = {
   sign_in: "Signed in",
   sign_in_failed: "Failed sign-in",
+  two_step_on: "Turned on two-step sign-in",
+  two_step_off: "Turned off two-step sign-in",
   signed_up: "Signed up",
   password_reset: "Reset the password",
   terms_accepted: "Accepted the terms",
@@ -490,6 +498,43 @@ async function AccessLogView() {
           </tbody>
         </table>
       )}
+    </details>
+  );
+}
+
+async function TwoStep({ manager }: { manager: boolean }) {
+  const t = await api.twoStep();
+  if (t.on) {
+    return (
+      <details className="disclosure">
+        <summary>{`Two-step sign-in is on, since ${day(t.since)}`}</summary>
+        <p className="small muted" style={{ maxWidth: 640 }}>
+          {`${t.recovery_left} recovery ${t.recovery_left === 1 ? "code" : "codes"} left. To turn it off, enter your password.`}
+        </p>
+        <ActionForm action={disableTwoStep} label="Turn two-step sign-in off" pendingLabel="Turning off" secondary>
+          <div className="field" style={{ maxWidth: 360 }}>
+            <label htmlFor="two-step-password">Your password</label>
+            <input id="two-step-password" name="password" type="password" autoComplete="current-password" required />
+          </div>
+        </ActionForm>
+      </details>
+    );
+  }
+  return (
+    <details className="disclosure" open={manager}>
+      <summary>Turn on two-step sign-in</summary>
+      <p className="small muted" style={{ maxWidth: 640 }}>
+        {manager
+          ? "Recommended for owners and finance, who can move money and download everything: after your password, a six-digit code from an authenticator app on your phone."
+          : "After your password, a six-digit code from an authenticator app on your phone, such as Google Authenticator or Microsoft Authenticator."}
+      </p>
+      <ActionForm action={startTwoStep} label="Set it up" pendingLabel="Starting" secondary />
+      <ActionForm action={confirmTwoStep} label="Turn it on" pendingLabel="Checking">
+        <div className="field" style={{ maxWidth: 360 }}>
+          <label htmlFor="two-step-code">The six-digit code from your app</label>
+          <input id="two-step-code" name="code" inputMode="numeric" autoComplete="one-time-code" required />
+        </div>
+      </ActionForm>
     </details>
   );
 }
