@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-19, with the commit "Show form results straight away when a form is sent before the page's scripts load".
+Last updated: 2026-10-19, with the commit "Add the public website: home, pricing, contact and the payment policies".
 
 ## What we are building
 
@@ -243,10 +243,17 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 - Tested end to end: a Sell.Do inventory export recognised on the preview and imported, with the blocked unit left unsold.
 - Forms on a slow connection: a form sent before the page's scripts have arrived now comes back to the same page with its error or confirmation on that form straight away, instead of the message appearing only once the scripts load. Reloading the page afterwards does not send the form again. With the scripts loaded, nothing changes.
 - Tested end to end: sign-in and adding a unit sent as plain posts, the message shown on the right form only and only once, and in a browser with its scripts held back; with scripts, errors still show in place.
+- Public website, in the same monochrome design:
+  - Home, at `/` for anyone not signed in (signed in, `/` is still Today): what only Lekhara does, what it brings in, how it works, your data, and what it does not do.
+  - Pricing: one subscription per firm, everything included, and how paying works. The amount shows once it is set (`LEKHARA_PRICE_PER_MONTH`); until then the page says the price is being set with the first builders.
+  - Contact: email, phone if set, office, and the grievance officer.
+  - Cancellation and refunds, and shipping and delivery, next to the terms, privacy notice and data processing terms, as Razorpay asks for. The refund rules follow decision 11's recommendation: monthly runs to the end of the month paid; yearly is 12 months for the price of 10 with unused whole months refunded; refunds within 7 working days.
+  - The sign-in pages' wordmark leads back to the website.
+- Tested end to end: the website signed out, the price not yet set, the policy pages, private pages still asking to sign in, and `/` as Today once signed in; screenshots on a computer and a phone.
 
 ## In progress
 
-- Public website: home, pricing and contact, with the refund and cancellation policy pages a payment gateway checks.
+- Our admin console: firms, trials, payments, and support access only with the firm's consent and always logged.
 
 ## Left
 
@@ -259,6 +266,7 @@ In this order:
 - Tally import, after that: testing against real exports from design partners.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
 - S3-compatible file storage.
+- A written incident-response runbook: CERT-In within 6 hours, affected firms within 24, the Data Protection Board within 72.
 - Automatic feeds, decided on 2026-10-18 (everything except what needs a bank partnership), still to do: Sell.Do and other CRMs by API; GSTR-2B fetched through a GSP (an OTP about once a month), once there is a GSP account. Bank APIs and the Account Aggregator wait.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
 - Collections, next steps: reminders through the team's own WhatsApp or email.

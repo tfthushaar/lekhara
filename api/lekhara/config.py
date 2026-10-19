@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     secret_key: str | None = None
     """Seals secrets kept for firms, such as statement passwords. Set it in production."""
     worker: bool = True
+    """Run background jobs (incoming mail, connectors) inside the API process."""
     clamav_url: str | None = None
     """tcp://host:3310 of a clamd daemon to check every file for viruses; unset, nothing is
     scanned."""
@@ -48,7 +49,14 @@ class Settings(BaseSettings):
     company_address: str = "Bengaluru, Karnataka, India"
     grievance_officer: str = "The grievance officer"
     grievance_email: str = "grievance@lekhara.local"
-    """Run background jobs (incoming mail, connectors) inside the API process."""
+    contact_email: str = "hello@lekhara.local"
+    """Where builders write to us, shown on the website's contact page."""
+    contact_phone: str | None = None
+    price_per_month: int | None = None
+    """The subscription in rupees a month before GST, shown on the pricing page; unset until
+    the prices are decided."""
+    months_charged_per_year: int = 10
+    """Paying yearly: twelve months for the price of this many."""
 
     def as_of(self) -> date:
         return self.today or date.today()

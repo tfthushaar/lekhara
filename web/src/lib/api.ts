@@ -902,6 +902,12 @@ export type LegalInfo = {
   company_address: string;
   grievance_officer: string;
   grievance_email: string;
+  contact_email: string;
+  contact_phone: string | null;
+  /** Rupees a month before GST; null until the prices are set. */
+  price_per_month: number | null;
+  months_charged_per_year: number;
+  trial_days: number;
   close_after_days: number;
   log_days: number;
   sub_processors: { what: string; who: string }[];

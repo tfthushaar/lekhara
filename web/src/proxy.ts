@@ -3,21 +3,23 @@ import { type NextRequest, NextResponse } from "next/server";
 import { FLASH_COOKIE, FLASH_HEADER, decodeFlash, encodeFlash } from "@/lib/flash";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
 
-// Sign-up, password resets, email checks, invitations, shared data rooms and the legal pages are
-// opened without signing in.
-const OPEN = /^\/(login|signup|forgot|reset|verify|invite|shared|legal)(\/|$)/;
+// The website, sign-up, password resets, email checks, invitations, shared data rooms and the
+// legal pages are opened without signing in.
+const OPEN = /^\/(welcome|pricing|contact|login|signup|forgot|reset|verify|invite|shared|legal)(\/|$)/;
 
 /**
- * An optimistic check only: without a session cookie, go to sign-in. Whether the session is
- * valid, and what the person may see, is decided by the API on every request.
+ * An optimistic check only: without a session cookie, "/" shows the website and anything else
+ * goes to sign-in. Whether the session is valid, and what the person may see, is decided by the
+ * API on every request.
  *
  * Also hands the result of a form sent before the page's scripts loaded to the page it came
  * from, once (see `settled`).
  */
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  if (!OPEN.test(path) && !request.cookies.has(SESSION_COOKIE)) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  if (!request.cookies.has(SESSION_COOKIE)) {
+    if (path === "/") return NextResponse.rewrite(new URL("/welcome", request.url));
+    if (!OPEN.test(path)) return NextResponse.redirect(new URL("/login", request.url));
   }
   const forwarded = new Headers(request.headers);
   forwarded.delete(FLASH_HEADER);

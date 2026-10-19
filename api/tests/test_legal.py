@@ -48,6 +48,9 @@ def test_signing_up_means_accepting_the_terms(app, engine) -> None:
     info = TestClient(app).get("/legal").json()
     assert info["version"] == legal.VERSION and info["grievance_email"]
     assert info["close_after_days"] == 30 and info["sub_processors"]
+    # What the public website shows: how to reach us, and the price once it is set.
+    assert info["contact_email"] and info["trial_days"] == 30
+    assert info["price_per_month"] is None and info["months_charged_per_year"] == 10
 
 
 def test_a_new_version_is_accepted_again(app, monkeypatch) -> None:

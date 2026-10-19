@@ -1,29 +1,23 @@
-import Link from "next/link";
 import { Suspense } from "react";
 
+import { POLICIES, SiteFooter, SiteHeader } from "@/components/site";
+import { LinkRow } from "@/components/site-nav";
 import { api } from "@/lib/api";
 
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <header className="topbar">
-        <div className="topbar-inner">
-          <Link href="/" className="wordmark">
-            Lekhara
-          </Link>
-          <nav className="nav" aria-label="Legal">
-            <Link href="/legal/terms">Terms of service</Link>
-            <Link href="/legal/privacy">Privacy notice</Link>
-            <Link href="/legal/data-processing">Data processing terms</Link>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
       <main className="main legal">
+        <Suspense fallback={<LinkRow links={POLICIES} label="Policies" className="tabs" plain />}>
+          <LinkRow links={POLICIES} label="Policies" className="tabs" />
+        </Suspense>
         {children}
         <Suspense fallback={null}>
           <Contact />
         </Suspense>
       </main>
+      <SiteFooter />
     </>
   );
 }

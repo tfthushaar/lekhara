@@ -11,7 +11,9 @@ export const metadata: Metadata = { title: "Sign in" };
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <main className="login">
-      <p className="wordmark login-wordmark">Lekhara</p>
+      <Link href="/" className="wordmark login-wordmark">
+        Lekhara
+      </Link>
       <div className="login-card">
         <h1>Sign in</h1>
         <Suspense fallback={null}>

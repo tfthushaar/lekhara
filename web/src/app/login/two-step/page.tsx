@@ -9,7 +9,9 @@ export const metadata: Metadata = { title: "Sign in" };
 export default function TwoStepPage() {
   return (
     <main className="login">
-      <p className="wordmark login-wordmark">Lekhara</p>
+      <Link href="/" className="wordmark login-wordmark">
+        Lekhara
+      </Link>
       <div className="login-card">
         <h1>The code from your app</h1>
         <p className="muted" style={{ marginTop: 6, marginBottom: 24 }}>

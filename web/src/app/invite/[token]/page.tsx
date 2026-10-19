@@ -11,7 +11,9 @@ export const metadata: Metadata = { title: "Your invitation", referrer: "no-refe
 export default function InvitePage({ params }: PageProps<"/invite/[token]">) {
   return (
     <main className="login">
-      <p className="wordmark login-wordmark">Lekhara</p>
+      <Link href="/" className="wordmark login-wordmark">
+        Lekhara
+      </Link>
       <div className="login-card">
         <Suspense fallback={<p className="loading">Opening your invitation</p>}>
           <Invitation params={params} />
