@@ -103,18 +103,20 @@ class LoginThrottle:
     """Slows down password guessing: a few failures per email, then a pause. The same counter,
     with another limit and message, caps requests from one network address.
 
-    It counts in memory, per API process: enough for one server. With several, each counts on
-    its own, so the limits loosen by that factor."""
+    With a store (limits.DatabaseStore) every API server shares one count; without one it
+    counts in memory, which is enough for a single server and for tests."""
 
     def __init__(
         self,
         limit: int = 5,
         window_seconds: int = 900,
         message: str = "Too many attempts. Wait fifteen minutes, then try again.",
+        store=None,
     ) -> None:
         self.limit = limit
         self.window = window_seconds
         self.message = message
+        self.store = store
         self._failures: dict[str, deque[float]] = defaultdict(deque)
         self._lock = threading.Lock()
 
@@ -125,10 +127,15 @@ class LoginThrottle:
             failures.popleft()
         return failures
 
-    def check(self, key: str) -> None:
+    def _count(self, key: str) -> int:
+        if self.store is not None:
+            return self.store.recent(key, self.window)
         with self._lock:
-            if len(self._recent(key)) >= self.limit:
-                raise ServiceError(self.message, 429)
+            return len(self._recent(key))
+
+    def check(self, key: str) -> None:
+        if self._count(key) >= self.limit:
+            raise ServiceError(self.message, 429)
 
     def count(self, key: str) -> None:
         """Refuses once `key` has reached the limit, then counts this request."""
@@ -136,10 +143,16 @@ class LoginThrottle:
         self.failed(key)
 
     def failed(self, key: str) -> None:
+        if self.store is not None:
+            self.store.add(key)
+            return
         with self._lock:
             self._recent(key).append(time.monotonic())
 
     def succeeded(self, key: str) -> None:
+        if self.store is not None:
+            self.store.clear(key)
+            return
         with self._lock:
             self._failures.pop(key, None)
 

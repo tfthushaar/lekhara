@@ -27,6 +27,7 @@ from lekhara import (
     jobs,
     krera_certificate,
     legal,
+    limits,
     packs,
     passkeys,
     passwords,
@@ -519,25 +520,36 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     if settings.auto_migrate:
         upgrade(engine)
     session_factory = make_sessionmaker(engine)
-    throttle = auth.LoginThrottle()
+
+    # Counted in the database, so every API server shares the same limits.
+    def store(bucket: str) -> limits.DatabaseStore:
+        return limits.DatabaseStore(session_factory, bucket)
+
+    throttle = auth.LoginThrottle(store=store("email"))
     by_address = {
         "signup": auth.LoginThrottle(
             settings.signups_per_hour,
             3600,
             "Too many sign-ups from this network. Try again in an hour.",
+            store=store("signup"),
         ),
         "forgot": auth.LoginThrottle(
             settings.resets_per_hour,
             3600,
             "Too many reset emails asked for from this network. Try again in an hour.",
+            store=store("forgot"),
         ),
         "login": auth.LoginThrottle(
             settings.failed_logins_per_address,
             900,
             "Too many failed sign-ins from this network. Wait fifteen minutes, then try again.",
+            store=store("login"),
         ),
         "visitor": auth.LoginThrottle(
-            30, 3600, "Too many visitors from this network. Try again in an hour."
+            30,
+            3600,
+            "Too many visitors from this network. Try again in an hour.",
+            store=store("visitor"),
         ),
     }
 

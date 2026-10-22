@@ -98,6 +98,8 @@ NOT_EXPORTED = {
     "subscription_payments": "Lekhara's own billing records, sent as invoices",
     "passkeys": "public halves of sign-in keys, of no use outside Lekhara",
     "passkey_challenges": "one-time sign-in challenges",
+    "access_log_head": "the end of the access log's chain, Lekhara's own check",
+    "rate_limit_events": "counted sign-in attempts, kept a day",
 }
 """Tables left out of the export, and why."""
 

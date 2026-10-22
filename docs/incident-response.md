@@ -78,7 +78,7 @@ Rotate what may have leaked:
 - **The database password.** Rotate it in the hosting provider, then update `LEKHARA_DATABASE_URL` and restart.
 - **SMTP credentials.**
 - **`LEKHARA_INBOUND_SECRET`.** Rotate it in both Lekhara and the email service.
-- **`LEKHARA_SECRET_KEY`.** Rotate it only if it leaked. It seals statement passwords and two-step secrets, and there is no re-sealing tool yet. After a change, firms re-enter their statement passwords, and everyone with two-step sign-in sets it up again. Sign everyone out first.
+- **`LEKHARA_SECRET_KEY`.** Rotate it only if it leaked. It seals statement passwords and two-step secrets. Set the new key as `LEKHARA_SECRET_KEY` and the leaked one in `LEKHARA_OLD_SECRET_KEYS`, restart, run `python -m lekhara.secretbox reseal`, then remove the old key and restart again. Sign everyone out first.
 
 Block the source:
 
@@ -87,7 +87,7 @@ Block the source:
 
 ## Find out what happened
 
-The access log (`access_events`) is kept a year and is the first place to look. Every sign-in, failed sign-in, export, document opened, change to who may do what, support visit and staff action is there, with the address and browser.
+The access log (`access_events`) is kept a year and is the first place to look. First check nobody has altered it: `python -m lekhara.legal verify-log` walks its chain and names the first entry changed or removed. Every sign-in, failed sign-in, export, document opened, change to who may do what, support visit and staff action is there, with the address and browser.
 
 ```sql
 -- Everything from one address

@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     as, posted mail."""
     secret_key: str | None = None
     """Seals secrets kept for firms, such as statement passwords. Set it in production."""
+    backup_key: str | None = None
+    """The passphrase backups are encrypted with (python -m lekhara.backup). Keep it apart from
+    the servers and from the backups."""
+    old_secret_keys: str | None = None
+    """Earlier secret keys, comma-separated, still accepted while secrets are resealed with
+    the current one (python -m lekhara.secretbox reseal)."""
     session_idle_hours: float = 12
     """A session unused this long ends by itself."""
     password_breach_check: bool = True

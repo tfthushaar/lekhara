@@ -34,6 +34,8 @@ IDENTITY_TABLES = {
     "outbound_emails",
     "passkeys",
     "passkey_challenges",
+    "access_log_head",
+    "rate_limit_events",
 }
 """Read while working out who the person is, or written with no firm known yet: kept in the open
 for the code to guard."""

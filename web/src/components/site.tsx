@@ -5,6 +5,7 @@ import { LinkRow, type SiteLink } from "@/components/site-nav";
 
 const SITE: SiteLink[] = [
   { href: "/pricing", label: "Pricing" },
+  { href: "/security", label: "Security" },
   { href: "/contact", label: "Contact" },
 ];
 

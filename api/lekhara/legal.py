@@ -7,10 +7,14 @@ Rules, the CERT-In Directions (logs kept 180 days in India), and the consumer au
 guidelines on dark patterns.
 """
 
+import hashlib
+import logging
 import secrets
+import sys
 from datetime import date, timedelta
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from lekhara import jobs
@@ -19,6 +23,7 @@ from lekhara.config import Settings
 from lekhara.models import (
     Acceptance,
     AccessEvent,
+    AccessLogHead,
     Membership,
     OneTimeToken,
     Organization,
@@ -29,6 +34,8 @@ from lekhara.models import (
     utcnow,
 )
 from lekhara.services import ServiceError
+
+log = logging.getLogger("lekhara.legal")
 
 VERSION = "2026-10-18"
 """The version of the terms, the privacy notice and the data processing terms in force."""
@@ -117,19 +124,93 @@ def record(
     user_agent: str | None = None,
     commit: bool = True,
 ) -> None:
-    session.add(
-        AccessEvent(
-            organization_id=organization_id,
-            user_id=user.id if user else None,
-            who=user.email if user else None,
-            action=action[:48],
-            detail=(detail or None) and detail[:300],
-            ip=(ip or None) and ip[:64],
-            user_agent=(user_agent or None) and user_agent[:300],
-        )
+    """Adds an event to the access log. Once committed it is chained to the one before it
+    (see seal_log); an event recorded without committing joins the chain at the next seal."""
+    event = AccessEvent(
+        at=utcnow(),
+        organization_id=organization_id,
+        user_id=user.id if user else None,
+        who=user.email if user else None,
+        action=action[:48],
+        detail=(detail or None) and detail[:300],
+        ip=(ip or None) and ip[:64],
+        user_agent=(user_agent or None) and user_agent[:300],
     )
+    session.add(event)
     if commit:
         session.commit()
+        seal_log(session)
+
+
+def seal_log(session: Session) -> int:
+    """Chains every committed event not yet in the chain, in a transaction of its own on this
+    session (which must have nothing uncommitted).
+
+    It begins by writing to the chain's end, which takes the database's write lock (a row lock
+    on Postgres, the file's on SQLite) before anything is read, so requests arriving together
+    queue here instead of forking the chain. An event whose request was rolled back never
+    reaches the chain, since only committed events are seen."""
+    moved = session.execute(
+        update(AccessLogHead).where(AccessLogHead.id == 1).values(seq=AccessLogHead.seq)
+    ).rowcount
+    if not moved:
+        try:
+            session.add(AccessLogHead(id=1, seq=0, hash=""))
+            session.flush()
+        except IntegrityError:
+            session.rollback()
+            return seal_log(session)  # another server started the chain first
+    head = session.get(AccessLogHead, 1, populate_existing=True)
+    events = list(
+        session.scalars(
+            select(AccessEvent)
+            .where(AccessEvent.seq.is_(None))
+            .order_by(AccessEvent.at, AccessEvent.id)
+        )
+    )
+    for event in events:
+        event.seq, event.prev_hash = head.seq + 1, head.hash
+        event.hash = _event_hash(event)
+        head.seq, head.hash = event.seq, event.hash
+    session.commit()
+    return len(events)
+
+
+def _event_hash(event: AccessEvent) -> str:
+    fields = (
+        event.prev_hash or "",
+        str(event.seq),
+        event.at.isoformat(),
+        event.organization_id or "",
+        event.user_id or "",
+        event.who or "",
+        event.action,
+        event.detail or "",
+        event.ip or "",
+        event.user_agent or "",
+    )
+    return hashlib.sha256("\x1f".join(fields).encode("utf-8")).hexdigest()
+
+
+def verify_log(session: Session) -> dict:
+    """Walks the access log's chain from its oldest kept event. Any event changed, inserted or
+    taken out since it was written (other than the oldest, pruned after a year) breaks it."""
+    checked, previous = 0, None
+    for event in session.scalars(
+        select(AccessEvent).where(AccessEvent.seq.is_not(None)).order_by(AccessEvent.seq)
+    ):
+        if previous is not None and (
+            event.seq != previous.seq + 1 or event.prev_hash != previous.hash
+        ):
+            return {"intact": False, "checked": checked, "broken_at": event.seq}
+        if _event_hash(event) != event.hash:
+            return {"intact": False, "checked": checked, "broken_at": event.seq}
+        checked, previous = checked + 1, event
+    head = session.get(AccessLogHead, 1)
+    if previous is not None and head is not None and head.hash != previous.hash:
+        # The newest events were taken out.
+        return {"intact": False, "checked": checked, "broken_at": previous.seq + 1}
+    return {"intact": True, "checked": checked, "broken_at": None}
 
 
 def events_for(session: Session, organization_id: str, limit: int = 200) -> list[AccessEvent]:
@@ -407,6 +488,31 @@ def _daily(ctx: jobs.Context, payload: dict) -> None:
     for org in due_for_deletion(ctx.session, ctx.settings.as_of()):
         purge_firm(ctx.session, ctx.storage, org)
     prune_log(ctx.session)
+    seal_log(ctx.session)
+    checked = verify_log(ctx.session)
+    if not checked["intact"]:
+        log.error("The access log's chain is broken at event %s.", checked["broken_at"])
 
 
 jobs.every("legal.daily", 24 * 3600)
+
+
+def main(argv: list[str]) -> int:
+    """python -m lekhara.legal verify-log: checks the access log has not been altered."""
+    from lekhara.config import get_settings
+    from lekhara.db import make_engine, make_sessionmaker
+
+    if argv != ["verify-log"]:
+        print(main.__doc__)
+        return 2
+    with make_sessionmaker(make_engine(get_settings().database_url))() as session:
+        result = verify_log(session)
+    if result["intact"]:
+        print(f"The access log is intact: {result['checked']} events checked.")
+        return 0
+    print(f"The access log has been altered at event {result['broken_at']}.")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

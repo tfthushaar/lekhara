@@ -13,6 +13,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -1111,6 +1112,11 @@ class AccessEvent(Base):
     detail: Mapped[str | None] = mapped_column(String(300))
     ip: Mapped[str | None] = mapped_column(String(64))
     user_agent: Mapped[str | None] = mapped_column(String(300))
+    seq: Mapped[int | None] = mapped_column(Integer, index=True)
+    """Its place in the chain: each event carries a hash of itself and of the one before, so
+    an event changed or taken out later breaks the chain (see legal.verify_log)."""
+    prev_hash: Mapped[str | None] = mapped_column(String(64))
+    hash: Mapped[str | None] = mapped_column(String(64))
 
 
 class Job(Base):
@@ -1207,3 +1213,27 @@ class PasskeyChallenge(Base):
     purpose: Mapped[str] = mapped_column(String(16))
     challenge: Mapped[str] = mapped_column(String(128))
     expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class AccessLogHead(Base):
+    """The end of the access log's chain: the last event's place and hash."""
+
+    __tablename__ = "access_log_head"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    seq: Mapped[int] = mapped_column(Integer, default=0)
+    hash: Mapped[str] = mapped_column(String(64), default="")
+
+
+class RateLimitEvent(Base):
+    """One counted attempt, for limits shared by every API server. The key (an email or an
+    address) is kept only as a hash."""
+
+    __tablename__ = "rate_limit_events"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    bucket: Mapped[str] = mapped_column(String(32))
+    key_hash: Mapped[str] = mapped_column(String(64))
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+    __table_args__ = (Index("ix_rate_limit_events_bucket_key", "bucket", "key_hash"),)

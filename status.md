@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-22, with the commit "Add passkeys".
+Last updated: 2026-10-22, with the commit "Rotate keys, chain the access log, share limits across servers, encrypted backups, a security page".
 
 ## What we are building
 
@@ -283,9 +283,18 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 - Passkeys: sign in with the phone's or computer's own lock (fingerprint, face or PIN) instead of a password. Added in Settings after confirming it is you, named to tell them apart, and removable. A passkey only works on Lekhara's own address, so a fake sign-in page cannot use it; it counts as two-step sign-in for the firm's rule and the admin console. Sign-in needs no email: the browser offers the passkeys it holds.
 - Tested: passkeys added, used to sign in, refused for a look-alike site or when unknown, the same answer refused twice, removal asking to confirm first, and a passkey counting as two-step (with a software authenticator in the tests); in Chrome with its virtual authenticator, a passkey added in Settings and used to sign back in without a password.
 
+- Security hardening, last round:
+  - The secret key can be changed without losing anything: the old key stays readable while every sealed secret is sealed again with the new one (`python -m lekhara.secretbox reseal`).
+  - The access log is tamper-evident: each entry carries a hash of itself and of the one before, so an entry changed or removed later shows (`python -m lekhara.legal verify-log`, also run daily). Requests arriving together queue on the chain's end instead of forking it.
+  - Sign-in and sign-up limits are counted in the database, so they hold across any number of servers; emails and addresses are kept only as hashes.
+  - Encrypted backups of the database and every document (`python -m lekhara.backup create`, `check`, `restore`): AES-256 in sealed pieces, so a backup cut short, altered or opened with the wrong key is refused; each document is checked against its fingerprint.
+  - A public Security page, and a `security.txt` saying where to report a weakness.
+  - The CI's actions are pinned to exact commits.
+- Tested: a secret sealed with the old key read with both, resealed, then read with the new key alone; an access log entry altered and the newest removed, both caught; twenty events written at once keeping one chain; failed sign-ins on two servers counting together; a backup checked and restored, and an altered, a cut-short and a wrongly keyed one refused; all on SQLite and the security tests on Postgres with row-level security; every end-to-end suite, with the live access log intact afterwards.
+
 ## In progress
 
-- Security hardening, next: key rotation, backups, a tamper-evident access log, limits shared across servers, and a security page. Then the features borrowed from other software (`research-borrow-and-secure.md`, outside the repository).
+- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository): incremental Tally sync, filing documents by rules, a register of originals, a nightly file check, stronger data rooms, bank rules, help with the GST Invoice Management System, and a signing record on certificates.
 
 ## Left
 
