@@ -1,115 +1,136 @@
-<a href="media/lekhara.mp4"><img src="media/lekhara.jpg" alt="Lekhara in under a minute: what builders in Karnataka owe, and how Lekhara keeps track of it" width="100%"></a>
-
-[Watch the video](media/lekhara.mp4) (52 seconds)
+<div align="center">
 
 # Lekhara
 
-Lekhara runs everything outside your ERP: what your projects owe K-RERA, the escrow bank, the tax department, landowners, buyers and lenders, and what they owe you. If you don't run an ERP or CRM, Lekhara gives you the rest of the system too, in one place, on WhatsApp, in Kannada or English.
+**What your projects owe, worked out.**
 
-Built for builders in Karnataka. Starting in Bengaluru.
+The RERA account, K-RERA filings, tax, registrations and buyer complaints, kept track of for every project.<br>
+For builders in Karnataka. Free for a month. Starting in Bengaluru.
 
----
+[**Watch the video**](https://cdn.jsdelivr.net/gh/tfthushaar/lekhara@site/lekhara.mp4) · [What works today](#what-works-today) · [Pricing](#pricing)
 
-## Who it is for
+<a href="https://cdn.jsdelivr.net/gh/tfthushaar/lekhara@site/lekhara.mp4">
+  <img src="media/lekhara-preview.gif" alt="Lekhara in under a minute: 70 of every 100 rupees buyers pay goes into the RERA account, fines for late K-RERA updates, interest to buyers for late handover, and how Lekhara keeps track of it. Click to watch the video." width="100%">
+</a>
 
-- **Developers:** promoters, CFOs, heads of projects and accounts teams, from one project to many. Plotted layouts as well as apartments.
-- **The people who work with them:** the architects, engineers and chartered accountants who certify projects; the banks and lenders who fund them; landowners in joint development.
+<sub><a href="https://cdn.jsdelivr.net/gh/tfthushaar/lekhara@site/lekhara.mp4">Watch it as a video</a>, 52 seconds</sub>
 
-## What only Lekhara does
+</div>
 
-**Know how much you can withdraw from your RERA account today.**
-Lekhara works out what your costs entitle you to draw from the designated account. It prepares the architect's, engineer's and CA's certificates, checks that their figures agree before anything goes to the bank, and follows the request until the money is released. Each certificate signed in Lekhara keeps a record of who signed it, when and from where, with a code your bank can use to check that nothing changed after signing.
+<p align="center">
+  <img src="media/screen-today.jpg" alt="Today: what you can draw from your RERA accounts, what's due this week, and what needs you now" width="49%">
+  <img src="media/screen-rera-account.jpg" alt="The RERA account: how much you can withdraw today, and how Lekhara worked it out" width="49%">
+  <img src="media/screen-krera.jpg" alt="K-RERA: each quarterly update shown as filed, current or late" width="49%">
+  <img src="media/screen-handover.jpg" alt="Handover: where each unit is held up on the way to registration" width="49%">
+</p>
 
-**Never miss a K-RERA deadline.**
-Quarterly progress reports and the annual audit are prepared from your own records, and each one shows as due, late or filed until you record it with its acknowledgement. Download each quarter's figures for the K-RERA portal, and each year's audit pack for your CA, with a draft for the CA to check and sign. If possession runs late, Lekhara shows the delay interest building up, month by month.
+Every project you build owes something to someone: K-RERA, the bank that holds your RERA account, the tax department, your landowners and your buyers. Lekhara keeps track of all of it from the Tally files and bank statements you already have. It tells you what's due and what's late, and prepares the papers, so your architect, engineer and CA only have to check and sign.
 
-**See tax traps before they become bills.**
-- The 80% registered-supplier test for residential GST, tracked through the year.
-- GST on development rights for flats still unsold at completion on JDA projects, and what each sale before then saves.
-- Sales priced more than 10% below guidance value.
-- TDS on payments to landowners, labour cess, and payments to MSME suppliers approaching the 45-day limit.
+## Your RERA account
 
-**Get every unit registered.**
-See unit by unit what stands between a buyer and registration: occupancy certificate, e-Khata, final payment, sale deed, appointment. See how much money is waiting on it. Each unit comes with a fact sheet for your lawyer's sale deed and an estimate of the buyer's stamp duty and fees, and Lekhara reminds you when the common areas are due to go to the residents' association. Send each buyer a possession letter once the occupancy certificate is in, and tick off everything the association needs, from the corpus fund to the keys.
+- **How much you can withdraw today,** worked out from your costs and the balance in the account, with every step of the sum shown.
+- **The certificates prepared for you.** Lekhara fills in the architect's, engineer's and CA's certificates from your books, checks that their figures agree, and follows the request until the bank releases the money.
+- **A record of every signature.** Each certificate signed in Lekhara records who signed, when and from where, with a code your bank can use to check that nothing changed after signing.
+- **The 70% rule watched for you:** how much of what buyers paid should be in the RERA account, and how much is still to go in.
 
-**Stay ahead of complaints.**
-Every K-RERA, consumer and civil case in one register, with hearings, deadlines and what each one could cost, worked out from what the buyer actually paid. When an order is passed, Lekhara shows what it directs to the rupee, the date to comply by, and the last day to appeal with the deposit an appeal needs. Weigh a settlement against the order before you agree to it.
+## K-RERA
 
-**Collect from buyers' banks faster.**
-Track every home-loan disbursement by bank and milestone, and send each bank the documents it asks for.
+- **Quarterly updates and the annual audit,** prepared from your own records and shown as due, late or filed until you record the acknowledgement.
+- **The figures for the K-RERA portal,** ready to download each quarter, and an audit pack with a draft for your CA to check and sign.
+- **Delay interest, month by month,** when possession runs late, so you know what buyers can claim before they claim it.
 
-**Plotted layouts, done right.**
-Which plots are released, which are mortgaged, what work unlocks the next release, and a stop on selling plots that are not yet free.
+## Tax
 
-**Guarantees, insurance and approval conditions.**
-Bank guarantees, insurance cover and the conditions attached to every approval, with renewals and deadlines that are never missed.
+- **The 80% registered-supplier test** for residential GST, tracked through the year.
+- **GST on development rights** for flats still unsold at completion on JDA projects, and what each sale before then saves you.
+- **Sales priced more than 10% below guidance value,** flagged before you agree to them.
+- **TDS on payments to landowners, labour cess, and MSME suppliers** coming up to the 45-day limit.
+- **Your GSTR-2B checked against your bills:** which suppliers haven't reported their invoices, which amounts differ, and which invoices to accept, keep pending or reject in the GST Invoice Management System, and why.
 
-**Keep landowners' shares straight.**
-Every unit is marked as yours or the landowner's, with entitlements, payments and TDS under each joint development agreement.
+## Registration and handover
 
-**Decide on new land with Indian numbers.**
-Compare an outright purchase with a joint development, premium FAR with TDR, with GST and the RERA escrow built in.
+- **Unit by unit, what stands between a buyer and registration:** occupancy certificate, e-Khata, final payment, sale deed and the appointment, with how much money is waiting on it.
+- **A fact sheet for your lawyer's sale deed** and an estimate of the buyer's stamp duty and fees.
+- **Possession letters** once the occupancy certificate is in, and a checklist of everything the residents' association needs, from the corpus fund to the keys.
 
-## Everything else, in one place
+## Complaints and orders
 
-If you already use other tools, keep them. Lekhara reads from them instead. If you don't, Lekhara has:
+- **Every K-RERA, consumer and civil case in one register,** with hearings, deadlines, and what each one could cost, worked out from what the buyer actually paid.
+- **What an order directs, to the rupee,** the date to comply by, and the last day to appeal with the deposit an appeal needs.
+- **Weigh a settlement against the order** before you agree to it.
 
-- **Sales and bookings:** live inventory, cost sheets and bookings, with a warning before any discount creates a tax problem.
-- **Collections:** your payment plan set up in a minute from a standard one, demand letters that go out when your architect certifies a stage, and buyers' payments typed in, imported from your collections register or brought in from Tally.
-- **Channel partners:** commissions paid only to K-RERA-registered agents.
-- **Agreements:** generated from your data, e-stamped and e-signed.
-- **A buyer portal:** payments, documents, certified progress and registration readiness, on WhatsApp.
-- **Payables on WhatsApp:** approve bills with the budget, contract and tax position in front of you.
-- **Approvals:** every approval, consent and NOC with when it lapses, and a reminder in time to renew it.
-- **Contractor bills and purchase prices.**
-- **Site progress from ordinary site photos.**
-- **Snags, defects and the five-year defect liability.**
-- **A document vault:** every paper filed against its project, unit, case or approval, and searchable to the page it is on. Documents file themselves by your own rules ("fire NOC" means an approval, and the fire NOC on the checklist), and a register of paper originals, each with a barcode label, tells you whether the title deed is in the safe, with the bank or with the lawyer. A checklist of what banks and K-RERA ask for, reminders before approvals and policies lapse, and data rooms for lenders that close on the date you choose, with every visit recorded and, if you like, who made it. Each PDF a visitor opens carries their email and the date on every page, visitors can be asked to accept your confidentiality terms first, and you are emailed the first time each one opens the room.
-- **Notices, title documents and board packs.**
+## Collections and landowners
 
-## How it works
+- **Your payment plan** set up in a minute from a standard one, and demand letters that go out when your architect certifies a stage.
+- **Buyers' payments** typed in, imported from your collections register, or matched to their units from your bank statement.
+- **Landowners' shares kept straight:** every unit marked as yours or the landowner's, with entitlements, payments and TDS under each joint development agreement.
 
-1. **Start in minutes.** Sign up and use Lekhara free for a month. Add your company from its GSTIN and each project from its K-RERA certificate, then drop in what you already have: Tally exports, bank statements, your CRM or Excel unit list, approvals. Each project shows what is already in, what is out of date, and what each missing piece switches on, with a link straight to where it comes in. Change many records at once by editing them as a table, and check the changes before they are saved. Nothing to install, and no call with us needed.
-2. **Lekhara reads.** Agreements, approvals, bills, certificates and payments are read for you, including documents in Kannada. You can still type in or correct anything yourself.
-3. **Lekhara prepares.** Filings, certificates, letters and packs are ready before they are due, with every figure traced to the document it came from.
-4. **People sign.** Your architect, engineer and CA review and sign from their own Lekhara access. Nothing is filed, signed or paid without the responsible person.
+## Documents
 
-## Ten minutes a day
-
-Lekhara tells you what needs you today, in order of what matters most. Approve what is ready, read the Monday briefing, and ask anything by voice in Kannada, Hindi or English.
+- **Every paper filed against its project, unit, case or approval,** and searchable to the page it's on. Documents file themselves by your own rules, such as "fire NOC" meaning an approval.
+- **Approvals and policies,** with a reminder before each one lapses.
+- **Paper originals** each get a barcode label, so you know whether the title deed is in the safe, with the bank or with the lawyer.
+- **Data rooms for lenders** that close on the date you choose. Every PDF a visitor opens carries their email and the date, visitors can be asked to accept your confidentiality terms first, and you get an email the first time each one opens the room.
 
 ## Your data, in and out
 
-- **Straight from Tally, by itself if you like.** Put the small Lekhara Connector on the computer with Tally and your books come in every few minutes, with no exporting; it only reads Tally and opens nothing to the internet. Or export from TallyPrime or Tally.ERP 9 as XML, JSON or an Excel report, and drop the file in. Lekhara fills in your suppliers, their bills, your buyers' payments, cost incurred and paid against each cost line, the RERA account's deposits and withdrawals, and payments to landowners, and tells you exactly what the file is missing, such as a supplier's GSTIN or MSME details, and where to add it. With a file, there is nothing to install on your Tally machine.
-- **Straight from your bank.** Download the statement from net banking as Excel or CSV, whichever bank it is, and drop it in. Lekhara matches each buyer's payment to their unit, including home-loan disbursements, asks you about the rest once and remembers the answer, keeps the RERA account's deposits, withdrawals, interest and charges, and never counts the same money twice, even if Tally already brought it in.
-- **Just forward it.** Every project has its own email address. Forward a bank statement, a Tally export, a bill or a document, or ask your bank to email statements there every month, and Lekhara brings each file in by itself, even statements locked with a password. Mail from anyone outside your team waits for you to allow it.
-- **Checked against the GST portal.** Drop in your GSTR-2B and Lekhara shows which of your suppliers have not reported their bills (their credit, and the 80% test, are at risk until they do), which amounts differ, and which invoices you have no bill for, and fills in your suppliers' GSTINs. For the GST Invoice Management System, it tells you which invoices to accept, which to keep pending and which to reject, and why, before you file GSTR-3B.
-- **One list of what needs you.** Anything that waits for a choice, such as a payment Lekhara could not place on a unit or an email from someone new, is in one place, oldest first, and Today tells you how many.
-- **Bring it in any way you like.** Upload a file with a ready template for every kind of record, or type it in. The same file uploaded twice changes nothing, and an import can be undone.
-- **Edit anything.** Every record can be added, corrected or archived in Lekhara, one at a time or many at once, with a history of who changed what.
-- **Take it out at any time.** Every list exports to Excel, and your whole workspace, with every document, exports in one step.
+- **From Tally, by itself if you like.** The small Lekhara Connector on your Tally computer brings your books in every few minutes. It only reads Tally and opens nothing to the internet. Or export from TallyPrime or Tally.ERP 9 and drop the file in. Lekhara fills in suppliers, bills, buyers' payments, costs, the RERA account and landowner payments, and tells you exactly what the file is missing.
+- **From your bank.** Drop in the statement from net banking, from any bank. Each buyer's payment is matched to their unit, including home-loan disbursements. Write your own rules for what repeats every month, and the same money is never counted twice.
+- **Just forward it.** Every project has its own email address. Forward a statement, a Tally export, a bill or a document, or have your bank email statements there every month.
+- **Edit anything,** one record at a time or many at once, with a history of who changed what.
+- **Take it all out at any time.** Every list exports to Excel, and your whole workspace, with every document, downloads in one step.
 
 ## Your data, kept safe
 
 - **Read-only.** Lekhara reads your systems and never changes them.
-- **Each person sees only what they need.** Your CA sees what they certify; a lender sees only what you share; a landowner sees only their own share.
-- **Your choice of AI.** You can keep all AI processing inside India.
-- **Traceable.** Every number leads back to its source document.
-- **Yours to take away, or to delete.** Download everything at any time. Anyone can delete their own account, and an owner can close the firm's account: everything stays available to download for 30 days, then all of it is deleted.
-- **Every sign-in and download recorded.** An access log your owner can read, kept a year.
+- **Each person sees only what they need.** Your CA sees what they certify, and a lender sees only what you share.
+- **Every number leads back to its source document.**
+- **Every sign-in and download recorded** in an access log your owner can read.
+- **Passkeys or two-step sign-in,** which an owner can require for the whole team, and your password asked again before anything sensitive.
 - **Support only when you ask.** Our team sees your workspace only if your owner allows it, for a few days, read-only, and every page they open is in your access log.
-- **Locked down.** Sign in with a passkey (your phone's fingerprint or face lock), or two-step sign-in with an authenticator app, which an owner can require for the whole team. Your password asked again before anything sensitive, such as downloading everything or sharing outside the firm. An email at once when someone signs in from a new browser, downloads everything, or our support opens your workspace. Every file checked for viruses, and your firm's records kept apart from every other firm's in the database itself.
+- **Yours to take away, or to delete.** Anyone can delete their own account. An owner can close the firm's account, and everything stays available to download for 30 days, then is deleted.
 
-## What Lekhara does not do
+## What it doesn't do
 
-- It does not replace your accounting. Tally stays.
+- It doesn't replace your accounting. Tally stays.
 - It never files, signs, submits or pays anything on its own.
-- It does not run your site: no labour attendance or site diaries.
+- It doesn't run your site: no labour attendance or site diaries.
+
+## Coming next
+
+- **Reading documents for you,** including Kannada ones, with a choice to keep all of it inside India.
+- **Sales and bookings,** channel partners, and agreements that are e-stamped and e-signed.
+- **On WhatsApp:** a buyer portal, and approving bills with the budget and tax position in front of you.
+- **Home-loan disbursements** tracked by bank and milestone.
+- **Contractor bills, site progress from ordinary site photos, snags and the five-year defect liability.**
+- **Guarantees and insurance,** and the conditions attached to each approval.
+- **Plotted layouts:** which plots are released or mortgaged, and a stop on selling plots that aren't free yet.
+- **New land:** an outright purchase against a joint development, with GST and the RERA account built in.
+- **A Monday briefing,** and asking anything by voice in Kannada, Hindi or English.
 
 ## Pricing
 
-One subscription for your whole firm, covering every project and everyone on your team. Your architect, engineer and CA join free. Your first month is free; after that, pay monthly by UPI AutoPay, card or bank mandate, with a GST invoice. Cancel any time, and take your data with you.
+One subscription for your whole firm, covering every project and everyone on your team. Your architect, engineer and CA join free. Your first month is free; after that, pay monthly by UPI AutoPay, card or bank mandate, with a GST invoice. Cancel any time and take your data with you.
 
-## Availability
+## What works today
 
-Lekhara is in development. The escrow and certification flow, K-RERA deadlines, the real-estate tax checks, collections, registration and handover, disputes and orders, the document vault and the daily view work today. You can sign up and start your free month today, bring in your units and buyers from your own sales sheet, your payments, costs and bills from Tally, your collection and RERA accounts from your bank statements (with rules you write for what repeats every month, such as which buyer pays from which account), and your suppliers, bills and work orders from a sheet or by hand, or simply forward any of it to the project's own email address, keep each project's details, occupancy certificate and certified progress up to date yourself, and download everything, with every document, in one step. Lekhara will open to our first builders in Bengaluru as each part is ready, with other cities in Karnataka to follow.
+Lekhara is in development. Everything above "Coming next" works today:
+- the RERA account and certificates;
+- K-RERA filings and the tax checks;
+- registration and handover;
+- complaints and orders;
+- collections, landowners and documents;
+- bringing data in from Tally, bank statements, email and the GST portal.
+
+We're opening to our first builders in Bengaluru as each part is ready, with other cities in Karnataka to follow.
+
+## Get started
+
+1. **Sign up** and start your free month. No call with us needed and nothing to install.
+2. **Add your company** from its GSTIN, and each project from its K-RERA certificate.
+3. **Drop in what you already have:** Tally exports, bank statements, your unit list from Excel or your CRM, and your approvals. Each project shows what's in, what's out of date, and where each missing piece comes in.
+4. **Invite your team,** and your architect, engineer and CA, who join free.
+
+---
+
+<sub>Lekhara prepares figures, filings, certificates and packs for you and your professionals to check. It is not legal or tax advice, and nothing is filed, signed or paid without the person responsible.</sub>

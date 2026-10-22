@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-23, with the commit "Put the launch video at the top of the README".
+Last updated: 2026-10-23, with the commit "Lay the README out like Metakai's, with the video looping at the top".
 
 ## What we are building
 
@@ -339,7 +339,10 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - boto3 comes in as an optional extra, `s3`.
 - Tested: local disk keeping, listing and removing files and refusing a path outside it; S3 uploads carrying the SHA-256 and the encryption asked for (AES256, or a KMS key), a file already there not sent again, reading, listing past other objects, a missing file reported as missing, and the settings choosing the store; backups and the file check as before.
 
-- A launch video (52 seconds, made with HyperFrames) at the top of the README, in `media/`: what builders owe, in their own words, then how Lekhara keeps track of it. A vertical version for WhatsApp is kept outside the repository.
+- A launch video (52 seconds, made with HyperFrames): what builders owe, in their own words, then how Lekhara keeps track of it.
+  - The README opens with it as a looping preview (`media/lekhara-preview.gif`), linked to the full video. The video is on the `site` branch and plays from jsDelivr's copy of it; turning on GitHub Pages for that branch would serve it from github.io instead.
+  - The README is laid out like Metakai's: a centred header, the preview, four screens from the demo, and short sections. What isn't built yet is listed under "Coming next" instead of mixed in.
+  - A vertical version for WhatsApp is kept outside the repository.
 
 ## In progress
 
