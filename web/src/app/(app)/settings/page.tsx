@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import {
+  endOtherSessions,
+  endSessionElsewhere,
+  setTwoStepRule,
   allowSupport,
   withdrawSupport,
   addSender,
@@ -411,6 +414,10 @@ function YourAccount({ f }: { f: Firm }) {
       <Suspense fallback={null}>
         <TwoStep manager={f.can_manage} />
       </Suspense>
+      {f.is_owner && !f.is_sample ? <TwoStepRule required={f.require_two_step} /> : null}
+      <Suspense fallback={null}>
+        <SignedIn />
+      </Suspense>
       {f.can_manage ? (
         <Suspense fallback={null}>
           <AccessLogView />
@@ -480,6 +487,62 @@ const ACTION_LABEL: Record<string, string> = {
   staff_payment_recorded: "Lekhara recorded a payment",
   staff_payment_removed: "Lekhara removed a payment",
 };
+
+function TwoStepRule({ required }: { required: boolean }) {
+  return (
+    <details className="disclosure" open={required}>
+      <summary>{required ? "Everyone in the firm must use two-step sign-in" : "Require two-step sign-in for everyone"}</summary>
+      <p className="small muted" style={{ maxWidth: 640 }}>
+        {required
+          ? "Anyone in your team without it is asked to set it up before they can go on. Certifiers on your projects are not affected."
+          : "Everyone in your team will need a code from an authenticator app at sign-in; anyone without it set up is asked to set it up first. Turn it on for yourself before requiring it."}
+      </p>
+      <ActionForm
+        action={setTwoStepRule.bind(null, !required)}
+        label={required ? "Stop requiring it" : "Require it"}
+        pendingLabel="Saving"
+        secondary
+      />
+    </details>
+  );
+}
+
+async function SignedIn() {
+  const { sessions } = await api.sessions();
+  const others = sessions.filter((s) => !s.current).length;
+  return (
+    <details className="disclosure">
+      <summary>{`Where you are signed in (${sessions.length})`}</summary>
+      <p className="small muted" style={{ maxWidth: 640 }}>
+        Each browser you are signed in on. A session unused for 12 hours ends by itself. If you see one you do not
+        recognise, end it and change your password.
+      </p>
+      <ul className="rows">
+        {sessions.map((s) => (
+          <li key={s.id} className="row">
+            <div>
+              <span className={s.current ? "tag tag-done" : "tag"}>{s.current ? "This one" : "Signed in"}</span>
+            </div>
+            <div>
+              <p className="row-title">{s.device}</p>
+              <p className="row-detail">
+                {`Since ${moment(s.started)}, last used ${moment(s.last_seen)}${s.ip ? `, from ${s.ip}` : ""}.`}
+              </p>
+            </div>
+            <div className="row-side">
+              {!s.current ? (
+                <ActionForm action={endSessionElsewhere.bind(null, s.id)} label="End session" pendingLabel="Ending" secondary />
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {others > 1 ? (
+        <ActionForm action={endOtherSessions} label="Sign out everywhere else" pendingLabel="Signing out" secondary />
+      ) : null}
+    </details>
+  );
+}
 
 async function SupportAccess() {
   const s = await api.support();

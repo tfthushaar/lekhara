@@ -18,6 +18,10 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/download/[..
   if (!ALLOWED.some((pattern) => pattern.test(joined))) return new Response("Not found", { status: 404 });
   const response = await fetchFile(`/${joined}`, true);
   if (response.status === 401) return Response.redirect(new URL("/login", request.url), 307);
+  if (response.status === 428) {
+    // Downloading everything asks the person to confirm it is them, then try again.
+    return Response.redirect(new URL("/confirm?next=%2Fsettings", request.url), 307);
+  }
   if (!response.ok) return new Response("Not found", { status: 404 });
   const headers = new Headers({ "Cache-Control": "private, no-store" });
   for (const name of PASS_ON) {

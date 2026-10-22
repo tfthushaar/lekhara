@@ -20,11 +20,19 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from lekhara.engines.escrow import CertifierRole
-from lekhara.models import Membership, Project, ProjectAccess, SupportGrant, User, UserSession
+from lekhara.models import (
+    Membership,
+    Organization,
+    Project,
+    ProjectAccess,
+    SupportGrant,
+    User,
+    UserSession,
+)
 from lekhara.services import ServiceError, access_state, read_only_message
 
 SESSION_DAYS = 14
@@ -152,6 +160,12 @@ class Principal:
     support_for: str | None = None
     """On a support session: the firm being seen, read-only, with its consent."""
     support_ends: datetime | None = None
+    session_id: str | None = None
+    confirmed_at: datetime | None = None
+    """When the person last proved it was them in this session (see `require_recent`)."""
+    two_step_on: bool = False
+    two_step_required: bool = False
+    """One of the person's firms requires two-step sign-in."""
 
     def org_role(self, project: Project) -> OrgRole | None:
         return self.org_roles.get(project.organization_id)
@@ -214,10 +228,111 @@ def start_session(session: Session, user: User) -> str:
             token_hash=_token_hash(token),
             created_at=now,
             expires_at=now + timedelta(days=SESSION_DAYS),
+            # Signing in proves it is them, so sensitive steps need no second ask at first.
+            confirmed_at=now,
+            last_seen_at=now,
         )
     )
     session.commit()
     return token
+
+
+# Asking again before sensitive steps, and the sessions a person has open
+
+CONFIRM_MINUTES = 15
+"""How long a confirmation (or a sign-in) covers sensitive steps."""
+TOUCH_MINUTES = 5
+
+
+class ConfirmNeeded(ServiceError):
+    """A sensitive step asked for when the person has not proved it was them recently."""
+
+    def __init__(self) -> None:
+        super().__init__("Confirm it is you first: enter your password again.", 428)
+
+
+class TwoStepNeeded(ServiceError):
+    """The person's firm requires two-step sign-in and they have not set it up."""
+
+    headers = {"X-Lekhara-Two-Step": "required"}
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Your firm asks everyone to use two-step sign-in. Set it up to go on.", 403
+        )
+
+
+def require_recent(principal: Principal) -> None:
+    """Sensitive steps (downloading everything, changing who may do what, sharing outside the
+    firm, staff actions) need the person to have signed in or confirmed in the last minutes, so
+    a session left open on a shared computer cannot be used for them."""
+    if principal.support_for is not None:
+        raise ServiceError("Support can look but not change anything.", 403)
+    recent = _now() - timedelta(minutes=CONFIRM_MINUTES)
+    if principal.confirmed_at is None or principal.confirmed_at < recent:
+        raise ConfirmNeeded()
+
+
+def mark_confirmed(session: Session, session_id: str) -> None:
+    row = session.get(UserSession, session_id)
+    if row is not None:
+        row.confirmed_at = _now()
+        session.commit()
+
+
+def touch(session: Session, principal: Principal, ip: str | None, agent: str | None) -> None:
+    """Notes when and from where a session was last used, at most every few minutes."""
+    if principal.session_id is None:
+        return
+    row = session.get(UserSession, principal.session_id)
+    if row is None:
+        return
+    now = _now()
+    changed = False
+    if row.ip is None and ip:
+        row.ip, row.user_agent, changed = ip[:64], (agent or "")[:300] or None, True
+    if row.last_seen_at is None or row.last_seen_at < now - timedelta(minutes=TOUCH_MINUTES):
+        row.last_seen_at, changed = now, True
+    if changed:
+        session.commit()
+
+
+def describe_session(session: Session, token: str, ip: str | None, agent: str | None) -> None:
+    row = session.scalars(
+        select(UserSession).where(UserSession.token_hash == _token_hash(token))
+    ).first()
+    if row is not None:
+        row.ip, row.user_agent = (ip or "")[:64] or None, (agent or "")[:300] or None
+        session.commit()
+
+
+def open_sessions(session: Session, user_id: str) -> list[UserSession]:
+    """The person's own sessions still open, newest first (support sessions are not theirs)."""
+    return list(
+        session.scalars(
+            select(UserSession)
+            .where(
+                UserSession.user_id == user_id,
+                UserSession.support_org_id.is_(None),
+                UserSession.expires_at > _now(),
+            )
+            .order_by(UserSession.created_at.desc())
+        )
+    )
+
+
+def end_sessions(
+    session: Session, user_id: str, *, only: str | None = None, keep: str | None = None
+) -> int:
+    """Signs the person out: of one session, or of every session but the one in use."""
+    ended = 0
+    for row in open_sessions(session, user_id):
+        if (only is not None and row.id != only) or row.id == keep:
+            continue
+        session.delete(row)
+        ended += 1
+    session.commit()
+    return ended
 
 
 def login(
@@ -246,11 +361,19 @@ def logout(session: Session, token: str) -> None:
         session.commit()
 
 
-def principal_for(session: Session, token: str, as_of: date = date.min) -> Principal | None:
+def principal_for(
+    session: Session, token: str, as_of: date = date.min, *, idle_hours: float | None = None
+) -> Principal | None:
     row = session.scalars(
         select(UserSession).where(UserSession.token_hash == _token_hash(token))
     ).first()
-    if row is None or row.expires_at < _now():
+    now = _now()
+    if row is None or row.expires_at < now:
+        return None
+    if idle_hours and (row.last_seen_at or row.created_at) < now - timedelta(hours=idle_hours):
+        # Unused for too long: a session left open on a shared computer ends by itself.
+        session.delete(row)
+        session.commit()
         return None
     user = session.get(User, row.user_id)
     if user is None or not user.is_active:
@@ -286,6 +409,16 @@ def principal_for(session: Session, token: str, as_of: date = date.min) -> Princ
         project_roles={k: frozenset(v) for k, v in project_roles.items()},
         as_of=as_of,
         is_staff=user.is_staff,
+        session_id=row.id,
+        confirmed_at=row.confirmed_at,
+        two_step_on=user.two_step_on is not None,
+        two_step_required=bool(org_roles)
+        and session.scalar(
+            select(func.count())
+            .select_from(Organization)
+            .where(Organization.id.in_(org_roles), Organization.require_two_step.is_(True))
+        )
+        > 0,
     )
 
 

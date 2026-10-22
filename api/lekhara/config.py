@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     as, posted mail."""
     secret_key: str | None = None
     """Seals secrets kept for firms, such as statement passwords. Set it in production."""
+    session_idle_hours: float = 12
+    """A session unused this long ends by itself."""
+    password_breach_check: bool = True
+    """Refuse passwords already leaked in data breaches (see passwords.py)."""
     api_docs: bool = False
     """Serve /docs and /openapi.json. For development only: they map every route."""
     worker: bool = True

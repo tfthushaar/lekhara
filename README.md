@@ -94,7 +94,7 @@ Lekhara tells you what needs you today, in order of what matters most. Approve w
 - **Yours to take away, or to delete.** Download everything at any time. Anyone can delete their own account, and an owner can close the firm's account: everything stays available to download for 30 days, then all of it is deleted.
 - **Every sign-in and download recorded.** An access log your owner can read, kept a year.
 - **Support only when you ask.** Our team sees your workspace only if your owner allows it, for a few days, read-only, and every page they open is in your access log.
-- **Locked down.** Two-step sign-in with an authenticator app, every file checked for viruses, and your firm's records kept apart from every other firm's in the database itself.
+- **Locked down.** Two-step sign-in with an authenticator app, which an owner can require for the whole team. Your password asked again before anything sensitive, such as downloading everything or sharing outside the firm. An email at once when someone signs in from a new browser, downloads everything, or our support opens your workspace. Every file checked for viruses, and your firm's records kept apart from every other firm's in the database itself.
 
 ## What Lekhara does not do
 

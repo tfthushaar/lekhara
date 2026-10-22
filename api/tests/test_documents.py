@@ -1,8 +1,10 @@
+import re
 from datetime import date, timedelta
 
 import pytest
 from conftest import signed_in
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from lekhara.app import create_app
 from lekhara.config import Settings
@@ -14,6 +16,7 @@ from lekhara.engines.documents import (
     record_check,
     snippets,
 )
+from lekhara.models import OutboundEmail
 from lekhara.pdf import read_pages, write_pdf
 from lekhara.seed import DEMO_ROOM_TOKEN, seed
 from lekhara.storage import LocalStorage
@@ -337,6 +340,20 @@ def test_a_room_that_asks_who_is_visiting(vault, boss, clerk) -> None:
         f"/shared/{token}/visitor", json={"name": "Asha Nair", "email": "Asha@Bank.example"}
     ).json()["visitor"]
     public.headers["X-Lekhara-Visitor"] = visitor
+    # The room stays shut until the code emailed to her is entered.
+    waiting = public.get(f"/shared/{token}").json()
+    assert waiting["gate"] is True and waiting["pending_email"] == "asha@bank.example"
+    assert public.get(f"/shared/{token}/documents/{ids[0]}/file").status_code == 403
+    wrong = public.post(f"/shared/{token}/visitor/verify", json={"code": "000000"})
+    assert wrong.status_code == 400
+    with vault.state.session_factory() as session:
+        sent = session.scalars(
+            select(OutboundEmail)
+            .where(OutboundEmail.to_address == "asha@bank.example")
+            .order_by(OutboundEmail.created_at.desc())
+        ).first()
+    code = re.search(r"is (\d{6})", sent.body).group(1)
+    assert public.post(f"/shared/{token}/visitor/verify", json={"code": code}).status_code == 200
     shared = public.get(f"/shared/{token}").json()
     assert shared["gate"] is False and len(shared["documents"]) == 2
     assert public.get(f"/shared/{token}/documents/{ids[0]}/file").status_code == 200

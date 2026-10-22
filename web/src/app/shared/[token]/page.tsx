@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Suspense } from "react";
 
-import { enterRoom } from "@/app/actions";
+import { confirmRoomCode, enterRoom, forgetRoomVisitor } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { VISITOR_COOKIE, sharedRoom } from "@/lib/api";
 import { day } from "@/lib/format";
@@ -40,6 +40,34 @@ async function SharedView({ params }: { params: Promise<{ token: string }> }) {
       </>
     );
   }
+  if (room.gate && room.pending_email) {
+    return (
+      <>
+        <div className="page-head">
+          <div>
+            <h1>{room.name}</h1>
+            <p>
+              Shared by {room.organization}. {room.project}.
+            </p>
+          </div>
+        </div>
+        <p style={{ maxWidth: 560, marginBottom: 16 }}>
+          {`We have sent a six-digit code to ${room.pending_email}. Enter it to open the documents; it works for 15 minutes.`}
+        </p>
+        <div style={{ maxWidth: 560 }}>
+          <ActionForm action={confirmRoomCode.bind(null, token)} label="Open the documents" pendingLabel="Checking">
+            <div className="field" style={{ maxWidth: 240 }}>
+              <label htmlFor="visitor-code">The code</label>
+              <input id="visitor-code" name="code" inputMode="numeric" autoComplete="one-time-code" required />
+            </div>
+          </ActionForm>
+          <div style={{ marginTop: 16 }}>
+            <ActionForm action={forgetRoomVisitor.bind(null, token)} label="Use another email" pendingLabel="Starting again" secondary />
+          </div>
+        </div>
+      </>
+    );
+  }
   if (room.gate) {
     return (
       <>
@@ -52,12 +80,12 @@ async function SharedView({ params }: { params: Promise<{ token: string }> }) {
           </div>
         </div>
         <p style={{ maxWidth: 560, marginBottom: 16 }}>
-          {room.organization} asks for your name and email before you open these documents. They are
-          shared with {room.organization} and recorded with each document you open or download, until
-          this link closes on {day(room.expires_on)}.
+          {room.organization} asks for your name and email before you open these documents, and we send a code to
+          the email to confirm it is yours. Your name and email are shared with {room.organization} and recorded with
+          each document you open or download, until this link closes on {day(room.expires_on)}.
         </p>
         <div style={{ maxWidth: 560 }}>
-          <ActionForm action={enterRoom.bind(null, token)} label="Open the documents" pendingLabel="Opening">
+          <ActionForm action={enterRoom.bind(null, token)} label="Send me a code" pendingLabel="Sending">
             <div className="field">
               <label htmlFor="visitor-name">Your name</label>
               <input id="visitor-name" name="name" autoComplete="name" required />

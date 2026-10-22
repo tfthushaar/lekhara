@@ -61,6 +61,9 @@ export type Me = {
   role_label: string;
   kind: "team" | "certifier";
   is_staff: boolean;
+  two_step_on: boolean;
+  /** The firm requires two-step sign-in and this person has not set it up. */
+  two_step_needed: boolean;
   /** Set while a member of staff looks at a firm as support. */
   support: { firm_id: string; firm: string; until: string | null } | null;
   organizations: string[];
@@ -93,6 +96,7 @@ export type Firm = {
   paid_until: string | null;
   days_left: number | null;
   is_sample: boolean;
+  require_two_step: boolean;
   closing_on: string | null;
   delete_after: string | null;
   role: string;
@@ -748,7 +752,24 @@ export type RoomDetail = RoomRow & {
   visits: { at: string; action: "open" | "download"; document: string | null; visitor: string | null }[];
 };
 
-export type SharedGate = { gate: true; name: string; organization: string; project: string; expires_on: string };
+export type SharedGate = {
+  gate: true;
+  name: string;
+  organization: string;
+  project: string;
+  expires_on: string;
+  /** Set once a visitor gave their email and a code was sent to it. */
+  pending_email: string | null;
+};
+
+export type OpenSession = {
+  id: string;
+  started: string;
+  last_seen: string;
+  ip: string | null;
+  device: string;
+  current: boolean;
+};
 
 export type SharedRoom = {
   gate: false;
@@ -1389,12 +1410,33 @@ async function authHeaders(): Promise<Record<string, string>> {
   };
 }
 
+/** Where to come back to after confirming: the page the request came from, if it is ours. */
+async function returnPath(fallback = "/"): Promise<string> {
+  const incoming = await headers();
+  const referer = incoming.get("referer");
+  const host = incoming.get("x-forwarded-host") ?? incoming.get("host");
+  if (!referer || !host) return fallback;
+  try {
+    const url = new URL(referer);
+    return url.host === host ? url.pathname + url.search : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** A sensitive step that needs the person to confirm it is them first (the API answers 428). */
+export async function askToConfirm(fallback = "/"): Promise<never> {
+  redirect(`/confirm?next=${encodeURIComponent(await returnPath(fallback))}`);
+}
+
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(`${BASE}${path}`, {
     cache: "no-store",
     headers: await authHeaders(),
   });
   if (response.status === 401) redirect("/login");
+  // The firm requires two-step sign-in and this person has not set it up yet.
+  if (response.status === 403 && response.headers.get("x-lekhara-two-step")) redirect("/secure");
   if (response.status === 404 || response.status === 403) notFound();
   if (!response.ok) throw new Error(`Lekhara API ${response.status} on ${path}`);
   return response.json() as Promise<T>;
@@ -1438,6 +1480,23 @@ export async function sharedRoom(token: string, visitor?: string): Promise<Share
 /** Fetches a file from a shared data room, as the visitor who gave their name. */
 export async function fetchSharedFile(path: string, visitor?: string): Promise<Response> {
   return fetch(`${BASE}${path}`, { cache: "no-store", headers: visitor ? { "X-Lekhara-Visitor": visitor } : {} });
+}
+
+/** A data room visitor's own request (no one is signed in): their name, email or code. */
+export async function sendAsVisitor<T>(path: string, visitor: string | undefined, body: unknown): Promise<SendResult<T>> {
+  const response = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(visitor ? { "X-Lekhara-Visitor": visitor } : {}) },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (response.ok) return { ok: true, data: (await response.json()) as T };
+  try {
+    const detail = (await response.json())?.detail;
+    return { ok: false, error: typeof detail === "string" ? detail : "That did not work. Try again." };
+  } catch {
+    return { ok: false, error: "That did not work. Try again." };
+  }
 }
 
 /** The API's own reason for a 401: a password or code that does not match, or an ended session. */
@@ -1494,6 +1553,8 @@ export async function send<T>(
   if (response.status === 204) return { ok: true, data: undefined as T };
   if (response.ok) return { ok: true, data: (await response.json()) as T };
   if (response.status === 401) return { ok: false, error: await unauthorised(response) };
+  if (response.status === 428) await askToConfirm();
+  if (response.status === 403 && response.headers.get("x-lekhara-two-step")) redirect("/secure");
   try {
     const problem = await response.json();
     const detail = problem?.detail;
@@ -1630,6 +1691,7 @@ export const api = {
   review: () => get<ReviewQueue>("/review"),
   legal: () => get<LegalInfo>("/legal"),
   support: () => get<SupportState>("/organization/support"),
+  sessions: () => get<{ sessions: OpenSession[] }>("/auth/sessions"),
   staffFirm: (id: string) => get<StaffFirm>(`/staff/firms/${id}`),
   accessLog: () => get<AccessLog>("/organization/access-log"),
   gstImports: (projectId: string) => get<GstList>(`/projects/${projectId}/gst`),

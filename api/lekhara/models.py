@@ -48,6 +48,8 @@ class Organization(Base):
     trial_ends_on: Mapped[date | None] = mapped_column(Date)
     paid_until: Mapped[date | None] = mapped_column(Date)
     """The last day paid for; None for a firm that is active with no end (the demo, pilots)."""
+    require_two_step: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    """Everyone in the firm must use two-step sign-in, as its owner decided."""
     is_sample: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     """The sample projects every signed-in person can look at, read-only."""
     closing_on: Mapped[date | None] = mapped_column(Date)
@@ -611,8 +613,8 @@ class DataRoomVisit(Base):
 
 
 class DataRoomVisitor(Base):
-    """Someone who gave their name and email to open a data room. Only a hash of the token
-    their browser keeps is stored."""
+    """Someone who gave their name and email to open a data room, and confirmed the email with
+    a code sent to it. Only a hash of the token their browser keeps is stored."""
 
     __tablename__ = "data_room_visitors"
 
@@ -623,6 +625,11 @@ class DataRoomVisitor(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     ip: Mapped[str | None] = mapped_column(String(64))
+    code_hash: Mapped[str | None] = mapped_column(String(64))
+    """The code emailed to them, hashed; the room opens once it is entered."""
+    code_expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    code_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 # People and access
@@ -697,6 +704,12 @@ class UserSession(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     support_org_id: Mapped[str | None] = mapped_column(String(64))
     """Set on a support session: Lekhara staff seeing this firm, read-only, with its consent."""
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    """When the person last proved it was them (signing in counts): sensitive steps need it
+    to be recent."""
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime)
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(300))
 
 
 class OneTimeToken(Base):

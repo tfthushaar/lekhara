@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { VISITOR_COOKIE, endSession, send, sendForm } from "@/lib/api";
+import { VISITOR_COOKIE, endSession, send, sendAsVisitor, sendForm } from "@/lib/api";
 import { SESSION_COOKIE, SESSION_DAYS, STAFF_COOKIE } from "@/lib/session-cookie";
 
 export type ActionState = { error?: string; ok?: string; link?: string };
@@ -820,6 +820,46 @@ export async function signOut(): Promise<void> {
   redirect("/login");
 }
 
+// Confirming it is you, the sessions open, and the firm's two-step rule
+
+function safeNext(next: string): string {
+  return next.startsWith("/") && !next.startsWith("//") ? next : "/";
+}
+
+export async function confirmIdentity(next: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", "/auth/confirm", {
+    password: String(form.get("password") ?? ""),
+    code: text(form, "code"),
+  });
+  if (!result.ok) return { error: result.error };
+  redirect(safeNext(next));
+}
+
+export async function endSessionElsewhere(sessionId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/auth/sessions/${sessionId}/end`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function endOtherSessions(_previous: ActionState): Promise<ActionState> {
+  const result = await send<{ ended: number }>("POST", "/auth/sessions/end-others");
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: result.data.ended === 1 ? "Signed out of 1 other session." : `Signed out of ${result.data.ended} other sessions.` };
+}
+
+export async function setTwoStepRule(required: boolean, _previous: ActionState): Promise<ActionState> {
+  const result = await send("PUT", "/organization/two-step-rule", { required });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {
+    ok: required
+      ? "Everyone in the firm now signs in with a code. Anyone without it set up is asked to set it up."
+      : "Two-step sign-in is no longer required.",
+  };
+}
+
 // Support access, as the firm allows it
 
 export async function allowSupport(_previous: ActionState, form: FormData): Promise<ActionState> {
@@ -1371,6 +1411,22 @@ export async function enterRoom(token: string, _previous: ActionState, form: For
     path: `/shared/${encodeURIComponent(token)}`,
     maxAge: 60 * 24 * 60 * 60,
   });
+  redirect(`/shared/${encodeURIComponent(token)}`);
+}
+
+/** The code emailed to a data room visitor, proving the email is theirs. */
+export async function confirmRoomCode(token: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const visitor = (await cookies()).get(VISITOR_COOKIE)?.value;
+  const result = await sendAsVisitor(`/shared/${encodeURIComponent(token)}/visitor/verify`, visitor, {
+    code: text(form, "code"),
+  });
+  if (!result.ok) return { error: result.error };
+  redirect(`/shared/${encodeURIComponent(token)}`);
+}
+
+/** Starts again with another name or email: the browser forgets the visitor it was. */
+export async function forgetRoomVisitor(token: string, _previous: ActionState): Promise<ActionState> {
+  (await cookies()).delete({ name: VISITOR_COOKIE, path: `/shared/${encodeURIComponent(token)}` });
   redirect(`/shared/${encodeURIComponent(token)}`);
 }
 

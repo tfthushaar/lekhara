@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from lekhara import (
     accounts,
+    alerts,
     auth,
     connectors,
     export,
@@ -27,6 +28,7 @@ from lekhara import (
     krera_certificate,
     legal,
     packs,
+    passwords,
     purchases,
     record_views,
     registers,
@@ -47,6 +49,7 @@ from lekhara.engines.obligations import ObligationStatus, sort_obligations
 from lekhara.gst import service as gst
 from lekhara.migrate import upgrade
 from lekhara.models import (
+    AccessEvent,
     Approval,
     Bill,
     Commitment,
@@ -596,6 +599,10 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     SessionDep = Annotated[Session, Depends(get_session)]
     AsOf = Annotated[date, Depends(as_of)]
 
+    # What someone whose firm requires two-step sign-in can still do before setting it up.
+    TWO_STEP_OPEN = ("/auth/me", "/auth/two-step", "/auth/accept-terms", "/auth/sessions",
+                     "/auth/confirm", "/legal")  # fmt: skip
+
     def current_principal(
         session: SessionDep,
         request: Request,
@@ -604,9 +611,20 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         token = _bearer(authorization)
         if token is None:
             raise ServiceError("Sign in to continue.", 401)
-        principal = auth.principal_for(session, token, settings.as_of())
+        principal = auth.principal_for(
+            session, token, settings.as_of(), idle_hours=settings.session_idle_hours
+        )
         if principal is None:
             raise ServiceError("Your session has ended. Sign in again.", 401)
+        if principal.support_for is None:
+            ip, agent = client(request)
+            auth.touch(session, principal, ip, agent)
+            if (
+                principal.two_step_required
+                and not principal.two_step_on
+                and not request.url.path.startswith(TWO_STEP_OPEN)
+            ):
+                raise auth.TwoStepNeeded()
         if principal.support_for is not None:
             # Support, with the firm's consent: it can look but not change anything, and the
             # firm's access log shows everything it looked at.
@@ -633,7 +651,11 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.exception_handler(ServiceError)
     def service_error(_request: Request, exc: ServiceError) -> JSONResponse:
-        return JSONResponse({"detail": exc.message}, status_code=exc.status_code)
+        return JSONResponse(
+            {"detail": exc.message},
+            status_code=exc.status_code,
+            headers=getattr(exc, "headers", None),
+        )
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -660,7 +682,18 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         orgs = list(
             session.scalars(select(Membership.organization_id).where(Membership.user_id == user.id))
         )
+        ip, agent = client(request)
+        auth.describe_session(session, token, ip, agent)
+        browsers = set(
+            session.scalars(
+                select(AccessEvent.user_agent).where(
+                    AccessEvent.user_id == user.id, AccessEvent.action == "sign_in"
+                )
+            )
+        )
         log(session, request, "sign_in", user=user, organization_id=orgs[0] if orgs else None)
+        if browsers and agent and agent[:300] not in browsers:
+            alerts.new_sign_in(session, settings, user, ip, agent)
         return {"token": token, "user": {"id": user.id, "name": user.name, "email": user.email}}
 
     @app.post("/auth/login/two-step")
@@ -748,6 +781,8 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             "user": {"id": me.user_id, "name": me.name, "email": me.email, "firm": me.firm},
             "role_label": me.describe(),
             "is_staff": me.is_staff,
+            "two_step_on": me.two_step_on,
+            "two_step_needed": me.two_step_required and not me.two_step_on,
             "support": None
             if me.support_for is None
             else {
@@ -781,6 +816,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     def signup(body: Signup, session: SessionDep, on: AsOf, request: Request) -> dict:
         legal.require_acceptance(body.accept_terms)
         by_address["signup"].count(address_of(request))
+        passwords.refuse_leaked(settings, body.password)
         token, user = accounts.signup(
             session,
             settings,
@@ -822,6 +858,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/auth/reset")
     def reset(body: Reset, session: SessionDep, request: Request) -> dict:
+        passwords.refuse_leaked(settings, body.password)
         accounts.reset_password(session, body.token, body.password)
         log(session, request, "password_reset")
         return {"ok": True}
@@ -851,6 +888,74 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         legal.delete_account(session, user, ip=client(request)[0])
         return {"ok": True}
 
+    class ConfirmBody(BaseModel):
+        password: str = ""
+        code: str = ""
+
+    @app.post("/auth/confirm")
+    def confirm_identity(body: ConfirmBody, session: SessionDep, me: Me) -> dict:
+        """Proves it is the person, for the sensitive steps of the next few minutes."""
+        user = session.get(User, me.user_id)
+        key = f"confirm:{user.email}"
+        throttle.check(key)
+        if not auth.verify_password(body.password, user.password_hash):
+            throttle.failed(key)
+            raise ServiceError("That password is not right.", 401)
+        if user.two_step_on is not None:
+            try:
+                two_step.check_code(session, settings, user, body.code)
+            except ServiceError:
+                throttle.failed(key)
+                raise
+        throttle.succeeded(key)
+        auth.mark_confirmed(session, me.session_id)
+        return {"ok": True}
+
+    @app.get("/auth/sessions")
+    def my_sessions(session: SessionDep, me: Me) -> dict:
+        return {
+            "sessions": [
+                {
+                    "id": row.id,
+                    "started": staff.iso(row.created_at),
+                    "last_seen": staff.iso(row.last_seen_at or row.created_at),
+                    "ip": row.ip,
+                    "device": alerts.device(row.user_agent),
+                    "current": row.id == me.session_id,
+                }
+                for row in auth.open_sessions(session, me.user_id)
+            ]
+        }
+
+    @app.post("/auth/sessions/{session_id}/end")
+    def end_session(session_id: str, session: SessionDep, me: Me, request: Request) -> dict:
+        auth.end_sessions(session, me.user_id, only=session_id)
+        log(session, request, "signed_out_elsewhere", me=me)
+        return {"ok": True}
+
+    @app.post("/auth/sessions/end-others")
+    def end_other_sessions(session: SessionDep, me: Me, request: Request) -> dict:
+        ended = auth.end_sessions(session, me.user_id, keep=me.session_id)
+        log(session, request, "signed_out_elsewhere", me=me, detail=f"{ended} sessions")
+        return {"ended": ended}
+
+    class TwoStepRule(BaseModel):
+        required: bool
+
+    @app.put("/organization/two-step-rule")
+    def two_step_rule(body: TwoStepRule, session: SessionDep, me: Me, request: Request) -> dict:
+        """The owner can require everyone in the firm to use two-step sign-in."""
+        org = accounts.current_org(session, me)
+        accounts.require_manager(me, org, owner=True)
+        auth.require_recent(me)
+        if body.required and not me.two_step_on:
+            raise ServiceError("Turn on two-step sign-in for yourself first.")
+        org.require_two_step = body.required
+        session.commit()
+        action = "two_step_rule_on" if body.required else "two_step_rule_off"
+        log(session, request, action, me=me, organization_id=org.id)
+        return {"required": org.require_two_step}
+
     @app.get("/organization/access-log")
     def access_log(session: SessionDep, me: Me) -> dict:
         org = accounts.current_org(session, me)
@@ -873,6 +978,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     def close_firm(
         body: CloseFirm, session: SessionDep, me: Me, on: AsOf, request: Request
     ) -> dict:
+        auth.require_recent(me)
         org = accounts.current_org(session, me)
         accounts.require_manager(me, org, owner=True)
         legal.close_firm(
@@ -908,6 +1014,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             "paid_until": views.d(org.paid_until),
             "days_left": services.trial_days_left(org, on),
             "is_sample": org.is_sample,
+            "require_two_step": org.require_two_step,
             "closing_on": views.d(org.closing_on),
             "delete_after": views.d(org.delete_after),
             "role": role.value,
@@ -978,6 +1085,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/organization/support")
     def allow_support(body: SupportBody, session: SessionDep, me: Me, request: Request) -> dict:
+        auth.require_recent(me)
         org = accounts.current_org(session, me)
         accounts.require_manager(me, org)
         until = staff.allow_support(session, org, session.get(User, me.user_id), body.days)
@@ -997,18 +1105,25 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     # Our admin console (staff only; see staff.py)
 
     def current_staff(
-        session: SessionDep, authorization: Annotated[str | None, Header()] = None
+        session: SessionDep,
+        request: Request,
+        authorization: Annotated[str | None, Header()] = None,
     ) -> User:
         token = _bearer(authorization)
         if token is None:
             raise ServiceError("Sign in to continue.", 401)
-        principal = auth.principal_for(session, token, settings.as_of())
+        principal = auth.principal_for(
+            session, token, settings.as_of(), idle_hours=settings.session_idle_hours
+        )
         if principal is None:
             raise ServiceError("Your session has ended. Sign in again.", 401)
         if principal.support_for is not None:
             raise ServiceError("Not found.", 404)
         # Not restricted by row-level security: the console reads across firms by design.
-        return staff.require_staff(session.get(User, principal.user_id))
+        user = staff.require_staff(session.get(User, principal.user_id))
+        if request.method != "GET":
+            auth.require_recent(principal)
+        return user
 
     StaffDep = Annotated[User, Depends(current_staff)]
 
@@ -1076,6 +1191,18 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         token, until = auth.start_support_session(session, who, org.id)
         log(session, request, "support_opened", user=who, organization_id=org.id,
             detail=f"until {staff.iso(until)}")  # fmt: skip
+        alerts.tell_managers(
+            session,
+            settings,
+            org,
+            subject=f"Lekhara support opened {org.name}'s workspace",
+            body=(
+                f"{who.name} from Lekhara support opened {org.name}'s workspace, read-only, as "
+                "your firm allowed. Every page they open is in Settings, Access log. You can "
+                "withdraw support at any time in Settings."
+            ),
+            kind="alert_support",
+        )
         return {"token": token, "until": staff.iso(until)}
 
     @app.get("/organization/export")
@@ -1085,8 +1212,21 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         """Everything the firm has, at any time, even when the workspace is read-only."""
         org = accounts.current_org(session, me)
         accounts.require_manager(me, org)
+        auth.require_recent(me)
         done = export.workspace(session, app.state.storage, org, as_of=on, user_id=me.user_id)
         log(session, request, "workspace_exported", me=me, organization_id=org.id)
+        alerts.tell_managers(
+            session,
+            settings,
+            org,
+            subject=f"{me.name} downloaded everything from {org.name}",
+            body=(
+                f"{me.name} ({me.email}) downloaded {org.name}'s whole workspace from Lekhara, "
+                "with every document. If you did not expect this, check Settings, Access log."
+            ),
+            kind="alert_export",
+            except_user_id=me.user_id,
+        )
         ascii_name = done.filename.encode("ascii", "replace").decode().replace("?", "-")
         return StreamingResponse(
             done.chunks(),
@@ -1100,6 +1240,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/organization/invitations", status_code=201)
     def invite(body: NewInvitation, session: SessionDep, me: Me, request: Request) -> dict:
+        auth.require_recent(me)
         org = accounts.current_org(session, me)
         row, link = accounts.invite(
             session,
@@ -1123,6 +1264,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     def change_role(
         user_id: str, body: RoleChange, session: SessionDep, me: Me, request: Request
     ) -> dict:
+        auth.require_recent(me)
         accounts.change_role(session, accounts.current_org(session, me), me, user_id, body.role)
         person = session.get(User, user_id)
         log(session, request, "role_changed", me=me,
@@ -1131,6 +1273,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/organization/members/{user_id}/remove")
     def remove_member(user_id: str, session: SessionDep, me: Me, request: Request) -> dict:
+        auth.require_recent(me)
         person = session.get(User, user_id)
         email = person.email if person else user_id
         accounts.remove_member(session, accounts.current_org(session, me), me, user_id)
@@ -1162,6 +1305,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         )
         if new_account:
             legal.require_acceptance(body.accept_terms)
+            passwords.refuse_leaked(settings, body.password)
         session_token = accounts.accept_invitation(
             session,
             settings,
@@ -2307,6 +2451,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/organization/senders", status_code=201)
     def add_sender(body: SenderBody, session: SessionDep, me: Me) -> dict:
+        auth.require_recent(me)
         org = org_manager(session, me)
         inbound.add_trusted(session, org.id, body.address, user_id=me.user_id)
         session.commit()
@@ -3065,6 +3210,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/projects/{project_id}/rooms", status_code=201)
     def create_room(project_id: str, body: NewRoom, session: SessionDep, me: Me, on: AsOf) -> dict:
+        auth.require_recent(me)
         p = services.get_project(session, project_id)
         auth.require_share(me, p)
         room, token = services.create_room(
@@ -3084,6 +3230,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/rooms/{room_id}/link")
     def new_room_link(room_id: str, session: SessionDep, me: Me) -> dict:
+        auth.require_recent(me)
         room = room_for(session, me, room_id, share=True)
         return {"token": services.new_room_link(session, room)}
 
@@ -3105,9 +3252,12 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         p = services.get_project(session, room.project_id)
         who = services.room_visitor(session, room, visitor)
         if room.ask_visitor and who is None:
-            # Nothing is shown, or recorded, until the visitor says who they are.
+            # Nothing is shown, or recorded, until the visitor says who they are and proves
+            # the email is theirs with the code sent to it.
+            pending = services.pending_visitor(session, room, visitor)
             return {
                 "gate": True,
+                "pending_email": pending.email if pending else None,
                 "name": room.name,
                 "organization": p.organization.name,
                 "project": p.name,
@@ -3124,7 +3274,25 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         room = services.open_room(session, token, on)
         by_address["visitor"].count(address_of(request))
         ip, _ = client(request)
-        return {"visitor": services.register_visitor(session, room, body.name, body.email, ip=ip)}
+        token = services.register_visitor(session, settings, room, body.name, body.email, ip=ip)
+        return {"visitor": token, "code_sent": True}
+
+    class VisitorCode(BaseModel):
+        code: str = ""
+
+    @app.post("/shared/{token}/visitor/verify")
+    def shared_visitor_code(
+        token: str,
+        body: VisitorCode,
+        request: Request,
+        session: SessionDep,
+        on: AsOf,
+        visitor: VisitorToken = None,
+    ) -> dict:
+        room = services.open_room(session, token, on)
+        by_address["visitor"].count(address_of(request))
+        services.verify_visitor(session, room, visitor, body.code)
+        return {"ok": True}
 
     @app.get("/shared/{token}/documents/{document_id}/file")
     def shared_file(
@@ -3138,7 +3306,10 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         room = services.open_room(session, token, on)
         who = services.room_visitor(session, room, visitor)
         if room.ask_visitor and who is None:
-            raise ServiceError("Give your name and email on the room's page first.", 403)
+            raise ServiceError(
+                "Give your name and email on the room's page, and the code sent to you, first.",
+                403,
+            )
         doc = next((d for d in services.room_documents(session, room) if d.id == document_id), None)
         if doc is None:
             raise ServiceError("Document not found.", 404)

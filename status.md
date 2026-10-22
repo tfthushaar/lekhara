@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-22, with the commit "Close six security gaps: forged senders, formulas in exports, zip bombs, headers, API docs, CI checks".
+Last updated: 2026-10-22, with the commit "Ask again before sensitive steps, end idle sessions, verify data room visitors, refuse leaked passwords".
 
 ## What we are building
 
@@ -271,9 +271,18 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - Every Python package is pinned with its hash; CI now checks for committed secrets, known vulnerabilities and risky code; Dependabot proposes updates.
 - Tested: forged and missing sender verdicts held, formulas kept as text in Excel and escaped in CSV (and read back), a 30 MB zip bomb refused, headers present and nothing blocked in the browser, the API's docs hidden; all end-to-end suites.
 
+- Security hardening, second round:
+  - Sensitive steps ask for the password again (and the two-step code, if on) unless the person signed in or confirmed in the last 15 minutes: downloading everything, inviting, changing roles, removing someone, adding a trusted mail sender, creating a data room or a new room link, closing the firm, allowing support, and every staff console action. The page comes back to where it was after confirming.
+  - Sessions unused for 12 hours end by themselves. Settings lists every browser you are signed in on, with when and from where, and ends any of them, or all but this one.
+  - Emails at once: to you, when you sign in from a browser not seen before; to the owner and finance, when someone downloads everything or support opens the workspace.
+  - An owner can require two-step sign-in for the whole team; anyone without it is sent to set it up before going on.
+  - Data room visitors confirm their email with a code sent to it before anything opens, so the name and email in the visit log are real.
+  - Passwords already leaked in data breaches elsewhere are refused at sign-up, reset and invitation, checked without the password leaving Lekhara (only five characters of its hash are sent); if the checking service is down, the password is accepted.
+- Tested: each sensitive step asking after a while and passing once confirmed, with the code when two-step is on; an idle session ending; two sessions listed and one ended; the new-browser and full-download emails; the firm's two-step rule sending a team member to set it up; a visitor's wrong code refused and the right one opening the room; leaked passwords refused and the check sending only a hash prefix. All end-to-end suites, and a new one for confirming, the two-step rule and sessions.
+
 ## In progress
 
-- Security hardening, next: verified data room visitors, asking again before sensitive steps, session controls and alerts, two-step required by firm, passkeys, leaked-password checks, key rotation, backups, a tamper-evident access log, limits shared across servers, and a security page. Then the features borrowed from other software (`research-borrow-and-secure.md`, outside the repository).
+- Security hardening, next: passkeys, key rotation, backups, a tamper-evident access log, limits shared across servers, and a security page. Then the features borrowed from other software (`research-borrow-and-secure.md`, outside the repository).
 
 ## Left
 

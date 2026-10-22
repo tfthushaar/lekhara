@@ -33,6 +33,14 @@ def _postgres_engine():
     return make_engine(f"postgresql+psycopg://lekhara_app:lekhara-app-test@{host}")
 
 
+@pytest.fixture(autouse=True)
+def _no_breach_service(monkeypatch):
+    """Tests never call the leaked-password service; test_security checks it with a stand-in."""
+    from lekhara import passwords
+
+    monkeypatch.setattr(passwords, "times_leaked", lambda password, timeout=2.0: 0)
+
+
 @pytest.fixture
 def engine():
     engine = _postgres_engine() if POSTGRES else make_engine("sqlite://")

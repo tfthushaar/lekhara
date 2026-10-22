@@ -5,10 +5,11 @@ let each certifier review and sign, submit to the bank, record the release.
 """
 
 import hashlib
+import hmac
 import re
 import secrets
 from dataclasses import dataclass, replace
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
@@ -1673,16 +1674,25 @@ def log_visit(
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
+VISITOR_CODE_MINUTES = 15
+VISITOR_CODE_TRIES = 5
+
+
 def register_visitor(
-    session: Session, room: DataRoom, name: str, email: str, *, ip: str | None
+    session: Session, settings, room: DataRoom, name: str, email: str, *, ip: str | None
 ) -> str:
-    """Records who is opening a room that asks, and returns the token their browser keeps."""
+    """Records who is opening a room that asks, emails them a code to prove the email is theirs,
+    and returns the token their browser keeps. The room opens once the code is entered."""
+    from lekhara import mail
+
     name, email = (name or "").strip(), (email or "").strip().lower()
     if not name:
         raise ServiceError("Enter your name.")
     if not _EMAIL.match(email):
         raise ServiceError("Enter an email address, like name@example.com.")
     token = secrets.token_urlsafe(24)
+    code = f"{secrets.randbelow(10**6):06d}"
+    now = datetime.now(UTC).replace(tzinfo=None)
     session.add(
         DataRoomVisitor(
             room_id=room.id,
@@ -1690,13 +1700,29 @@ def register_visitor(
             email=email[:320],
             token_hash=_token_hash(token),
             ip=(ip or "")[:64] or None,
+            code_hash=_token_hash(code),
+            code_expires_at=now + timedelta(minutes=VISITOR_CODE_MINUTES),
         )
+    )
+    project = session.get(Project, room.project_id)
+    mail.send_email(
+        session,
+        settings,
+        to=email,
+        subject=f"Your code for {room.name}",
+        body=(
+            f"Hello {name},\n\n"
+            f"Your code to open {room.name}, shared by {project.organization.name}, is {code}.\n\n"
+            f"It works for {VISITOR_CODE_MINUTES} minutes. If you did not ask for it, ignore this "
+            "email."
+        ),
+        kind="room_code",
     )
     session.commit()
     return token
 
 
-def room_visitor(session: Session, room: DataRoom, token: str | None) -> DataRoomVisitor | None:
+def _visitor_row(session: Session, room: DataRoom, token: str | None) -> DataRoomVisitor | None:
     if not token:
         return None
     return session.scalars(
@@ -1704,6 +1730,37 @@ def room_visitor(session: Session, room: DataRoom, token: str | None) -> DataRoo
             DataRoomVisitor.room_id == room.id, DataRoomVisitor.token_hash == _token_hash(token)
         )
     ).first()
+
+
+def verify_visitor(session: Session, room: DataRoom, token: str | None, code: str) -> None:
+    visitor = _visitor_row(session, room, token)
+    if visitor is None:
+        raise ServiceError("Give your name and email first.", 403)
+    if visitor.verified_at is not None:
+        return
+    now = datetime.now(UTC).replace(tzinfo=None)
+    expired = visitor.code_expires_at is None or visitor.code_expires_at < now
+    if expired or visitor.code_attempts >= VISITOR_CODE_TRIES:
+        raise ServiceError("This code has expired. Give your name and email again for a new one.")
+    visitor.code_attempts += 1
+    if not hmac.compare_digest(visitor.code_hash or "", _token_hash((code or "").strip())):
+        session.commit()
+        raise ServiceError("That code is not right. Check the email and try again.")
+    visitor.verified_at = now
+    visitor.code_hash = None
+    session.commit()
+
+
+def pending_visitor(session: Session, room: DataRoom, token: str | None) -> DataRoomVisitor | None:
+    """Someone who gave their name and email but has not entered the code yet."""
+    visitor = _visitor_row(session, room, token)
+    return visitor if visitor is not None and visitor.verified_at is None else None
+
+
+def room_visitor(session: Session, room: DataRoom, token: str | None) -> DataRoomVisitor | None:
+    """The visitor, once they have proved their email."""
+    visitor = _visitor_row(session, room, token)
+    return visitor if visitor is not None and visitor.verified_at is not None else None
 
 
 # Withdrawal workflow
