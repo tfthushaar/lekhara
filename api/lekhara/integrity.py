@@ -88,11 +88,11 @@ jobs.every("files.check", 24 * 3600)
 def main() -> int:
     from lekhara.config import get_settings
     from lekhara.db import make_engine, make_sessionmaker
-    from lekhara.storage import LocalStorage
+    from lekhara.storage import make_storage
 
     settings = get_settings()
     with make_sessionmaker(make_engine(settings.database_url))() as session:
-        result = check_files(session, LocalStorage(settings.storage_dir))
+        result = check_files(session, make_storage(settings))
     print(f"{result.checked} files checked: {result.missing} missing, {result.altered} altered.")
     for problem in json.loads(result.problems):
         print(f"  {problem['problem']}: {problem['what']} {problem['id']} ({problem['key']})")

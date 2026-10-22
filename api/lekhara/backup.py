@@ -39,6 +39,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 from lekhara.config import Settings
+from lekhara.storage import make_storage
 
 MAGIC = b"LEKHARA-BACKUP-1\n"
 PIECE = 1 << 20
@@ -150,8 +151,8 @@ def create(settings: Settings, folder: Path) -> Path:
     with tempfile.TemporaryDirectory() as work:
         work = Path(work)
         kind = _database_into(settings, work)
-        files = Path(settings.storage_dir)
-        stored = [p for p in files.rglob("*") if p.is_file() and len(p.name) == 64]
+        store = make_storage(settings)
+        stored = list(store.keys())
         manifest = {
             "made_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "database": kind,
@@ -162,8 +163,12 @@ def create(settings: Settings, folder: Path) -> Path:
             for path in work.iterdir():
                 if path.name.startswith("lekhara."):
                     tar.add(path, arcname=f"database/{path.name}")
-            for path in stored:
-                tar.add(path, arcname=f"files/{path.parent.name}/{path.name}")
+            # One file at a time, from disk or from S3 alike.
+            for key in stored:
+                data = store.get(key)
+                info = tarfile.TarInfo(f"files/{key[:2]}/{key}")
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
             data = json.dumps(manifest, indent=2).encode()
             info = tarfile.TarInfo("manifest.json")
             info.size = len(data)

@@ -15,7 +15,15 @@ class Settings(BaseSettings):
     demo: bool = False
     """Show the demo accounts on the sign-in screen. Never set in production."""
     storage_dir: str = "./storage"
-    """Where the document vault keeps files on local disk."""
+    """Where the document vault keeps files on local disk, unless storage_url is set."""
+    storage_url: str = ""
+    """s3://bucket/prefix to keep files in S3 (or an S3-compatible store) instead."""
+    s3_region: str = "ap-south-1"
+    s3_endpoint: str = ""
+    """For an S3-compatible store other than AWS, such as SeaweedFS or RustFS in development."""
+    s3_encryption: str = "AES256"
+    """Encryption at rest: AES256, aws:kms, or none for a store that does not support it."""
+    s3_kms_key_id: str = ""
     max_upload_mb: int = 20
     tally_upload_mb: int = 100
     trial_days: int = 30

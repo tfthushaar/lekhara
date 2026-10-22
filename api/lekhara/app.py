@@ -104,7 +104,7 @@ from lekhara.records import (
 from lekhara.rules import KARNATAKA
 from lekhara.secretbox import seal
 from lekhara.services import ServiceError
-from lekhara.storage import LocalStorage
+from lekhara.storage import make_storage
 from lekhara.tally import service as tally
 from lekhara.tally.plan import UnitRef
 
@@ -605,7 +605,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     )
     app.state.settings = settings
     app.state.session_factory = session_factory
-    app.state.storage = LocalStorage(settings.storage_dir)
+    app.state.storage = make_storage(settings)
 
     def get_session() -> Iterator[Session]:
         with session_factory() as session:

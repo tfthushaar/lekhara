@@ -67,7 +67,7 @@ from lekhara.models import (
 )
 from lekhara.pdf import write_pdf
 from lekhara.rules import KARNATAKA
-from lekhara.storage import LocalStorage, Storage
+from lekhara.storage import LocalStorage, Storage, make_storage
 
 CR = Decimal("10000000")
 LAKH = Decimal("100000")
@@ -1705,20 +1705,23 @@ def seed_documents(session: Session, storage: Storage, today: date, users: dict[
     session.commit()
 
 
-def reset_and_seed(database_url: str, today: date, storage_dir: str | None = None) -> None:
+def reset_and_seed(
+    database_url: str, today: date, storage_dir: str | None = None, storage: Storage | None = None
+) -> None:
     engine = make_engine(database_url)
     Base.metadata.drop_all(engine)
     with engine.begin() as connection:
         connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
     upgrade(engine)
-    storage = LocalStorage(storage_dir) if storage_dir else None
+    if storage is None and storage_dir:
+        storage = LocalStorage(storage_dir)
     with make_sessionmaker(engine)() as session:
         seed(session, today, storage)
 
 
 def main() -> None:
     settings = get_settings()
-    reset_and_seed(settings.database_url, settings.as_of(), settings.storage_dir)
+    reset_and_seed(settings.database_url, settings.as_of(), storage=make_storage(settings))
     print(f"Demo data loaded into {settings.database_url} for {settings.as_of().isoformat()}.")
 
 

@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-23, with the commit "Keep a signing record on certificates, with a public page to check them".
+Last updated: 2026-10-23, with the commit "Keep files in S3 in production, encrypted and checked on upload".
 
 ## What we are building
 
@@ -332,6 +332,13 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 - Tested: the record kept at signing (address, browser, fingerprint, code), the check page found by the code typed any way and refusing unknown codes, the certificate PDF and the pack carrying the record, a figure changed after signing caught, and signing refused until the person confirms it is them; end to end, from the CA signing to a bank checking the code.
 - With these, every feature borrowed from other software in `research-borrow-and-secure.md` is built.
 
+- Files in S3 for production: `LEKHARA_STORAGE_URL=s3://bucket/prefix` keeps the document vault, imports, statements and emails in an S3 bucket (or any S3-compatible store, such as SeaweedFS or RustFS in development) instead of on the server's disk.
+  - Files keep their SHA-256 names, so the same file is stored once. S3 checks each upload against its SHA-256 before keeping it, and every file is encrypted at rest with S3's keys or a KMS key.
+  - Credentials come the usual AWS way, the server's role first.
+  - The nightly file check, backups and the demo seed work the same with either store; a backup now reads files through the store, so it includes the bucket's files too.
+  - boto3 comes in as an optional extra, `s3`.
+- Tested: local disk keeping, listing and removing files and refusing a path outside it; S3 uploads carrying the SHA-256 and the encryption asked for (AES256, or a KMS key), a file already there not sent again, reading, listing past other objects, a missing file reported as missing, and the settings choosing the store; backups and the file check as before.
+
 ## In progress
 
 - Nothing at the moment; the next work is under Left.
@@ -346,7 +353,6 @@ In this order:
 - Import centre, still to do: templates in Kannada, AI column mapping for unfamiliar sheets.
 - Tally import, after that: testing against real exports from design partners.
 - Billing: one Razorpay subscription per firm (UPI AutoPay, card, e-NACH), GST invoices, reminders before the trial ends and when a payment fails, a grace period, then read-only with export always open. Prices to be set.
-- S3-compatible file storage.
 - Automatic feeds, decided on 2026-10-18 (everything except what needs a bank partnership), still to do: Sell.Do and other CRMs by API; GSTR-2B fetched through a GSP (an OTP about once a month), once there is a GSP account. Bank APIs and the Account Aggregator wait.
 - Multi-provider AI gateway (Claude, OpenAI, Gemini, Sarvam, self-hosted) with an India-only mode; document reading; obligation extraction; history backfill; Ask.
 - Collections, next steps: reminders through the team's own WhatsApp or email.

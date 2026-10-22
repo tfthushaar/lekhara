@@ -167,12 +167,12 @@ if __name__ == "__main__":
     from lekhara import inbound  # noqa: F401 - registers its handlers
     from lekhara.config import get_settings
     from lekhara.db import make_engine, make_sessionmaker
-    from lekhara.storage import LocalStorage
+    from lekhara.storage import make_storage
 
     logging.basicConfig(level=logging.INFO)
     cfg = get_settings()
     factory = make_sessionmaker(make_engine(cfg.database_url))
-    store = LocalStorage(cfg.storage_dir)
+    store = make_storage(cfg)
     log.info("Running background jobs. Stop with Ctrl+C.")
     while True:
         run_pending(factory, store, cfg)
