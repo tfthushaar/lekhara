@@ -1267,6 +1267,9 @@ export async function createRoom(
     expires_on: text(form, "expires_on") || null,
     document_ids: form.getAll("document_ids").map(String),
     ask_visitor: form.get("ask_visitor") === "yes",
+    watermark: form.get("watermark") === "yes",
+    notify: form.get("notify") === "yes",
+    terms: text(form, "terms") || null,
   });
   if (!result.ok) return { error: result.error };
   redirect(`/rooms/${result.data.id}?link=${encodeURIComponent(result.data.token)}`);
@@ -1279,7 +1282,12 @@ export async function updateRoom(
 ): Promise<ActionState> {
   const body: Record<string, unknown> = filled(form, ["name", "audience", "expires_on"]);
   if (form.get("documents") === "change") body.document_ids = form.getAll("document_ids").map(String);
-  if (form.get("visitor_setting") === "change") body.ask_visitor = form.get("ask_visitor") === "yes";
+  if (form.get("protections") === "change") {
+    body.ask_visitor = form.get("ask_visitor") === "yes";
+    body.watermark = form.get("watermark") === "yes";
+    body.notify = form.get("notify") === "yes";
+    body.terms = text(form, "terms");
+  }
   const result = await send("PUT", `/rooms/${roomId}`, body);
   if (!result.ok) return { error: result.error };
   refresh();
@@ -1495,6 +1503,7 @@ export async function enterRoom(token: string, _previous: ActionState, form: For
   const result = await send<{ visitor: string }>("POST", `/shared/${encodeURIComponent(token)}/visitor`, {
     name: text(form, "name"),
     email: text(form, "email"),
+    accept_terms: form.get("accept_terms") === "yes",
   });
   if (!result.ok) return { error: result.error };
   (await cookies()).set({
@@ -1515,6 +1524,14 @@ export async function confirmRoomCode(token: string, _previous: ActionState, for
   const result = await sendAsVisitor(`/shared/${encodeURIComponent(token)}/visitor/verify`, visitor, {
     code: text(form, "code"),
   });
+  if (!result.ok) return { error: result.error };
+  redirect(`/shared/${encodeURIComponent(token)}`);
+}
+
+/** A known visitor accepting a room's terms again, after they changed. */
+export async function acceptRoomTerms(token: string, _previous: ActionState): Promise<ActionState> {
+  const visitor = (await cookies()).get(VISITOR_COOKIE)?.value;
+  const result = await sendAsVisitor(`/shared/${encodeURIComponent(token)}/visitor/terms`, visitor, {});
   if (!result.ok) return { error: result.error };
   redirect(`/shared/${encodeURIComponent(token)}`);
 }

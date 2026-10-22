@@ -751,6 +751,9 @@ export type RoomDetail = RoomRow & {
   documents_in_room: DocRow[];
   available: { id: string; title: string; category_label: string }[];
   ask_visitor: boolean;
+  watermark: boolean;
+  terms: string | null;
+  notify: boolean;
   visits: { at: string; action: "open" | "download"; document: string | null; visitor: string | null }[];
 };
 
@@ -762,6 +765,10 @@ export type SharedGate = {
   expires_on: string;
   /** Set once a visitor gave their email and a code was sent to it. */
   pending_email: string | null;
+  /** Terms each visitor accepts before anything opens. */
+  terms: string | null;
+  /** The visitor is known, but the terms changed since they accepted them. */
+  accept_again: boolean;
 };
 
 export type OpenSession = {
@@ -781,6 +788,8 @@ export type SharedRoom = {
   project: string;
   krera_registration: string;
   expires_on: string;
+  watermark: boolean;
+  ask_visitor: boolean;
   documents: {
     id: string;
     title: string;

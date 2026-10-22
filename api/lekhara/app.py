@@ -1,6 +1,7 @@
 import base64
 import hmac
 import json
+import logging
 import re
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
@@ -45,6 +46,7 @@ from lekhara import (
     statutory,
     two_step,
     views,
+    watermark,
 )
 from lekhara.bank import service as bank
 from lekhara.config import Settings, get_settings
@@ -444,11 +446,15 @@ class NewRoom(BaseModel):
     expires_on: date | None = None
     document_ids: list[str] = []
     ask_visitor: bool = False
+    watermark: bool = True
+    terms: str | None = None
+    notify: bool = True
 
 
 class Visitor(BaseModel):
     name: str = ""
     email: str = ""
+    accept_terms: bool = False
 
 
 class RoomUpdate(BaseModel):
@@ -457,6 +463,9 @@ class RoomUpdate(BaseModel):
     expires_on: date | None = None
     document_ids: list[str] | None = None
     ask_visitor: bool | None = None
+    watermark: bool | None = None
+    terms: str | None = None
+    notify: bool | None = None
 
 
 class HandoverUpdate(BaseModel):
@@ -3488,20 +3497,23 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         room = services.open_room(session, token, on)
         p = services.get_project(session, room.project_id)
         who = services.room_visitor(session, room, visitor)
-        if room.ask_visitor and who is None:
-            # Nothing is shown, or recorded, until the visitor says who they are and proves
-            # the email is theirs with the code sent to it.
-            pending = services.pending_visitor(session, room, visitor)
+        if room.ask_visitor and (who is None or services.needs_terms(room, who)):
+            # Nothing is shown, or recorded, until the visitor says who they are, accepts the
+            # room's terms if it has any, and proves the email is theirs with the code sent
+            # to it. Terms changed since a visitor accepted them are accepted again.
+            pending = services.pending_visitor(session, room, visitor) if who is None else None
             return {
                 "gate": True,
                 "pending_email": pending.email if pending else None,
+                "terms": room.terms,
+                "accept_again": who is not None,
                 "name": room.name,
                 "organization": p.organization.name,
                 "project": p.name,
                 "expires_on": room.expires_on.isoformat(),
             }
         view = views.shared_room(room, services.room_documents(session, room), p)
-        services.log_visit(session, room, "open", visitor=who)
+        services.room_opened(session, settings, room, who, as_of=on)
         return view
 
     @app.post("/shared/{token}/visitor", status_code=201)
@@ -3511,8 +3523,19 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         room = services.open_room(session, token, on)
         by_address["visitor"].count(address_of(request))
         ip, _ = client(request)
-        token = services.register_visitor(session, settings, room, body.name, body.email, ip=ip)
+        token = services.register_visitor(
+            session, settings, room, body.name, body.email, ip=ip, accept_terms=body.accept_terms
+        )
         return {"visitor": token, "code_sent": True}
+
+    @app.post("/shared/{token}/visitor/terms")
+    def shared_visitor_terms(
+        token: str, request: Request, session: SessionDep, on: AsOf, visitor: VisitorToken = None
+    ) -> dict:
+        room = services.open_room(session, token, on)
+        by_address["visitor"].count(address_of(request))
+        services.accept_room_terms(session, room, visitor)
+        return {"ok": True}
 
     class VisitorCode(BaseModel):
         code: str = ""
@@ -3542,7 +3565,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     ) -> Response:
         room = services.open_room(session, token, on)
         who = services.room_visitor(session, room, visitor)
-        if room.ask_visitor and who is None:
+        if room.ask_visitor and (who is None or services.needs_terms(room, who)):
             raise ServiceError(
                 "Give your name and email on the room's page, and the code sent to you, first.",
                 403,
@@ -3551,6 +3574,21 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         if doc is None:
             raise ServiceError("Document not found.", 404)
         data = services.read_file(app.state.storage, doc)
+        if room.watermark and doc.content_type == "application/pdf":
+            p = services.get_project(session, room.project_id)
+            mark, footer = watermark.room_marks(
+                room=room.name,
+                organization=p.organization.name,
+                on=on,
+                visitor_name=who.name if who else None,
+                visitor_email=who.email if who else None,
+                audience=room.audience,
+            )
+            marked = watermark.watermark_pdf(data, mark, footer)
+            if marked is None:
+                # A damaged PDF cannot be marked; it is served as it is rather than not at all.
+                logging.getLogger("lekhara").warning("Could not watermark document %s", doc.id)
+            data = marked or data
         services.log_visit(session, room, "download", doc.id, visitor=who)
         return file_response(doc, data, inline)
 

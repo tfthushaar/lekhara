@@ -127,6 +127,7 @@ from lekhara.models import (
     Landowner,
     LandownerPaymentRow,
     LedgerEntry,
+    Membership,
     Organization,
     PaymentMilestone,
     ProgressCertificate,
@@ -134,6 +135,7 @@ from lekhara.models import (
     Receipt,
     Unit,
     UnitHandover,
+    User,
     WithdrawalCertificate,
     WithdrawalRequest,
 )
@@ -1550,6 +1552,24 @@ def _room_families(session: Session, project: Project, document_ids: list[str]) 
     return list(dict.fromkeys(families))
 
 
+ROOM_TERMS_LIMIT = 8000
+
+
+def _room_terms(value: str | None) -> str | None:
+    text = (value or "").strip()
+    if len(text) > ROOM_TERMS_LIMIT:
+        raise ServiceError(f"Keep the terms under {ROOM_TERMS_LIMIT:,} characters.")
+    return text or None
+
+
+def _check_room_terms(room: DataRoom) -> None:
+    if room.terms and not room.ask_visitor:
+        raise ServiceError(
+            "Terms need the room to ask each visitor for their name and email, so that each "
+            "acceptance has a name on it."
+        )
+
+
 def create_room(
     session: Session,
     project: Project,
@@ -1570,6 +1590,9 @@ def create_room(
         project_id=project.id,
         name=name[:200],
         ask_visitor=bool(fields.get("ask_visitor")),
+        watermark=bool(fields.get("watermark", True)),
+        terms=_room_terms(fields.get("terms")),
+        notify=bool(fields.get("notify", True)),
         audience=(fields.get("audience") or "").strip()[:200] or None,
         token_hash=_token_hash(token),
         created_on=as_of,
@@ -1577,6 +1600,7 @@ def create_room(
         created_by_user_id=user_id,
         entries=[DataRoomDocument(family_id=f) for f in families],
     )
+    _check_room_terms(room)
     session.add(room)
     session.commit()
     return room, token
@@ -1622,6 +1646,12 @@ def update_room(
         room.audience = (fields["audience"] or "").strip()[:200] or None
     if fields.get("ask_visitor") is not None:
         room.ask_visitor = bool(fields["ask_visitor"])
+    for flag in ("watermark", "notify"):
+        if fields.get(flag) is not None:
+            setattr(room, flag, bool(fields[flag]))
+    if "terms" in fields:
+        room.terms = _room_terms(fields["terms"])
+    _check_room_terms(room)
     if fields.get("expires_on") is not None:
         room.expires_on = _room_expiry(fields["expires_on"], as_of, rules)
     if fields.get("document_ids") is not None:
@@ -1686,10 +1716,18 @@ VISITOR_CODE_TRIES = 5
 
 
 def register_visitor(
-    session: Session, settings, room: DataRoom, name: str, email: str, *, ip: str | None
+    session: Session,
+    settings,
+    room: DataRoom,
+    name: str,
+    email: str,
+    *,
+    ip: str | None,
+    accept_terms: bool = False,
 ) -> str:
-    """Records who is opening a room that asks, emails them a code to prove the email is theirs,
-    and returns the token their browser keeps. The room opens once the code is entered."""
+    """Records who is opening a room that asks, and their acceptance of its terms if it has
+    any, emails them a code to prove the email is theirs, and returns the token their browser
+    keeps. The room opens once the code is entered."""
     from lekhara import mail
 
     name, email = (name or "").strip(), (email or "").strip().lower()
@@ -1697,6 +1735,8 @@ def register_visitor(
         raise ServiceError("Enter your name.")
     if not _EMAIL.match(email):
         raise ServiceError("Enter an email address, like name@example.com.")
+    if room.terms and not accept_terms:
+        raise ServiceError("Accept the terms to open the documents.")
     token = secrets.token_urlsafe(24)
     code = f"{secrets.randbelow(10**6):06d}"
     now = datetime.now(UTC).replace(tzinfo=None)
@@ -1709,6 +1749,8 @@ def register_visitor(
             ip=(ip or "")[:64] or None,
             code_hash=_token_hash(code),
             code_expires_at=now + timedelta(minutes=VISITOR_CODE_MINUTES),
+            accepted_terms=room.terms,
+            accepted_terms_at=now if room.terms else None,
         )
     )
     project = session.get(Project, room.project_id)
@@ -1768,6 +1810,83 @@ def room_visitor(session: Session, room: DataRoom, token: str | None) -> DataRoo
     """The visitor, once they have proved their email."""
     visitor = _visitor_row(session, room, token)
     return visitor if visitor is not None and visitor.verified_at is not None else None
+
+
+def needs_terms(room: DataRoom, visitor: DataRoomVisitor | None) -> bool:
+    """Whether the room has terms this visitor has not accepted as they now read: changed
+    terms are accepted again."""
+    return bool(room.terms) and (visitor is None or visitor.accepted_terms != room.terms)
+
+
+def accept_room_terms(session: Session, room: DataRoom, token: str | None) -> None:
+    visitor = room_visitor(session, room, token)
+    if visitor is None:
+        raise ServiceError("Give your name and email first.", 403)
+    if needs_terms(room, visitor):
+        visitor.accepted_terms = room.terms
+        visitor.accepted_terms_at = datetime.now(UTC).replace(tzinfo=None)
+        session.commit()
+
+
+def room_opened(
+    session: Session, settings, room: DataRoom, visitor: DataRoomVisitor | None, *, as_of: date
+) -> None:
+    """Records an open of the room. The first time each visitor opens it, or for a room that
+    does not ask who visitors are the first time anyone does, whoever made it is emailed."""
+    earlier = select(DataRoomVisit.id).where(
+        DataRoomVisit.room_id == room.id, DataRoomVisit.action == "open"
+    )
+    if visitor is not None:
+        earlier = earlier.where(DataRoomVisit.visitor_id == visitor.id)
+    first = session.scalars(earlier.limit(1)).first() is None
+    log_visit(session, room, "open", visitor=visitor)
+    if first and room.notify:
+        _tell_room_maker(session, settings, room, visitor, as_of)
+
+
+def _tell_room_maker(
+    session: Session, settings, room: DataRoom, visitor: DataRoomVisitor | None, as_of: date
+) -> None:
+    from lekhara import mail
+
+    project = session.get(Project, room.project_id)
+    maker = session.get(User, room.created_by_user_id) if room.created_by_user_id else None
+    if maker is None or not maker.is_active:
+        return
+    in_firm = session.scalars(
+        select(Membership.id).where(
+            Membership.user_id == maker.id,
+            Membership.organization_id == project.organization_id,
+        )
+    ).first()
+    if in_firm is None:
+        return
+    on = f"{as_of.day} {as_of:%b %Y}"
+    if visitor is not None:
+        subject = f"{visitor.name} opened {room.name}"
+        opened = (
+            f"{visitor.name} ({visitor.email}) opened the data room {room.name} for "
+            f"{project.name} on {on}, for the first time."
+        )
+    else:
+        subject = f"{room.name} was opened"
+        opened = (
+            f"The data room {room.name} for {project.name} was opened on {on}, for the first "
+            "time. It does not ask visitors who they are, so this is the only email it sends."
+        )
+    mail.send_email(
+        session,
+        settings,
+        to=maker.email,
+        subject=subject,
+        body=(
+            f"Hello {maker.name},\n\n{opened}\n\n"
+            f"Every open and download is on the room's page: {settings.web_url}/rooms/{room.id}"
+            "\n\nYou can turn these emails off for the room there."
+        ),
+        kind="room_opened",
+    )
+    session.commit()
 
 
 # Withdrawal workflow

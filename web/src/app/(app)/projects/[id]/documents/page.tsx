@@ -531,6 +531,24 @@ function RoomsSection({ r, projectId }: { r: DocumentsView; projectId: string })
               <input type="checkbox" name="ask_visitor" value="yes" defaultChecked /> Ask each visitor for their name and
               email, and record them with each visit
             </label>
+            <label className="check-line">
+              <input type="checkbox" name="watermark" value="yes" defaultChecked /> Mark every page of a PDF with who
+              opened it and when
+            </label>
+            <label className="check-line">
+              <input type="checkbox" name="notify" value="yes" defaultChecked /> Email me the first time each visitor
+              opens it
+            </label>
+            <div className="field">
+              <label htmlFor="room-terms">Terms each visitor must accept (optional)</label>
+              <textarea
+                id="room-terms"
+                name="terms"
+                rows={3}
+                placeholder="These documents are confidential and are shared only to assess the loan."
+              />
+              <p className="small muted">Needs visitors to give their name and email, so each acceptance has a name on it.</p>
+            </div>
             <p className="small muted" style={{ marginBottom: 8 }}>
               Choose what to share. The room always shows the latest version of each.
             </p>

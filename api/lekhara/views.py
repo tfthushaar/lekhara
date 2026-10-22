@@ -1108,6 +1108,9 @@ def room_detail(
                 for doc in available
             ],
             "ask_visitor": room.ask_visitor,
+            "watermark": room.watermark,
+            "terms": room.terms,
+            "notify": room.notify,
             "visits": [
                 {
                     "at": v_at(v),
@@ -1131,6 +1134,8 @@ def shared_room(room: DataRoom, docs: list[Document], project: Project) -> dict:
         "project": project.name,
         "krera_registration": project.krera_registration,
         "expires_on": d(room.expires_on),
+        "watermark": room.watermark,
+        "ask_visitor": room.ask_visitor,
         "documents": [
             {
                 "id": doc.id,

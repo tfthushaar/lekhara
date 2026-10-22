@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-23, with the commit "File documents by the firm's own rules, and keep a register of paper originals".
+Last updated: 2026-10-23, with the commit "Watermark data room PDFs, ask visitors to accept terms, and tell the room's maker of each first open".
 
 ## What we are building
 
@@ -301,9 +301,16 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 - A register of paper originals (borrowed from Paperless-ngx's archive serial numbers): each title deed, plan, certificate or sale deed gets a number for the firm (O-0001 and on) on a printed barcode label for its folder, and Lekhara keeps where it is (in the office, with a bank as security and against which loan, with the lawyer, at the sub-registrar, with an authority, handed to the buyer) and every move, with who recorded it. An ordinary barcode reader scanning a label opens its record; one away with the lawyer, registrar or an authority for more than 30 days is flagged.
 - Tested: the four ways of matching (a scanned "OCCUPANCV CERTIFlCATE" found), an upload filed by a standard rule and one with its kind chosen left alone, a rule tried, added and used on documents already in, the rule nearest the top winning over a passing mention, and who may change rules; originals numbered across the firm, moved with history, found by a scanned or typed number, flagged when away too long, and hidden from other firms and certifiers; both end to end, with the label sheet's barcodes.
 
+- Stronger data rooms (borrowed from Papermark and other data room software):
+  - Every page of a PDF opened from a room carries, faintly across it, the visitor's email and the date (or, in a room that does not ask who visitors are, who it was shared with), and along its foot who opened it, from which firm's room, marked confidential. The document underneath is unchanged and still searchable; the team's own copy is never marked. On by default, and a room can turn it off. Photos are shown as they are, and a damaged PDF that cannot be marked is served unmarked rather than not at all.
+  - Terms (a confidentiality note, or an NDA) each visitor accepts before anything opens, recorded with their name, email, the time and the words they accepted. If the terms change, visitors accept them again before anything more opens. Terms need the room to ask who visitors are, so each acceptance has a name on it.
+  - Whoever made the room is emailed the first time each visitor opens it (or, for a room that does not ask who visitors are, the first time anyone does), with a link to every open and download. It can be turned off for a room.
+  - A switch to stop downloads is left out: anything on a visitor's screen can be saved or photographed, so it would promise more than it does. The watermark makes a copy traceable instead.
+- Tested: a PDF opened by a visitor carrying their email, the date and the footer while its own text is still found, the team's copy unmarked, a room without names marked with who it was shared with, and the mark turned off; terms refused without names, required at the gate, accepted again after a change, and the accepted words kept; the room's maker emailed once per visitor, not when turned off, and once only for a room without names; all end to end, with the watermark read back from the PDF a visitor downloaded.
+
 ## In progress
 
-- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository), still to do: stronger data rooms, bank rules, help with the GST Invoice Management System, and a signing record on certificates.
+- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository), still to do: bank rules, help with the GST Invoice Management System, and a signing record on certificates.
 
 ## Left
 

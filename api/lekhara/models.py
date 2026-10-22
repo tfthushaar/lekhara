@@ -588,6 +588,13 @@ class DataRoom(Base):
     created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     ask_visitor: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     """Ask everyone who opens the link for their name and email first."""
+    watermark: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    """Mark every page of a PDF opened from the room with who opened it and when."""
+    terms: Mapped[str | None] = mapped_column(Text)
+    """A confidentiality note each visitor must accept before anything opens; it needs the room
+    to ask visitors who they are, so the acceptance has a name on it."""
+    notify: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    """Email whoever made the room the first time each visitor opens it."""
 
     entries: Mapped[list["DataRoomDocument"]] = relationship(cascade="all, delete-orphan")
     visits: Mapped[list["DataRoomVisit"]] = relationship(order_by="DataRoomVisit.at.desc()")
@@ -633,6 +640,9 @@ class DataRoomVisitor(Base):
     code_expires_at: Mapped[datetime | None] = mapped_column(DateTime)
     code_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    accepted_terms: Mapped[str | None] = mapped_column(Text)
+    """The room's terms as they were when this visitor accepted them."""
+    accepted_terms_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 # People and access

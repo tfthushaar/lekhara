@@ -6,7 +6,7 @@ import { Suspense } from "react";
 import { newRoomLink, revokeRoom, updateRoom } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { DateField } from "@/components/documents";
-import { api } from "@/lib/api";
+import { type RoomDetail, api } from "@/lib/api";
 import { day } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Data room" };
@@ -24,6 +24,22 @@ async function origin(): Promise<string> {
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   return `${proto}://${host}`;
+}
+
+/** The room's protections, in a sentence. */
+function protections(room: RoomDetail): string {
+  const parts = [
+    room.ask_visitor
+      ? `Visitors give their name and email${room.terms ? " and accept the terms" : ""} before anything opens.`
+      : "Anyone with the link can open it.",
+    room.watermark ? "Every page of a PDF carries who opened it and when." : "PDFs are shared as they are.",
+    room.notify
+      ? room.ask_visitor
+        ? "Whoever made the room is emailed when each visitor first opens it."
+        : "Whoever made the room is emailed when it is first opened."
+      : "",
+  ];
+  return parts.filter(Boolean).join(" ");
 }
 
 function when(iso: string): string {
@@ -70,6 +86,10 @@ async function RoomView({
           : room.state === "revoked"
             ? "Closed. The link no longer works."
             : `Expired on ${day(room.expires_on)}. The link no longer works.`}
+      </p>
+
+      <p className="small muted" style={{ marginTop: -8, marginBottom: 24, maxWidth: 720 }}>
+        {protections(room)}
       </p>
 
       {token && open ? (
@@ -159,13 +179,29 @@ async function RoomView({
       {room.can_share && open ? (
         <section className="section">
           <details className="disclosure">
-            <summary>{room.ask_visitor ? "Visitors give their name and email" : "Ask visitors who they are"}</summary>
+            <summary>Change how the room is protected</summary>
             <ActionForm action={updateRoom.bind(null, room.id)} label="Save" pendingLabel="Saving" secondary>
-              <input type="hidden" name="visitor_setting" value="change" />
+              <input type="hidden" name="protections" value="change" />
               <label className="check-line">
                 <input type="checkbox" name="ask_visitor" value="yes" defaultChecked={room.ask_visitor} /> Ask each visitor
                 for their name and email before they see anything
               </label>
+              <label className="check-line">
+                <input type="checkbox" name="watermark" value="yes" defaultChecked={room.watermark} /> Mark every page of
+                a PDF with who opened it and when
+              </label>
+              <label className="check-line">
+                <input type="checkbox" name="notify" value="yes" defaultChecked={room.notify} /> Email whoever made the
+                room the first time each visitor opens it
+              </label>
+              <div className="field">
+                <label htmlFor="room-terms">Terms each visitor must accept</label>
+                <textarea id="room-terms" name="terms" rows={4} defaultValue={room.terms ?? ""} />
+                <p className="small muted">
+                  Leave it empty for none. If you change the terms, visitors accept them again before anything more
+                  opens.
+                </p>
+              </div>
             </ActionForm>
           </details>
           <details className="disclosure">

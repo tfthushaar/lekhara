@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Suspense } from "react";
 
-import { confirmRoomCode, enterRoom, forgetRoomVisitor } from "@/app/actions";
+import { acceptRoomTerms, confirmRoomCode, enterRoom, forgetRoomVisitor } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { VISITOR_COOKIE, sharedRoom } from "@/lib/api";
 import { day } from "@/lib/format";
@@ -37,6 +37,27 @@ async function SharedView({ params }: { params: Promise<{ token: string }> }) {
         <p style={{ marginTop: 12, maxWidth: 560 }}>
           It has expired or been withdrawn. Ask the person who shared it for a new link.
         </p>
+      </>
+    );
+  }
+  if (room.gate && room.accept_again && room.terms) {
+    return (
+      <>
+        <div className="page-head">
+          <div>
+            <h1>{room.name}</h1>
+            <p>
+              Shared by {room.organization}. {room.project}.
+            </p>
+          </div>
+        </div>
+        <p style={{ maxWidth: 560, marginBottom: 16 }}>
+          {room.organization} has changed the terms for these documents. Accept them to go on.
+        </p>
+        <div className="terms-text" style={{ maxWidth: 720, marginBottom: 16 }}>
+          {room.terms}
+        </div>
+        <ActionForm action={acceptRoomTerms.bind(null, token)} label="Accept and open" pendingLabel="Opening" />
       </>
     );
   }
@@ -94,6 +115,20 @@ async function SharedView({ params }: { params: Promise<{ token: string }> }) {
               <label htmlFor="visitor-email">Your email</label>
               <input id="visitor-email" name="email" type="email" autoComplete="email" required />
             </div>
+            {room.terms ? (
+              <>
+                <p className="small strong" style={{ marginBottom: 8 }}>
+                  Terms from {room.organization}
+                </p>
+                <div className="terms-text" style={{ marginBottom: 12 }}>
+                  {room.terms}
+                </div>
+                <label className="check-line">
+                  <input type="checkbox" name="accept_terms" value="yes" required /> I accept these terms. My acceptance
+                  is recorded with my name and email.
+                </label>
+              </>
+            ) : null}
           </ActionForm>
         </div>
       </>
@@ -115,6 +150,11 @@ async function SharedView({ params }: { params: Promise<{ token: string }> }) {
       <p className="small muted" style={{ marginBottom: 24 }}>
         This link closes on {day(room.expires_on)}. {room.organization} can see when it is opened
         and what is downloaded.
+        {room.watermark
+          ? room.ask_visitor
+            ? " Each page of a PDF you open carries your email and the date."
+            : " Each page of a PDF you open carries the date and who it was shared with."
+          : ""}
       </p>
       <table className="table">
         <thead>

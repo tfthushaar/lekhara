@@ -40,6 +40,7 @@ const SECTIONS = [
     points: [
       "Data rooms close on the date you choose, and can be withdrawn at any time.",
       "A room can ask each visitor for their name and email, confirmed with a code sent to that email, and records each document they open.",
+      "Every page of a PDF opened from a room carries who opened it and when, so a copy passed on can be traced. Visitors can be asked to accept your confidentiality terms first, and their acceptance is kept.",
     ],
   },
   {

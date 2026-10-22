@@ -60,7 +60,7 @@ If you already use other tools, keep them. Lekhara reads from them instead. If y
 - **Contractor bills and purchase prices.**
 - **Site progress from ordinary site photos.**
 - **Snags, defects and the five-year defect liability.**
-- **A document vault:** every paper filed against its project, unit, case or approval, and searchable to the page it is on. Documents file themselves by your own rules ("fire NOC" means an approval, and the fire NOC on the checklist), and a register of paper originals, each with a barcode label, tells you whether the title deed is in the safe, with the bank or with the lawyer. A checklist of what banks and K-RERA ask for, reminders before approvals and policies lapse, and data rooms for lenders that close on the date you choose, with every visit recorded and, if you like, who made it.
+- **A document vault:** every paper filed against its project, unit, case or approval, and searchable to the page it is on. Documents file themselves by your own rules ("fire NOC" means an approval, and the fire NOC on the checklist), and a register of paper originals, each with a barcode label, tells you whether the title deed is in the safe, with the bank or with the lawyer. A checklist of what banks and K-RERA ask for, reminders before approvals and policies lapse, and data rooms for lenders that close on the date you choose, with every visit recorded and, if you like, who made it. Each PDF a visitor opens carries their email and the date on every page, visitors can be asked to accept your confidentiality terms first, and you are emailed the first time each one opens the room.
 - **Notices, title documents and board packs.**
 
 ## How it works

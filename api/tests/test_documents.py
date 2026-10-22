@@ -364,3 +364,127 @@ def test_a_room_that_asks_who_is_visiting(vault, boss, clerk) -> None:
 
     public.headers["X-Lekhara-Visitor"] = "someone-elses-token"
     assert public.get(f"/shared/{token}").json()["gate"] is True
+
+
+# Watermarks, terms and the first-open email
+
+
+def emails_to(app, address: str, kind: str | None = None) -> list[OutboundEmail]:
+    with app.state.session_factory() as session:
+        q = select(OutboundEmail).where(OutboundEmail.to_address == address)
+        if kind:
+            q = q.where(OutboundEmail.kind == kind)
+        return list(session.scalars(q.order_by(OutboundEmail.created_at)))
+
+
+def visit(app, token: str, name: str, email: str, **extra) -> TestClient:
+    """A visitor who gives their name and email, and enters the code sent to them."""
+    public = TestClient(app)
+    r = public.post(f"/shared/{token}/visitor", json={"name": name, "email": email, **extra})
+    assert r.status_code == 201, r.text
+    public.headers["X-Lekhara-Visitor"] = r.json()["visitor"]
+    code = re.search(r"is (\d{6})", emails_to(app, email, "room_code")[-1].body).group(1)
+    assert public.post(f"/shared/{token}/visitor/verify", json={"code": code}).status_code == 200
+    return public
+
+
+def room(client, ids, **fields) -> tuple[str, str]:
+    body = {"name": "Lender review", "expires_on": "2026-11-15", "document_ids": ids, **fields}
+    r = client.post(f"/projects/{SG}/rooms", json=body)
+    assert r.status_code == 201, r.text
+    return r.json()["id"], r.json()["token"]
+
+
+def test_pdfs_from_a_room_carry_who_opened_them(vault, boss) -> None:
+    doc = upload(boss, SG, pdf("Encumbrance certificate for survey 42"), title="EC survey 42")
+    doc_id = doc.json()["id"]
+    room_id, token = room(boss, [doc_id], ask_visitor=True)
+    asha = visit(vault, token, "Asha Nair", "asha@bank.example")
+    file = asha.get(f"/shared/{token}/documents/{doc_id}/file")
+    assert file.status_code == 200
+    text = " ".join(read_pages(file.content))
+    assert "Encumbrance certificate for survey 42" in text  # the document is still searchable
+    assert "asha@bank.example, 17 Oct 2026" in text
+    assert "Opened by Asha Nair (asha@bank.example)" in text and "Confidential" in text
+
+    # Signed in, the team gets the file as it was filed.
+    own = boss.get(f"/documents/{doc_id}/file")
+    assert "asha@bank.example" not in " ".join(read_pages(own.content))
+
+    # A room with no visitor names marks pages with who it was shared with.
+    _, open_token = room(boss, [doc_id], audience="HDFC Bank")
+    plain = TestClient(vault).get(f"/shared/{open_token}/documents/{doc_id}/file")
+    assert "HDFC Bank, 17 Oct 2026" in " ".join(read_pages(plain.content))
+
+    boss.put(f"/rooms/{room_id}", json={"watermark": False})
+    unmarked = asha.get(f"/shared/{token}/documents/{doc_id}/file")
+    assert unmarked.content == own.content
+
+
+def test_a_room_with_terms(vault, boss, clerk) -> None:
+    ids = [x["id"] for x in clerk.get(f"/projects/{SG}/documents").json()["documents"][:1]]
+    nda = "Keep these documents confidential and use them only to assess the loan."
+    no_names = boss.post(
+        f"/projects/{SG}/rooms",
+        json={"name": "NDA", "expires_on": "2026-11-15", "document_ids": ids, "terms": nda},
+    )
+    assert no_names.status_code == 400 and "name and email" in no_names.json()["detail"]
+    room_id, token = room(boss, ids, ask_visitor=True, terms=nda)
+
+    public = TestClient(vault)
+    gate = public.get(f"/shared/{token}").json()
+    assert gate["gate"] is True and gate["terms"] == nda
+    refused = public.post(
+        f"/shared/{token}/visitor", json={"name": "Asha Nair", "email": "asha@bank.example"}
+    )
+    assert refused.status_code == 400 and "Accept the terms" in refused.json()["detail"]
+    asha = visit(vault, token, "Asha Nair", "asha@bank.example", accept_terms=True)
+    assert asha.get(f"/shared/{token}").json()["gate"] is False
+
+    # Changed terms are accepted again before anything more opens.
+    boss.put(f"/rooms/{room_id}", json={"terms": nda + " Return or destroy them after."})
+    again = asha.get(f"/shared/{token}").json()
+    assert again["gate"] is True and again["accept_again"] is True
+    assert asha.get(f"/shared/{token}/documents/{ids[0]}/file").status_code == 403
+    assert asha.post(f"/shared/{token}/visitor/terms").status_code == 200
+    assert asha.get(f"/shared/{token}").json()["gate"] is False
+
+    with vault.state.session_factory() as session:
+        from lekhara.models import DataRoomVisitor
+
+        row = session.scalars(select(DataRoomVisitor).where(DataRoomVisitor.room_id == room_id))
+        accepted = next(iter(row))
+        assert accepted.accepted_terms.endswith("Return or destroy them after.")
+        assert accepted.accepted_terms_at is not None
+
+    off = boss.put(f"/rooms/{room_id}", json={"ask_visitor": False})
+    assert off.status_code == 400  # terms stay tied to names
+    assert boss.put(f"/rooms/{room_id}", json={"terms": ""}).json()["terms"] is None
+
+
+def test_whoever_made_a_room_hears_of_each_first_open(vault, boss, clerk) -> None:
+    ids = [x["id"] for x in clerk.get(f"/projects/{SG}/documents").json()["documents"][:1]]
+    room_id, token = room(boss, ids, ask_visitor=True)
+    before = len(emails_to(vault, "promoter@demo.lekhara", "room_opened"))
+    asha = visit(vault, token, "Asha Nair", "asha@bank.example")
+    asha.get(f"/shared/{token}")
+    asha.get(f"/shared/{token}")
+    told = emails_to(vault, "promoter@demo.lekhara", "room_opened")[before:]
+    assert len(told) == 1
+    assert told[0].subject == "Asha Nair opened Lender review"
+    assert "asha@bank.example" in told[0].body and f"/rooms/{room_id}" in told[0].body
+
+    visit(vault, token, "Vikram Shah", "vikram@bank.example").get(f"/shared/{token}")
+    assert len(emails_to(vault, "promoter@demo.lekhara", "room_opened")[before:]) == 2
+
+    boss.put(f"/rooms/{room_id}", json={"notify": False})
+    visit(vault, token, "Meera Iyer", "meera@bank.example").get(f"/shared/{token}")
+    assert len(emails_to(vault, "promoter@demo.lekhara", "room_opened")[before:]) == 2
+
+    # A room that does not ask who is visiting sends one email, for its first open.
+    _, open_token = room(boss, ids)
+    public = TestClient(vault)
+    public.get(f"/shared/{open_token}")
+    public.get(f"/shared/{open_token}")
+    last = emails_to(vault, "promoter@demo.lekhara", "room_opened")[before:]
+    assert len(last) == 3 and "the only email it sends" in last[-1].body

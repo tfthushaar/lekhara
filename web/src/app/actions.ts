@@ -130,6 +130,7 @@ export const openSupport = settled(handlers.openSupport);
 export const endSupport = settled(handlers.endSupport);
 export const confirmRoomCode = settled(handlers.confirmRoomCode);
 export const forgetRoomVisitor = settled(handlers.forgetRoomVisitor);
+export const acceptRoomTerms = settled(handlers.acceptRoomTerms);
 export const confirmIdentity = settled(handlers.confirmIdentity);
 export const endSessionElsewhere = settled(handlers.endSessionElsewhere);
 export const endOtherSessions = settled(handlers.endOtherSessions);
