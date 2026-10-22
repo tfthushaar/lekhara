@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-19, with the commit "Add our admin console, with support access only by the firm's consent".
+Last updated: 2026-10-19, with the commit "Add the incident-response runbook".
 
 ## What we are building
 
@@ -260,9 +260,11 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 - Two-step sign-in: the recovery codes stay on screen after turning it on; before, the page redrew and they were gone before they could be copied.
 - Tested end to end: the console closed to a builder and to staff without two-step, a firm found by email, its free month extended and a payment recorded (and seen in the builder's Settings), support refused before consent, then allowed, opened read-only, ended, and seen in the builder's access log, and withdrawn.
 
+- Incident response: a written runbook (`docs/incident-response.md`) for when security is breached or might have been. It covers who acts, the deadlines (CERT-In within 6 hours, affected firms within 24 as our data processing terms promise, affected people and the Data Protection Board as the DPDP Rules require from May 2027, followed now), the commands to sign people out, withdraw access, close data rooms, unlink connectors and rotate secrets, the access-log queries to find out what happened, and the notices to send.
+
 ## In progress
 
-- A written incident-response runbook: CERT-In within 6 hours, affected firms within 24, the Data Protection Board within 72.
+- Nothing from the list that needs no decision from you; see Left.
 
 ## Left
 

@@ -95,6 +95,10 @@ A data room that asks who is visiting (`DataRoom.ask_visitor`) shows nothing unt
 
 `api/lekhara/legal.py` holds the version of the terms, privacy notice and data processing terms (`VERSION`; raise it when the texts change, and everyone is asked to accept again), records acceptances, writes the access log (`record`), deletes a person's account (`anonymise`), and closes a firm (`close_firm`, then the daily `legal.daily` job runs `purge_firm` once `delete_after` has passed). The texts are pages in `web/src/app/legal/`. The company's details on them come from `LEKHARA_COMPANY_NAME`, `LEKHARA_COMPANY_ADDRESS`, `LEKHARA_GRIEVANCE_OFFICER` and `LEKHARA_GRIEVANCE_EMAIL`. The web app passes the person's address and browser to the API in `X-Lekhara-Client-IP` and `X-Lekhara-User-Agent` for the log. When adding a table that holds a firm's data, add it to `_purge_scoped` too, children before parents.
 
+### When something goes wrong
+
+`docs/incident-response.md` is the runbook for a security incident: the deadlines, who acts, the commands and the notices.
+
 ### Our admin console
 
 `api/lekhara/staff.py` and `/admin` in the web app. Mark someone as staff with `python -m lekhara.staff add their@email` (`remove`, `list`); they must have signed up, and the console stays closed until they turn on two-step sign-in. Staff requests (`/staff/...`) are deliberately not restricted by row-level security, since the console reads across firms; it shows account facts only. Support sessions (`UserSession.support_org_id`) are made by `auth.start_support_session` only while the firm's `SupportGrant` holds; `current_principal` refuses anything but reads on them and writes `support_view` to the firm's access log for each request. The web app keeps the staff member's own session in `lekhara_staff_session` while they look, and puts it back when they end. Payments recorded here set `Organization.paid_until`; `services.access_state` makes the workspace read-only after it.
