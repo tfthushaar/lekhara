@@ -131,6 +131,8 @@ def options(row: BankStatement) -> dict:
 
 
 def context(session: Session, project: Project, row: BankStatement, as_of: date) -> Context:
+    from lekhara.bank.rules import ref, rules_for
+
     opts = options(row)
     org = session.get(Organization, project.organization_id)
     units = tuple(
@@ -174,6 +176,7 @@ def context(session: Session, project: Project, row: BankStatement, as_of: date)
         own_names=own,
         receipts=receipts,
         escrow=escrow,
+        rules=tuple(ref(r) for r in rules_for(session, project)),
     )
 
 

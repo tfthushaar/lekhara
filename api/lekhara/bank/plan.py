@@ -6,6 +6,11 @@ The account buyers pay into gives their payments, each matched to a unit from th
 from the buyer's ledger in Tally. Money already in Lekhara, from an earlier statement or from
 Tally, is recognised and not added twice. A payment that came back (a bounced cheque, a returned
 transfer) is paired with the original and both are left out.
+
+The firm's bank rules (`RuleRef`) say what lines with certain words are: a unit's buyer, not a
+buyer, a line to leave out, or which kind of movement in the RERA account. The first rule that
+fits a line decides it, after any choice made for the line itself and before the payers
+remembered from earlier statements.
 """
 
 import re
@@ -15,12 +20,15 @@ from decimal import Decimal
 
 from lekhara.bank import narration as words
 from lekhara.bank.reader import Line, Statement
+from lekhara.matching import matches, normal
 from lekhara.money import ZERO, inr
 from lekhara.tally.plan import Alert, UnitRef, _alnum, _count, _unit_pattern
 
 MATCH_DAYS = 3
 RETURN_DAYS = 15
 STALE_DAYS = 45
+KIND_ACTIONS = ("deposit", "interest", "withdrawal", "charges")
+"""Rule actions that say which movement in the RERA account a line is."""
 
 
 @dataclass(frozen=True)
@@ -42,6 +50,30 @@ class KnownTxn:
 
 
 @dataclass(frozen=True)
+class RuleRef:
+    name: str
+    words: str
+    how: str
+    direction: str
+    """in, out or any."""
+    action: str
+    unit_id: str | None = None
+    min_amount: Decimal | None = None
+    max_amount: Decimal | None = None
+
+    def fits(self, line: Line) -> bool:
+        if (self.direction == "in" and not line.is_credit) or (
+            self.direction == "out" and line.is_credit
+        ):
+            return False
+        if self.min_amount is not None and line.amount < self.min_amount:
+            return False
+        if self.max_amount is not None and line.amount > self.max_amount:
+            return False
+        return matches(self.how, self.words, normal(line.narration))
+
+
+@dataclass(frozen=True)
 class Context:
     as_of: date
     role: str | None
@@ -58,6 +90,8 @@ class Context:
     own_names: tuple[str, ...] = ()
     receipts: tuple[KnownReceipt, ...] = ()
     escrow: tuple[KnownTxn, ...] = ()
+    rules: tuple[RuleRef, ...] = ()
+    """The firm's bank rules for this project, in their order."""
 
 
 @dataclass
@@ -86,6 +120,8 @@ class LinePlan:
     loan: bool = False
     buyer_line: bool = False
     """A credit that could be a buyer's payment, so the builder can place it."""
+    rule: str | None = None
+    """The bank rule that decided the line."""
 
     @property
     def amount(self) -> Decimal:
@@ -162,7 +198,9 @@ def _pair_returns(lines: list[Line]) -> dict[int, int]:
     return paired
 
 
-def _buyer(p: LinePlan, line: Line, ctx: Context, units: dict[str, UnitRef]) -> None:
+def _buyer(
+    p: LinePlan, line: Line, ctx: Context, units: dict[str, UnitRef], rule: RuleRef | None
+) -> None:
     """Who a credit came from: a unit, someone who is not a buyer, or a question."""
     p.buyer_line = True
     choice = ctx.choices.get(line.key)
@@ -172,6 +210,12 @@ def _buyer(p: LinePlan, line: Line, ctx: Context, units: dict[str, UnitRef]) -> 
     elif choice == "not_buyer":
         p.outcome, p.note = "not_buyer", "Marked by you as not a buyer's payment."
         return
+    elif rule is not None and rule.action == "not_buyer":
+        p.rule = rule.name
+        p.outcome, p.note = "not_buyer", f"Not a buyer's payment, by the rule {rule.name}."
+        return
+    elif rule is not None and rule.action == "unit" and rule.unit_id in units:
+        p.unit_id, p.how, p.rule = rule.unit_id, f"the rule {rule.name}", rule.name
     elif key and not p.loan and key in ctx.payers:
         unit = ctx.payers[key]
         if unit is None:
@@ -220,7 +264,8 @@ def make_plan(statement: Statement, ctx: Context) -> Plan:
             loan=words.is_loan(line.narration),
         )
         plans.append(p)
-        if ctx.choices.get(line.key) == "skip":
+        choice = ctx.choices.get(line.key)
+        if choice == "skip":
             p.outcome, p.note = "left_out", "Left out by you."
             continue
         if line.index in paired:
@@ -232,28 +277,43 @@ def make_plan(statement: Statement, ctx: Context) -> Plan:
                 else f"Returns the payment of {other.on:%d %b %Y}; both left out."
             )
             continue
+        rule = next((r for r in ctx.rules if r.fits(line)), None)
+        if rule is not None and rule.action == "leave_out" and choice is None:
+            p.rule = rule.name
+            p.outcome, p.note = "left_out", f"Left out by the rule {rule.name}."
+            continue
         if ctx.role is None:
             continue
         interest = words.is_interest(line.narration)
+        kind_rule = rule if rule is not None and rule.action in KIND_ACTIONS else None
+        if kind_rule is not None and kind_rule.action in ("deposit", "interest"):
+            interest = kind_rule.action == "interest"
         if ctx.role == "rera":
             if line.is_credit:
                 p.escrow_kind = "interest" if interest else "deposit"
                 p.outcome = p.escrow_kind
-                if ctx.buyers_pay_here and not interest:
-                    _buyer(p, line, ctx, units)
+                if kind_rule is not None:
+                    p.rule, p.note = kind_rule.name, f"By the rule {kind_rule.name}."
+                deposit_by_rule = kind_rule is not None and kind_rule.action == "deposit"
+                if ctx.buyers_pay_here and not interest and not deposit_by_rule:
+                    _buyer(p, line, ctx, units, rule)
                     if p.outcome in ("not_buyer", "needs_unit", "buyer_payment"):
                         # Still a deposit into the RERA account, whoever it came from.
                         p.escrow_kind = "deposit"
                         if p.outcome == "not_buyer":
                             p.outcome = "deposit"
             else:
-                p.escrow_kind = "charges" if words.is_charge(line.narration) else "withdrawal"
+                charge = words.is_charge(line.narration)
+                if kind_rule is not None and kind_rule.action in ("withdrawal", "charges"):
+                    charge = kind_rule.action == "charges"
+                    p.rule, p.note = kind_rule.name, f"By the rule {kind_rule.name}."
+                p.escrow_kind = "charges" if charge else "withdrawal"
                 p.outcome = p.escrow_kind
         elif line.is_credit:
             if interest:
                 p.outcome, p.note = "not_buyer", "Interest from the bank."
             else:
-                _buyer(p, line, ctx, units)
+                _buyer(p, line, ctx, units, rule)
         else:
             p.outcome = "left_out"
             p.note = "Money out of the account; Lekhara needs only what buyers paid in."

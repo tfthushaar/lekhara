@@ -13,6 +13,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from lekhara.models import (
+    BankPayer,
+    BankRule,
     ChangeEntry,
     CostLineRow,
     DemandRow,
@@ -246,6 +248,8 @@ def unit_dependents(session: Session, unit: Unit) -> list[str]:
         (Receipt, Receipt.unit_id, "payments received"),
         (UnitHandover, UnitHandover.unit_id, "a handover record"),
         (DisputeCase, DisputeCase.unit_id, "a dispute"),
+        (BankRule, BankRule.unit_id, "a bank rule"),
+        (BankPayer, BankPayer.unit_id, "a payer remembered from bank statements"),
     )
     for model, column, words in checks:
         if session.scalar(select(func.count()).select_from(model).where(column == unit.id)):

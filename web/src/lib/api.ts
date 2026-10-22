@@ -1242,10 +1242,31 @@ export type BankLine = {
   unit_id: string | null;
   unit_label: string | null;
   how: string | null;
+  /** The bank rule that decided the line. */
+  rule: string | null;
   candidates: { id: string; label: string }[];
   loan: boolean;
   buyer_line: boolean;
   choice: string | null;
+};
+
+export type BankRules = {
+  can_edit: boolean;
+  rules: {
+    id: string;
+    name: string;
+    words: string;
+    how: string;
+    how_label: string;
+    lines: string;
+    then: string;
+    action: string;
+    every_project: boolean;
+  }[];
+  hows: Choice[];
+  actions: Choice[];
+  directions: Choice[];
+  units: { id: string; label: string; buyer: string | null }[];
 };
 
 export type BankReview = BankStatementRow & {
@@ -1776,6 +1797,7 @@ export const api = {
   supplier: (id: string) => get<SupplierDetail>(`/suppliers/${id}`),
   commitments: (projectId: string) => get<Commitments>(`/projects/${projectId}/commitments`),
   bankStatements: (projectId: string) => get<BankStatementList>(`/projects/${projectId}/bank-statements`),
+  bankRules: (projectId: string) => get<BankRules>(`/projects/${projectId}/bank-rules`),
   costLines: (projectId: string) => get<CostLines>(`/projects/${projectId}/cost-lines`),
   paymentPlan: (projectId: string) => get<PaymentPlan>(`/projects/${projectId}/payment-plan`),
   setup: (projectId: string) => get<Setup>(`/projects/${projectId}/setup`),

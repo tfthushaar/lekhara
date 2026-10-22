@@ -1800,6 +1800,7 @@ def bank_review(
                 "unit_id": p.unit_id,
                 "unit_label": labels.get(p.unit_id),
                 "how": p.how,
+                "rule": p.rule,
                 "candidates": [{"id": c, "label": labels.get(c, c)} for c in p.candidates],
                 "loan": p.loan,
                 "buyer_line": p.buyer_line,

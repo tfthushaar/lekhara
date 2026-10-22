@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-23, with the commit "Watermark data room PDFs, ask visitors to accept terms, and tell the room's maker of each first open".
+Last updated: 2026-10-23, with the commit "Bank rules the team writes, applied to every statement".
 
 ## What we are building
 
@@ -308,9 +308,17 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - A switch to stop downloads is left out: anything on a visitor's screen can be saved or photographed, so it would promise more than it does. The watermark makes a copy traceable instead.
 - Tested: a PDF opened by a visitor carrying their email, the date and the footer while its own text is still found, the team's copy unmarked, a room without names marked with who it was shared with, and the mark turned off; terms refused without names, required at the gate, accepted again after a change, and the accepted words kept; the room's maker emailed once per visitor, not when turned off, and once only for a room without names; all end to end, with the watermark read back from the PDF a visitor downloaded.
 
+- Bank rules (borrowed from Firefly III): a firm writes rules for what repeats in its statements every month.
+  - A rule looks for words in a line's narration (the same four ways as filing rules), for money in, out or either, and optionally within an amount range.
+  - It says what such a line is: a payment from the buyer of a unit, not a buyer's payment, a line to leave out (sweeps to a fixed deposit, transfers between the firm's own accounts), or, in the RERA account, a deposit, interest, a withdrawal or bank charges.
+  - A rule is for one project, or for every project unless it names a unit. Rules are tried in their order, which can be changed, and the first that fits decides; a choice made for the line itself still comes first, and the payers Lekhara remembers come after. Every line a rule decided says which rule did.
+  - Each line of a statement has a link that opens the rule form filled in from it (its payer, or the telling words of the narration, and what Lekhara made of it). A rule can be tried on the project's statements before it is saved, and on saving says how many lines it fits; statements not yet brought in follow it at once.
+  - A unit a rule names, or a payer remembered from bank statements points at, can no longer be deleted out from under them.
+- Tested: a rule placing a line as not a buyer's, two rules for one line with the first deciding and the order changed, a choice for the line coming first, a rule coming before a remembered payer, a bounced cheque staying paired whatever the rules say; rules for the RERA account (sweeps left out both ways, a card fee as charges within an amount range, a line kept a deposit); trying a rule; every check on what a rule may say, rules for every project shown on each, and certifiers kept out; all end to end, from a statement line to the rule and back.
+
 ## In progress
 
-- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository), still to do: bank rules, help with the GST Invoice Management System, and a signing record on certificates.
+- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository), still to do: help with the GST Invoice Management System, and a signing record on certificates.
 
 ## Left
 

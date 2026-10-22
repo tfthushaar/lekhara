@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { applyStatement, statementAccount, statementChoices, undoStatement } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { ruleLink } from "@/components/bank-rules";
 import { type BankLine, type BankReview, type TallyAlert, api } from "@/lib/api";
 import { day, inr, plural } from "@/lib/format";
 
@@ -144,7 +145,7 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
         <section className="section">
           <div className="section-head">
             <h2>Buyer payments</h2>
-            <p>Each matched to a unit from the narration, your earlier choice for the payer, or Tally</p>
+            <p>Each matched to a unit by your bank rules, the narration, your earlier choice for the payer, or Tally</p>
           </div>
           {s.can_place ? (
             <ActionForm action={statementChoices.bind(null, s.id)} label="Save the choices" pendingLabel="Checking again" secondary>
@@ -172,6 +173,7 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
                 <th className="right">In</th>
                 <th className="right">Balance</th>
                 <th>In Lekhara</th>
+                {s.can_place ? <th /> : null}
               </tr>
             </thead>
             <tbody>
@@ -194,6 +196,15 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
                     <span className={OUTCOME_CLASS[l.outcome] ?? "tag"}>{l.outcome_label}</span>
                     {l.unit_label ? <span className="small">{` ${l.unit_label}`}</span> : null}
                   </td>
+                  {s.can_place ? (
+                    <td className="right nowrap">
+                      {l.outcome !== "returned" ? (
+                        <Link href={ruleLink(s.project_id, l)} className="link-action small">
+                          Make a rule
+                        </Link>
+                      ) : null}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

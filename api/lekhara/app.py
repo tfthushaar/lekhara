@@ -48,6 +48,7 @@ from lekhara import (
     views,
     watermark,
 )
+from lekhara.bank import rules as bank_rule_service
 from lekhara.bank import service as bank
 from lekhara.config import Settings, get_settings
 from lekhara.db import make_engine, make_sessionmaker
@@ -2250,6 +2251,60 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         row, p = statement_for(session, me, statement_id, edit=True)
         bank.undo(session, row)
         return statement_view(session, me, row, p, on)
+
+    # Bank rules
+
+    class BankRuleBody(BaseModel):
+        name: str = ""
+        words: str = ""
+        how: str = "all"
+        direction: str = "any"
+        min_amount: str | None = None
+        max_amount: str | None = None
+        action: str = ""
+        unit_id: str | None = None
+        every_project: bool = False
+
+    def rules_project(session: Session, me: auth.Principal, project_id: str) -> Project:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        return p
+
+    @app.get("/projects/{project_id}/bank-rules")
+    def bank_rules(project_id: str, session: SessionDep, me: Me) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        editable = me.can_prepare(p) and not me.views_as_sample(p)
+        return bank_rule_service.view(session, p, can_edit=editable)
+
+    @app.post("/projects/{project_id}/bank-rules", status_code=201)
+    def add_bank_rule(project_id: str, body: BankRuleBody, session: SessionDep, me: Me) -> dict:
+        p = rules_project(session, me, project_id)
+        rule = bank_rule_service.create_rule(session, p, body.model_dump(), me.user_id)
+        fits, _ = bank_rule_service.lines_fitting(
+            session, app.state.storage, p, body.model_dump(),
+            bank.statement_passwords(session, settings, p.organization_id),
+        )  # fmt: skip
+        return {"id": rule.id, "fits": fits}
+
+    @app.post("/projects/{project_id}/bank-rules/try")
+    def try_bank_rule(project_id: str, body: BankRuleBody, session: SessionDep, me: Me) -> dict:
+        p = rules_project(session, me, project_id)
+        fits, lines = bank_rule_service.lines_fitting(
+            session, app.state.storage, p, body.model_dump(),
+            bank.statement_passwords(session, settings, p.organization_id),
+        )  # fmt: skip
+        return {"fits": fits, "lines": lines}
+
+    @app.post("/projects/{project_id}/bank-rules/{rule_id}/up")
+    def move_bank_rule(project_id: str, rule_id: str, session: SessionDep, me: Me) -> dict:
+        bank_rule_service.move_up(session, rules_project(session, me, project_id), rule_id)
+        return {"ok": True}
+
+    @app.post("/projects/{project_id}/bank-rules/{rule_id}/delete")
+    def delete_bank_rule(project_id: str, rule_id: str, session: SessionDep, me: Me) -> dict:
+        bank_rule_service.delete_rule(session, rules_project(session, me, project_id), rule_id)
+        return {"ok": True}
 
     # Suppliers, bills and commitments
 

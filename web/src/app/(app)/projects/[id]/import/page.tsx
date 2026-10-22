@@ -11,17 +11,22 @@ import {
   uploadTally,
 } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { BankRulesSection, type RulePrefill } from "@/components/bank-rules";
 import { InboundBox } from "@/components/inbound";
 import { Steps, Way } from "@/components/ways";
 import { type ConnectorList, PUBLIC_API_URL, api } from "@/lib/api";
 import { moment } from "@/lib/format";
 
-export default function ImportPage({ params }: PageProps<"/projects/[id]/import">) {
+export default function ImportPage({ params, searchParams }: PageProps<"/projects/[id]/import">) {
   return (
     <Suspense fallback={<p className="loading">Opening the Import centre</p>}>
-      <ImportView params={params} />
+      <ImportView params={params} searchParams={searchParams} />
     </Suspense>
   );
+}
+
+function one(value: string | string[] | undefined): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
 }
 
 const STATE: Record<string, string> = {
@@ -50,8 +55,21 @@ function Upload({ id, label, accept, action }: { id: string; label: string; acce
   );
 }
 
-async function ImportView({ params }: { params: Promise<{ id: string }> }) {
+async function ImportView({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
+  const sp = await searchParams;
+  const prefill: RulePrefill = {
+    words: one(sp.rule_words),
+    action: one(sp.rule_action),
+    unit: one(sp.rule_unit),
+    direction: one(sp.rule_direction),
+  };
   const [list, tallyList, bankList, box, linked, gstList] = await Promise.all([
     api.imports(id),
     api.tallyImports(id),
@@ -235,6 +253,8 @@ async function ImportView({ params }: { params: Promise<{ id: string }> }) {
           </table>
         )}
       </section>
+
+      {bankList.can_import || bankList.statements.length ? <BankRulesSection projectId={id} prefill={prefill} /> : null}
     </>
   );
 }

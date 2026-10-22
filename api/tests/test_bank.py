@@ -346,3 +346,133 @@ def test_who_can_bring_statements_in(app, owner, architect, engine) -> None:
         files={"file": ("s.xls", samples.hdfc_xls(), "application/octet-stream")},
     )
     assert blocked.status_code == 402
+
+
+# Bank rules
+
+
+def rule(client, project, **fields):
+    body = {"name": "A rule", "how": "phrase", **fields}
+    return client.post(f"/projects/{project}/bank-rules", json=body)
+
+
+def test_rules_place_lines_before_anything_remembered(app) -> None:
+    client, project, units = firm(app)
+    view = upload(client, project, samples.hdfc_xls())
+    sid = view["id"]
+    view = client.put(f"/bank-statements/{sid}/options", json={"role": "collections"}).json()
+    assert view["lines"][4]["outcome"] == "needs_unit"  # SURESH TRADERS
+
+    made = rule(client, project, name="Suresh Traders refunds", words="suresh traders",
+                action="not_buyer", direction="out")  # fmt: skip
+    assert made.status_code == 201 and made.json()["fits"] == 1
+    view = client.get(f"/bank-statements/{sid}").json()
+    line = view["lines"][4]
+    assert line["outcome"] == "not_buyer" and line["rule"] == "Suresh Traders refunds"
+    assert "by the rule Suresh Traders refunds" in line["note"]
+    rules = client.get(f"/projects/{project}/bank-rules").json()["rules"]
+    assert rules[0]["lines"] == "Money in"  # a buyer's payment only ever comes in
+
+    # The first rule that fits decides; moving one up changes which.
+    first = rule(client, project, name="Rahul", words="rahul", action="unit",
+                 unit_id=units["B-201"]).json()  # fmt: skip
+    second = rule(client, project, name="Flat A-102", words="flat a 102", action="unit",
+                  unit_id=units["A-102"]).json()  # fmt: skip
+    line = client.get(f"/bank-statements/{sid}").json()["lines"][1]
+    assert (line["unit_label"], line["how"]) == ("B-201", "the rule Rahul")
+    client.post(f"/projects/{project}/bank-rules/{second['id']}/up")
+    line = client.get(f"/bank-statements/{sid}").json()["lines"][1]
+    assert (line["unit_label"], line["how"]) == ("A-102", "the rule Flat A-102")
+
+    # A choice made for the line itself still comes first.
+    view = client.put(
+        f"/bank-statements/{sid}/options", json={"lines": {line["key"]: units["B-202"]}}
+    ).json()
+    assert view["lines"][1]["unit_label"] == "B-202"
+
+    # A bounced cheque stays paired with its return, whatever the rules say.
+    rule(client, project, name="Cheques", words="chq", how="any", action="leave_out")
+    view = client.get(f"/bank-statements/{sid}").json()
+    assert view["lines"][5]["outcome"] == view["lines"][6]["outcome"] == "returned"
+
+    client.post(f"/projects/{project}/bank-rules/{first['id']}/delete")
+    client.post(f"/projects/{project}/bank-rules/{second['id']}/delete")
+    view = client.get(f"/bank-statements/{sid}").json()
+    assert view["lines"][1]["unit_label"] == "B-202"
+    client.put(f"/bank-statements/{sid}/options", json={"lines": {line["key"]: None}})
+    line = client.get(f"/bank-statements/{sid}").json()["lines"][1]
+    assert (line["unit_label"], line["how"]) == ("B-202", "your earlier choice for this payer")
+    # A rule comes before a payer remembered from an earlier choice.
+    rule(client, project, name="Rahul", words="rahul", action="unit", unit_id=units["A-102"])
+    line = client.get(f"/bank-statements/{sid}").json()["lines"][1]
+    assert (line["unit_label"], line["how"]) == ("A-102", "the rule Rahul")
+
+
+def test_rules_for_the_rera_account(app) -> None:
+    client, project, _ = firm(app)
+    lines = [
+        *samples.RERA_LINES,
+        (date(2026, 6, 30), "TO TRANSFER-SWEEP TO FD 55012", "", "100000", None),
+        (date(2026, 6, 30), "BY TRANSFER-SWEEP FROM FD 55012", "", None, "100000"),
+        (date(2026, 6, 30), "ANNUAL MAINTENANCE FEE DEBIT CARD", "", "590", None),
+    ]
+    view = upload(client, project, samples.sbi_xlsx(lines), "rera.xlsx")
+    sid = view["id"]
+    view = client.put(f"/bank-statements/{sid}/options", json={"role": "rera"}).json()
+    assert outcomes(view)[5:] == ["withdrawal", "deposit", "withdrawal"]
+
+    rule(client, project, name="FD sweeps", words="sweep", how="any", action="leave_out")
+    rule(client, project, name="Card fee", words="maintenance fee", action="charges",
+         max_amount="1,000")  # fmt: skip
+    rule(client, project, name="Interest", words="credit interest", action="deposit")
+    view = client.get(f"/bank-statements/{sid}").json()
+    assert outcomes(view) == [
+        "deposit", "deposit", "withdrawal", "deposit", "charges",
+        "left_out", "left_out", "charges",
+    ]  # fmt: skip
+    assert view["lines"][7]["note"] == "By the rule Card fee."
+
+    # Trying a rule shows the lines it would fit before it is saved.
+    tried = client.post(
+        f"/projects/{project}/bank-rules/try",
+        json={"words": "transfer", "how": "any", "action": "leave_out", "direction": "out",
+              "min_amount": "150000"},
+    ).json()  # fmt: skip
+    assert tried["fits"] == 1
+    assert "Withdrawal to operating account" in tried["lines"][0]["narration"]
+
+
+def test_rules_are_checked(app, architect) -> None:
+    client, project, units = firm(app)
+    other = client.post(
+        "/projects",
+        json={"name": "Kaveri Lakeside", "krera_registration": "PRM/K/2",
+              "registered_on": "2025-04-01"},
+    ).json()["id"]  # fmt: skip
+    assert rule(client, project, words="x", action="unit").status_code == 400  # no unit
+    unsold = client.get(f"/projects/{project}/units").json()
+    a103 = next(u["id"] for u in unsold["units"] if u["label"] == "A-103")
+    assert rule(client, project, words="x", action="unit", unit_id=a103).status_code == 400
+    elsewhere = rule(client, other, words="x", action="unit", unit_id=units["A-101"])
+    assert elsewhere.status_code == 400
+    every = rule(client, project, words="x", action="unit", unit_id=units["A-101"],
+                 every_project=True)  # fmt: skip
+    assert every.status_code == 400
+    upside_down = rule(client, project, words="x", action="leave_out", min_amount="500",
+                       max_amount="100")  # fmt: skip
+    assert upside_down.status_code == 400
+    assert rule(client, project, words="  ", action="leave_out").status_code == 400
+
+    # A rule for every project shows on each; one for a project only on its own.
+    rule(client, project, name="Sweeps", words="sweep", action="leave_out", every_project=True)
+    rule(client, project, name="Rahul", words="rahul", action="unit", unit_id=units["A-102"])
+    assert [r["name"] for r in client.get(f"/projects/{other}/bank-rules").json()["rules"]] == [
+        "Sweeps"
+    ]
+    assert architect.post(
+        f"/projects/{project}/bank-rules", json={"name": "x", "words": "x", "action": "leave_out"}
+    ).status_code in (403, 404)
+
+    # A unit a rule names cannot be deleted out from under it.
+    gone = client.post(f"/units/{units['A-102']}/delete")
+    assert gone.status_code == 400 and "bank rule" in gone.json()["detail"]

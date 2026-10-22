@@ -430,6 +430,52 @@ export async function undoGst(importId: string, _previous: ActionState): Promise
   return {};
 }
 
+/** Adds a bank rule, or with "only try it" ticked shows the lines it would fit. */
+export async function addBankRule(projectId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const body = {
+    ...filled(form, ["name", "words", "how", "action", "direction", "min_amount", "max_amount"]),
+    unit_id: text(form, "unit_id") || null,
+    every_project: form.get("every_project") === "yes",
+  };
+  if (form.get("only_try") === "yes") {
+    const tried = await send<{ fits: number; lines: { on: string; narration: string; amount: string }[] }>(
+      "POST",
+      `/projects/${projectId}/bank-rules/try`,
+      { ...body, name: text(form, "name") || "Trying" },
+    );
+    if (!tried.ok) return { error: tried.error };
+    const { fits, lines } = tried.data;
+    if (!fits) return { ok: "It fits no line in this project's statements. Nothing was saved." };
+    const shown = lines.slice(0, 3).map((l) => `${l.on}, ${l.narration}, ${l.amount}`);
+    return {
+      ok: `It fits ${fits === 1 ? "1 line" : `${fits} lines`}, such as: ${shown.join("; ")}. Nothing was saved yet; untick "Only try it" to add it.`,
+    };
+  }
+  const result = await send<{ fits: number }>("POST", `/projects/${projectId}/bank-rules`, body);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  const n = result.data.fits;
+  return {
+    ok: n
+      ? `Added. It fits ${n === 1 ? "1 line" : `${n} lines`} in this project's statements; any not yet brought in follow it now.`
+      : "Added. It fits no line in this project's statements yet.",
+  };
+}
+
+export async function moveBankRuleUp(projectId: string, ruleId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/bank-rules/${ruleId}/up`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function deleteBankRule(projectId: string, ruleId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/projects/${projectId}/bank-rules/${ruleId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function uploadStatement(
   projectId: string,
   _previous: ActionState,

@@ -944,6 +944,31 @@ class BankPayer(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class BankRule(Base):
+    """A firm's rule for bank statement lines: words to look for in the narration, which lines
+    (money in or out, an amount range), and what such a line is. For one project, or for every
+    project when project_id is None."""
+
+    __tablename__ = "bank_rules"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    words: Mapped[str] = mapped_column(String(200))
+    how: Mapped[str] = mapped_column(String(16))
+    direction: Mapped[str] = mapped_column(String(8))
+    """in, out or any."""
+    min_amount: Mapped[Decimal | None] = mapped_column(Money)
+    max_amount: Mapped[Decimal | None] = mapped_column(Money)
+    action: Mapped[str] = mapped_column(String(16))
+    """unit, not_buyer, leave_out, deposit, interest, withdrawal or charges."""
+    unit_id: Mapped[str | None] = mapped_column(ForeignKey("units.id"))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Commitment(Base):
     """A work order, purchase order or contract committing the project to spend on a cost line.
     Its amount is mirrored in the append-only ledger as a commitment."""
