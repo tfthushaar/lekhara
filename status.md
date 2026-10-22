@@ -264,7 +264,7 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 
 ## In progress
 
-- Nothing from the list that needs no decision from you; see Left.
+- Nothing at the moment. Next, needing no decision: S3-compatible file storage, then the multi-provider AI gateway on the build defaults.
 
 ## Left
 
