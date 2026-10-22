@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-23, with the commit "Keep files in S3 in production, encrypted and checked on upload".
+Last updated: 2026-10-23, with the commit "Put the launch video at the top of the README".
 
 ## What we are building
 
@@ -338,6 +338,8 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - The nightly file check, backups and the demo seed work the same with either store; a backup now reads files through the store, so it includes the bucket's files too.
   - boto3 comes in as an optional extra, `s3`.
 - Tested: local disk keeping, listing and removing files and refusing a path outside it; S3 uploads carrying the SHA-256 and the encryption asked for (AES256, or a KMS key), a file already there not sent again, reading, listing past other objects, a missing file reported as missing, and the settings choosing the store; backups and the file check as before.
+
+- A launch video (52 seconds, made with HyperFrames) at the top of the README, in `media/`: what builders owe, in their own words, then how Lekhara keeps track of it. A vertical version for WhatsApp is kept outside the repository.
 
 ## In progress
 

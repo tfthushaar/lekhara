@@ -1,3 +1,7 @@
+<a href="media/lekhara.mp4"><img src="media/lekhara.jpg" alt="Lekhara in under a minute: what builders in Karnataka owe, and how Lekhara keeps track of it" width="100%"></a>
+
+[Watch the video](media/lekhara.mp4) (52 seconds)
+
 # Lekhara
 
 Lekhara runs everything outside your ERP: what your projects owe K-RERA, the escrow bank, the tax department, landowners, buyers and lenders, and what they owe you. If you don't run an ERP or CRM, Lekhara gives you the rest of the system too, in one place, on WhatsApp, in Kannada or English.
