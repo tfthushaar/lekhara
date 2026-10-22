@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-22, with the commit "Rotate keys, chain the access log, share limits across servers, encrypted backups, a security page".
+Last updated: 2026-10-23, with the commit "Sync Tally only when it has changed, and check stored files every night".
 
 ## What we are building
 
@@ -292,9 +292,14 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - The CI's actions are pinned to exact commits.
 - Tested: a secret sealed with the old key read with both, resealed, then read with the new key alone; an access log entry altered and the newest removed, both caught; twenty events written at once keeping one chain; failed sign-ins on two servers counting together; a backup checked and restored, and an altered, a cut-short and a wrongly keyed one refused; all on SQLite and the security tests on Postgres with row-level security; every end-to-end suite, with the live access log intact afterwards.
 
+- Borrowed from other software, first two:
+  - The Tally connector asks Tally for two numbers before anything else (the last change numbers of the company's masters and vouchers, from the idea in tally-database-loader) and exports only what has changed: when nothing has, Tally is not asked for an export at all, so it is not slowed every few minutes. Older Tally versions that cannot answer are handled as before.
+  - Every night, every stored file (documents, imports, statements, emails) is read and checked against its fingerprint, as Paperless-ngx does; files missing or changed are logged as errors and shown in the admin console (`python -m lekhara.integrity` runs it by hand).
+- Tested: the connector asking only for the numbers when nothing changed, exporting the day book alone when a voucher changed and the masters too when a master did, and falling back for an older Tally; the file check passing, then finding one document altered and one missing.
+
 ## In progress
 
-- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository): incremental Tally sync, filing documents by rules, a register of originals, a nightly file check, stronger data rooms, bank rules, help with the GST Invoice Management System, and a signing record on certificates.
+- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository), still to do: filing documents by rules, a register of originals, stronger data rooms, bank rules, help with the GST Invoice Management System, and a signing record on certificates.
 
 ## Left
 

@@ -65,7 +65,43 @@ DAY_BOOK = """<ENVELOPE>
 </REQUESTDESC></EXPORTDATA></BODY>
 </ENVELOPE>"""
 
+# Tally numbers every change: each master and voucher carries an AlterID, and the company keeps
+# the last one given (AltMstId for masters, AltVchId for vouchers). Asking for those two numbers
+# is a tiny request, so the connector asks first and exports only when one has moved. The idea,
+# and the shape of the request, come from tally-database-loader (MIT licence).
+ALTER_IDS = """<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST>
+<TYPE>Data</TYPE><ID>LekharaAlterIds</ID></HEADER>
+<BODY><DESC><STATICVARIABLES>
+<SVEXPORTFORMAT>ASCII (Comma Delimited)</SVEXPORTFORMAT>{company}
+</STATICVARIABLES><TDL><TDLMESSAGE>
+<REPORT NAME="LekharaAlterIds"><FORMS>LekharaAlterIds</FORMS></REPORT>
+<FORM NAME="LekharaAlterIds"><PARTS>LekharaAlterIds</PARTS></FORM>
+<PART NAME="LekharaAlterIds"><LINES>LekharaAlterIds</LINES>
+<REPEAT>LekharaAlterIds : LekharaCompany</REPEAT><SCROLLED>Vertical</SCROLLED></PART>
+<LINE NAME="LekharaAlterIds"><FIELDS>LekharaMasters,LekharaVouchers</FIELDS></LINE>
+<FIELD NAME="LekharaMasters"><SET>$AltMstId</SET></FIELD>
+<FIELD NAME="LekharaVouchers"><SET>$AltVchId</SET></FIELD>
+<COLLECTION NAME="LekharaCompany"><TYPE>Company</TYPE>
+<FILTER>LekharaOpenCompany</FILTER></COLLECTION>
+<SYSTEM TYPE="Formulae" NAME="LekharaOpenCompany">$$IsEqual:##SVCurrentCompany:$Name</SYSTEM>
+</TDLMESSAGE></TDL></DESC></BODY></ENVELOPE>"""
+
 Http = Callable[[str, str, bytes | None, dict], tuple[int, bytes]]
+
+
+def parse_alter_ids(data: bytes) -> tuple[int, int] | None:
+    """The company's last master and voucher AlterIDs, or None if Tally gave something else
+    (an older Tally, or a reply this request does not suit): the connector then exports as
+    before, judging change by the export itself."""
+    text = (
+        data.decode("utf-16")
+        if data[:2] in (b"\xff\xfe", b"\xfe\xff")
+        else data.decode("utf-8", "ignore")
+    )
+    parts = [p.strip().strip('"') for p in text.replace("\x00", "").strip().split(",")]
+    if len(parts) < 2 or not all(p.isdigit() for p in parts[:2]):
+        return None
+    return int(parts[0]), int(parts[1])
 
 
 class TallyUnavailable(Exception):
@@ -230,14 +266,26 @@ class Connector:
             return True
         return self.now() - datetime.fromisoformat(last) >= timedelta(hours=hours)
 
+    def alter_ids(self) -> tuple[int, int] | None:
+        return parse_alter_ids(self.tally(ALTER_IDS.format(company=self._company())))
+
     def sync_once(self) -> str:
         if not self.linked:
             raise LekharaError("Link this computer first: lekhara-connector link CODE --server URL")
         try:
+            ids = self.alter_ids()
+            last = tuple(self.config.get("alter_ids") or ()) or None
+            hours = self.config.get("full_sync_hours", 24)
+            masters_due, full = self._due("masters_at", hours), self._due("full_at", hours)
+            if ids is not None and ids == last and not masters_due and not full:
+                # Nothing in Tally has changed: no export at all, so Tally is not slowed.
+                self.heartbeat(None)
+                message = "No change in Tally since the last sync."
+                self.log(message)
+                return message
             masters = None
-            if self._due("masters_at", self.config.get("full_sync_hours", 24)):
+            if masters_due or (ids is not None and last is not None and ids[0] != last[0]):
                 masters = self.tally(MASTERS.format(company=self._company()))
-            full = self._due("full_at", self.config.get("full_sync_hours", 24))
             today = self.today()
             start = (
                 financial_year_start(today)
@@ -258,6 +306,8 @@ class Connector:
 
         digest = hashlib.sha256(vouchers).hexdigest()
         if not masters and digest == self.config.get("last_digest"):
+            self.config["alter_ids"] = list(ids) if ids else None
+            self.save()
             self.heartbeat(None)
             message = "No change in Tally since the last sync."
             self.log(message)
@@ -273,6 +323,7 @@ class Connector:
         if full:
             self.config["full_at"] = stamp
         self.config["last_digest"] = digest
+        self.config["alter_ids"] = list(ids) if ids else None
         self.config["last_sync_at"] = stamp
         self.config["last_message"] = answer.get("message") or answer.get("status")
         self.save()

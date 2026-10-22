@@ -1237,3 +1237,17 @@ class RateLimitEvent(Base):
     at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
     __table_args__ = (Index("ix_rate_limit_events_bucket_key", "bucket", "key_hash"),)
+
+
+class IntegrityCheck(Base):
+    """One run of the nightly check that every stored file is there and unchanged."""
+
+    __tablename__ = "integrity_checks"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    checked: Mapped[int] = mapped_column(Integer)
+    missing: Mapped[int] = mapped_column(Integer)
+    altered: Mapped[int] = mapped_column(Integer)
+    problems: Mapped[str] = mapped_column(Text)
+    """The files found missing or altered, as JSON (the first 200)."""

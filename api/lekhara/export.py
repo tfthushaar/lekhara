@@ -100,6 +100,7 @@ NOT_EXPORTED = {
     "passkey_challenges": "one-time sign-in challenges",
     "access_log_head": "the end of the access log's chain, Lekhara's own check",
     "rate_limit_events": "counted sign-in attempts, kept a day",
+    "integrity_checks": "Lekhara's own nightly check of stored files",
 }
 """Tables left out of the export, and why."""
 

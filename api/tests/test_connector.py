@@ -138,12 +138,18 @@ class Fakes:
         self.client = TestClient(app)
         self.tally_up = True
         self.requests: list[str] = []
+        self.ids: tuple[int, int] | None = (40, 900)  # the company's AlterIDs; None: no answer
 
     def __call__(self, method, url, body, headers):
         if url.startswith(TALLY):
             if not self.tally_up:
                 raise OSError("connection refused")
             request = body.decode()
+            if "LekharaAlterIds" in request:
+                self.requests.append("ids")
+                if self.ids is None:
+                    return 200, b"<ENVELOPE></ENVELOPE>"  # an older Tally
+                return 200, f'"{self.ids[0]}","{self.ids[1]}"\r\n'.encode()
             self.requests.append("masters" if "List of Accounts" in request else "daybook")
             return 200, masters() if "List of Accounts" in request else vouchers()
         path = url.removeprefix(SERVER)
@@ -178,14 +184,35 @@ def test_the_connector_program(app, tmp_path, clock) -> None:
     assert connector.linked and (tmp_path / "connector.json").exists()
 
     message = connector.sync_once()
-    assert message.startswith("Brought in") and fakes.requests == ["masters", "daybook"]
+    assert message.startswith("Brought in") and fakes.requests == ["ids", "masters", "daybook"]
     assert connector.config["full_at"] and connector.config["masters_at"]
+    assert connector.config["alter_ids"] == [40, 900]
     with make_sessionmaker(app.state.session_factory.kw["bind"])() as session:
         assert session.query(TallyImport).count() >= 1
 
+    # Nothing changed in Tally: only the two numbers are asked for, nothing is exported.
     clock.moment += timedelta(minutes=5)
     assert connector.sync_once() == "No change in Tally since the last sync."
-    assert fakes.requests[-1] == "daybook" and fakes.requests.count("masters") == 1
+    assert fakes.requests[-1] == "ids" and fakes.requests.count("daybook") == 1
+
+    # A voucher changed: the day book is exported, the masters are not.
+    fakes.ids = (40, 901)
+    clock.moment += timedelta(minutes=5)
+    connector.sync_once()
+    assert fakes.requests[-2:] == ["ids", "daybook"] and fakes.requests.count("masters") == 1
+
+    # A master changed: both.
+    fakes.ids = (41, 901)
+    clock.moment += timedelta(minutes=5)
+    connector.sync_once()
+    assert fakes.requests[-3:] == ["ids", "masters", "daybook"]
+
+    # An older Tally that cannot answer: the connector exports and compares as before.
+    fakes.ids = None
+    clock.moment += timedelta(minutes=5)
+    assert connector.sync_once() == "No change in Tally since the last sync."
+    assert fakes.requests[-2:] == ["ids", "daybook"]
+    fakes.ids = (41, 901)
 
     fakes.tally_up = False
     clock.moment += timedelta(minutes=5)
@@ -196,7 +223,7 @@ def test_the_connector_program(app, tmp_path, clock) -> None:
     fakes.tally_up = True
     clock.moment += timedelta(hours=25)
     connector.sync_once()
-    assert fakes.requests[-2:] == ["masters", "daybook"]  # the nightly full sync
+    assert fakes.requests[-3:] == ["ids", "masters", "daybook"]  # the nightly full sync
 
     connector.unlink()
     assert not connector.linked and not (tmp_path / "connector.json").exists()

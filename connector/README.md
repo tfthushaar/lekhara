@@ -36,3 +36,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
 This makes `dist\lekhara-connector.exe`, a single program with nothing else to install. Sign it with the firm's code-signing certificate before handing it out, so Windows does not warn about it.
+
+## How often it asks Tally
+
+Every few minutes the connector asks Tally for two numbers: the last change number of the company's masters and of its vouchers (Tally's AlterIDs). Only when one has moved does it export, so a quiet Tally is never slowed by exports. Once a day it exports the whole financial year regardless, and with an older Tally that cannot give the numbers it exports the last week each time and sends it only if it changed.

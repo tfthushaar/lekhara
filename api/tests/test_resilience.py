@@ -170,3 +170,22 @@ def test_events_written_at_once_keep_one_chain(tmp_path) -> None:
         seqs = [e.seq for e in session.scalars(select(AccessEvent).order_by(AccessEvent.seq))]
         assert seqs == list(range(1, 21))
         assert legal.verify_log(session) == {"intact": True, "checked": 20, "broken_at": None}
+
+
+def test_the_nightly_check_finds_files_lost_or_changed(live) -> None:
+    from lekhara import integrity
+    from lekhara.models import Document
+
+    storage = LocalStorage(live.storage_dir)
+    engine = make_engine(live.database_url)
+    with make_sessionmaker(engine)() as session:
+        first = integrity.check_files(session, storage)
+        assert first.checked > 0 and first.missing == 0 and first.altered == 0
+
+        keys = [d.storage_key for d in session.scalars(select(Document).limit(2))]
+        storage._path(keys[0]).write_bytes(b"not what was stored")
+        storage._path(keys[1]).unlink()
+        second = integrity.check_files(session, storage)
+        assert (second.missing, second.altered) == (1, 1)
+        assert integrity.latest(session).id == second.id
+    engine.dispose()

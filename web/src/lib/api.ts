@@ -982,7 +982,9 @@ export type StaffFirm = StaffFirmRow & {
 };
 
 /** Our admin console's list of firms, or why it is closed to this person (two-step is off). */
-export async function staffFirms(q: string): Promise<{ firms: StaffFirmRow[] } | { closed: string }> {
+type FileCheck = { at: string; checked: number; missing: number; altered: number } | null;
+
+export async function staffFirms(q: string): Promise<{ firms: StaffFirmRow[]; files: FileCheck } | { closed: string }> {
   const response = await fetch(`${BASE}/staff/firms?q=${encodeURIComponent(q)}`, {
     cache: "no-store",
     headers: await authHeaders(),

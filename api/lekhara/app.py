@@ -24,6 +24,7 @@ from lekhara import (
     handover_desk,
     imports,
     inbound,
+    integrity,
     jobs,
     krera_certificate,
     legal,
@@ -1218,7 +1219,18 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.get("/staff/firms")
     def staff_firms(session: SessionDep, who: StaffDep, on: AsOf, q: str = "") -> dict:
-        return {"firms": staff.firm_rows(session, on, q)}
+        check = integrity.latest(session)
+        return {
+            "firms": staff.firm_rows(session, on, q),
+            "files": None
+            if check is None
+            else {
+                "at": staff.iso(check.at),
+                "checked": check.checked,
+                "missing": check.missing,
+                "altered": check.altered,
+            },
+        }
 
     @app.get("/staff/firms/{org_id}")
     def staff_firm(org_id: str, session: SessionDep, who: StaffDep, on: AsOf) -> dict:

@@ -35,8 +35,16 @@ async function Firms({ searchParams }: { searchParams: Promise<Record<string, st
       </p>
     );
   }
+  const files = result.files;
   return (
     <>
+      <p className={files && (files.missing || files.altered) ? "notice" : "small muted"} style={{ marginBottom: 16 }}>
+        {files
+          ? files.missing || files.altered
+            ? `Stored files, checked ${moment(files.at)}: ${files.missing} missing and ${files.altered} altered, of ${files.checked}. See the server log, and the incident runbook.`
+            : `Stored files, checked ${moment(files.at)}: all ${files.checked} there and unchanged.`
+          : "Stored files have not been checked yet; the check runs every night."}
+      </p>
       <form method="get" className="filters">
         <div className="field">
           <label htmlFor="q">Firm, or someone&apos;s email</label>
