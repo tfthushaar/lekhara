@@ -21,8 +21,9 @@ docs/   Developer documentation.
 ```bash
 cd api
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev]"      # Windows
-# .venv/bin/python -m pip install -e ".[dev]"        # macOS / Linux
+.venv/Scripts/python -m pip install --require-hashes -r requirements.txt   # Windows
+.venv/Scripts/python -m pip install --no-deps -e .
+# .venv/bin/python ... the same on macOS / Linux
 
 .venv/Scripts/python -m pytest                       # tests
 .venv/Scripts/python -m ruff check .                 # lint
@@ -89,6 +90,13 @@ A data room that asks who is visiting (`DataRoom.ask_visitor`) shows nothing unt
 - **Two-step sign-in** (`two_step.py`): TOTP per RFC 6238 with the standard library; the secret is sealed with `LEKHARA_SECRET_KEY`. `POST /auth/login` answers `{"two_step": true, "ticket": ...}` for someone who has it on, and `POST /auth/login/two-step` exchanges the ticket and a code (or a recovery code) for a session. Invitations accepted by an existing account with two-step on need the code too.
 - **Limits per network address** (`auth.LoginThrottle`, in memory per process): `LEKHARA_SIGNUPS_PER_HOUR`, `LEKHARA_RESETS_PER_HOUR`, `LEKHARA_FAILED_LOGINS_PER_ADDRESS`. Run the local servers with them raised for the end-to-end scripts, which sign up many firms from one address.
 - **Virus checks** (`scan.py`): set `LEKHARA_CLAMAV_URL=tcp://host:3310` to stream every upload, emailed attachment and connector file to clamd. Unset, nothing is scanned.
+- **Dependencies are locked**: `api/requirements.txt` pins every Python package with its hashes (development and Postgres extras included). After changing `pyproject.toml`, regenerate it with `uv pip compile pyproject.toml --extra dev --extra postgres --universal --generate-hashes --python-version 3.12 -o requirements.txt`. Dependabot proposes updates weekly.
+- **CI security job**: gitleaks over the whole history (`.gitleaks.toml` allows rules pack keys and the RFC 6238 test secret, which look like secrets and are not), `pip-audit` against the lock, Bandit at medium and above, and `npm audit` on what ships to production. The lint tools carry an advisory in `braces` (through `eslint-config-next`) with no fixed version yet; it never reaches production, so `npm audit` runs with `--omit=dev`.
+- **Mail senders are verified** (`inbound.sender_verified`): a team member's or trusted sender's mail is read at once only if the receiving service's own `Authentication-Results` header shows DMARC passing, or DKIM or SPF passing for the From domain. Set `LEKHARA_INBOUND_AUTHSERV_ID` to the name the receiving service writes on that header (for example `amazonses.com`); unset, the topmost header is read, since a sender's own sit below it. Anything else is held for someone to allow.
+- **Exports keep text as text** (`sheets.py`): every Excel and CSV writer goes through it, so imported text starting with `=` (or `+`, `-`, `@` in CSV) cannot become a formula in someone's spreadsheet. A new writer must use `sheets.append`, `sheets.as_text` or `sheets.csv_value`.
+- **Uploads cannot unpack to gigabytes** (`safe_files.check_zip`): called before every `load_workbook`; add it before any new reader of zip-based files. `defusedxml` is installed, which openpyxl uses by itself.
+- **Security headers** (`web/next.config.ts`): a Content Security Policy, frames from this site only (documents open in one), `Referrer-Policy: same-origin` (data room links carry their key), and HSTS. Scripts may be inline because nonces do not work with Partial Prerendering. HSTS and `upgrade-insecure-requests` are on for production builds unless `LEKHARA_HTTPS=0`, which a production build run locally over plain HTTP needs (`LEKHARA_HTTPS=0 npx next build`, then `next start`).
+- **The API does not describe itself**: `/docs`, `/redoc` and `/openapi.json` are served only with `LEKHARA_API_DOCS=1`. In production, the API should be reachable from the internet only for the routes outsiders use (`/connector/...`, `/inbound/email`, `/health`); everything else comes from the web app over a private network.
 - **Row-level security** (`rls.py`, Postgres only): `migrate.upgrade` puts a policy on every table holding a firm's data after each migration, from the models, so a new table with `organization_id` or `project_id` is covered by itself; a table that is a child of one goes in `rls.CHILDREN`. A signed-in person's session is restricted in `current_principal`; everything else (sign-up, shared links, the forwarding address, the connector, jobs, the seed) is unrestricted. In production, run migrations as the database owner and connect the API as a separate role that is not a superuser (`rls.grant` makes one); superusers and owners skip the policies. To run the tests on Postgres: `LEKHARA_TEST_DATABASE_URL=postgresql+psycopg://user:password@host/db python -m pytest` (it drops and recreates the schema, and creates the role `lekhara_app`).
 
 ### Terms, privacy and the access log

@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-19, with the commit "Add the incident-response runbook".
+Last updated: 2026-10-22, with the commit "Close six security gaps: forged senders, formulas in exports, zip bombs, headers, API docs, CI checks".
 
 ## What we are building
 
@@ -262,9 +262,18 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 
 - Incident response: a written runbook (`docs/incident-response.md`) for when security is breached or might have been. It covers who acts, the deadlines (CERT-In within 6 hours, affected firms within 24 as our data processing terms promise, affected people and the Data Protection Board as the DPDP Rules require from May 2027, followed now), the commands to sign people out, withdraw access, close data rooms, unlink connectors and rotate secrets, the access-log queries to find out what happened, and the notices to send.
 
+- Security hardening, first round (from the review in October 2026):
+  - Emails that only claim to come from a team member or trusted sender are held: the receiving mail service's own verdict must show the sender's domain vouched for the message (DMARC, or DKIM or SPF for that domain). A verdict a sender writes into the email is ignored.
+  - Excel and CSV downloads keep imported text as text, so a buyer named `=HYPERLINK(...)` in a CRM file can never become a working formula in someone's spreadsheet.
+  - Excel files that would unpack to far more than they weigh (decompression bombs) are refused before they are opened.
+  - The web app sends security headers: a Content Security Policy, frames from Lekhara only, no referrer to other sites (data room links carry their key), and HTTPS enforced in production.
+  - The API no longer publishes a map of its own routes.
+  - Every Python package is pinned with its hash; CI now checks for committed secrets, known vulnerabilities and risky code; Dependabot proposes updates.
+- Tested: forged and missing sender verdicts held, formulas kept as text in Excel and escaped in CSV (and read back), a 30 MB zip bomb refused, headers present and nothing blocked in the browser, the API's docs hidden; all end-to-end suites.
+
 ## In progress
 
-- Nothing at the moment. Next, needing no decision: S3-compatible file storage, then the multi-provider AI gateway on the build defaults.
+- Security hardening, next: verified data room visitors, asking again before sensitive steps, session controls and alerts, two-step required by firm, passkeys, leaked-password checks, key rotation, backups, a tamper-evident access log, limits shared across servers, and a security page. Then the features borrowed from other software (`research-borrow-and-secure.md`, outside the repository).
 
 ## Left
 

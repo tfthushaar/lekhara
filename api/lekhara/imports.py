@@ -21,7 +21,7 @@ from openpyxl.utils.exceptions import InvalidFileException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from lekhara import crm, purchases, registers, statutory
+from lekhara import crm, purchases, registers, safe_files, sheets, statutory
 from lekhara.models import (
     Approval,
     Bill,
@@ -74,8 +74,9 @@ def read_rows(filename: str, data: bytes) -> list[list]:
             text = data.decode("utf-8-sig")
         except UnicodeDecodeError:
             text = data.decode("cp1252", errors="replace")
-        rows = [list(r) for r in csv.reader(io.StringIO(text))]
+        rows = [[sheets.from_csv(v) for v in r] for r in csv.reader(io.StringIO(text))]
     elif name.endswith((".xlsx", ".xlsm")):
+        safe_files.check_zip(data)
         try:
             book = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
         except (InvalidFileException, BadZipFile, KeyError, OSError, ValueError):
@@ -1061,7 +1062,7 @@ def _xlsx(record: RecordType, rows: list[list], *, notes: bool) -> bytes:
     sheet.title = record.title[:31]
     sheet.append([f.label for f in record.fields])
     for row in rows:
-        sheet.append(row)
+        sheets.append(sheet, row)
     for i, f in enumerate(record.fields):
         sheet.column_dimensions[sheet.cell(row=1, column=i + 1).column_letter].width = max(
             14, len(f.label) + 4
@@ -1085,7 +1086,7 @@ def _csv(record: RecordType, rows: list[list]) -> bytes:
     out = io.StringIO()
     writer = csv.writer(out)
     writer.writerow([f.label for f in record.fields])
-    writer.writerows(rows)
+    writer.writerows([[sheets.csv_value(v) for v in row] for row in rows])
     return out.getvalue().encode("utf-8-sig")
 
 

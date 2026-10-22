@@ -23,6 +23,7 @@ from openpyxl.styles import Font
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from lekhara import sheets
 from lekhara.db import Money, Percent
 from lekhara.models import (
     Acceptance,
@@ -354,7 +355,10 @@ def workspace(
         ("Exported on", as_of),
     ):
         firm.append(
-            [WriteOnlyCell(firm, value=label), WriteOnlyCell(firm, value=_cell_value(value))]
+            [
+                WriteOnlyCell(firm, value=label),
+                sheets.as_text(WriteOnlyCell(firm, value=_cell_value(value))),
+            ]
         )
     firm.column_dimensions["A"].width = 20
     firm.column_dimensions["B"].width = 40
@@ -389,8 +393,10 @@ def workspace(
             for c in order:
                 value = getattr(r, c.key)
                 readable = names.of(c.name, value) if c.name.endswith("_id") else None
-                cell = WriteOnlyCell(
-                    ws, value=_cell_value(readable if readable is not None else value)
+                cell = sheets.as_text(
+                    WriteOnlyCell(
+                        ws, value=_cell_value(readable if readable is not None else value)
+                    )
                 )
                 if isinstance(c.type, Money):
                     cell.number_format = "#,##0.00"

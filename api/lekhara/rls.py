@@ -85,7 +85,8 @@ def _policies() -> dict[str, str]:
             continue
         if name in CHILDREN:
             column, parent = CHILDREN[name]
-            out[name] = f"EXISTS (SELECT 1 FROM {parent} x WHERE x.id = {name}.{column})"
+            # Names from the models, never from a request.
+            out[name] = f"EXISTS (SELECT 1 FROM {parent} x WHERE x.id = {name}.{column})"  # nosec B608
         elif {"organization_id", "project_id"} <= columns:
             out[name] = "lekhara_org(organization_id) OR lekhara_project(project_id)"
         elif "organization_id" in columns:

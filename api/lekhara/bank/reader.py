@@ -22,6 +22,7 @@ from zipfile import BadZipFile
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
+from lekhara import safe_files
 from lekhara.records import UNITS, ParseError, parse_value
 from lekhara.services import ServiceError
 
@@ -161,6 +162,7 @@ def _cell(value) -> object:
 
 
 def _rows_from_xlsx(data: bytes) -> list[list]:
+    safe_files.check_zip(data)
     try:
         book = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except (InvalidFileException, BadZipFile, KeyError, OSError, ValueError):

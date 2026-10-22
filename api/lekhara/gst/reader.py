@@ -21,6 +21,7 @@ from zipfile import BadZipFile
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
+from lekhara import safe_files
 from lekhara.bank.reader import parse_date
 from lekhara.services import ServiceError
 
@@ -255,6 +256,7 @@ def _columns(rows: list[list]) -> tuple[int, dict[str, int]]:
 
 
 def read_excel(data: bytes) -> Return:
+    safe_files.check_zip(data)
     try:
         book = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     except (InvalidFileException, BadZipFile, KeyError, OSError, ValueError):
@@ -323,10 +325,11 @@ def looks_like(filename: str, data: bytes) -> bool:
     """A GSTR-2B or GSTR-2A, judged from the start of the file."""
     if data[:2] == b"PK":
         try:
+            safe_files.check_zip(data)
             book = load_workbook(io.BytesIO(data), read_only=True)
             names = [s.casefold() for s in book.sheetnames]
             book.close()
-        except (InvalidFileException, BadZipFile, KeyError, OSError, ValueError):
+        except (InvalidFileException, BadZipFile, KeyError, OSError, ValueError, ServiceError):
             return False
         return any("b2b" in n for n in names) and (
             "2b" in filename.casefold() or "read me" in " ".join(names) or "itc" in " ".join(names)

@@ -1,0 +1,11 @@
+# Gitleaks: the default rules, less two kinds of text that look like secrets and are not.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Rules pack keys (rera.s17_conveyance_months) and the public RFC 6238 test secret"
+regexTarget = "match"
+regexes = [
+  '''(rule_)?key="[a-z0-9_]+(\.[a-z0-9_]+)+"''',
+  '''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''',
+]

@@ -7,8 +7,11 @@ through the Import centre, and anything else into the document vault. What needs
 applied by itself; what does waits for the builder, linked from the project's Import page.
 
 Mail from the firm's own team, or from senders it trusts (a bank's statement service, the
-accountant), is read at once. Mail from anyone else waits until a team member allows it, so
-nobody can put records into a project by knowing its address.
+accountant), is read at once, provided the sender's domain vouched for it: the receiving
+service's own verdict (its Authentication-Results header) must show DMARC passing, or DKIM or
+SPF passing for the From address's domain. A From line is easy to forge; this is not. Mail from
+anyone else, or without that verdict, waits until a team member allows it, so nobody can put
+records into a project by knowing its address or by pretending to be someone trusted.
 
 Mail reaches Lekhara in either of two ways: an email service (SendGrid, Mailgun, Cloudflare
 Email Routing or any other) posts each message to /inbound/email with the shared secret, or
@@ -116,15 +119,49 @@ def project_for(session: Session, addresses: list[str], domain: str) -> Project 
 # Who may send
 
 
-def _failed_authentication(msg: EmailMessage) -> bool:
-    """The receiving service's verdict, when it gives one: a sender whose domain did not sign
-    or authorise the message is not taken at its word."""
-    results = " ".join(str(v) for v in msg.get_all("Authentication-Results", [])).casefold()
-    if not results:
-        return False
-    passed = re.search(r"\b(dkim|spf|dmarc)=pass", results)
-    failed = re.search(r"\b(dkim|spf|dmarc)=(fail|softfail)", results)
-    return bool(failed) and not passed
+def _aligned(domain: str, sender_domain: str) -> bool:
+    """The same organisation's domain: equal, or one inside the other (mail.bank.in, bank.in)."""
+    domain, sender_domain = domain.strip().casefold().rstrip("."), sender_domain.casefold()
+    return bool(domain) and (
+        domain == sender_domain
+        or sender_domain.endswith("." + domain)
+        or domain.endswith("." + sender_domain)
+    )
+
+
+def _receiver_verdict(msg: EmailMessage, authserv_id: str | None) -> str | None:
+    """The Authentication-Results header our receiving service added. Each server that handles
+    a message adds its header at the top, so anything a sender wrote in sits below ours: with no
+    server named, only the topmost is read."""
+    headers = [str(v) for v in msg.get_all("Authentication-Results", [])]
+    if authserv_id:
+        wanted = authserv_id.strip().casefold()
+        headers = [h for h in headers if h.split(";", 1)[0].strip().casefold() == wanted]
+    return headers[0] if headers else None
+
+
+def sender_verified(msg: EmailMessage, sender: str, authserv_id: str | None = None) -> bool | None:
+    """Whether the sender's domain vouched for this message, by the receiving service's verdict:
+    True when DMARC passed, or DKIM or SPF passed for the From address's domain; False when not;
+    None when the receiving service gave no verdict."""
+    verdict = _receiver_verdict(msg, authserv_id)
+    if verdict is None:
+        return None
+    sender_domain = sender.rpartition("@")[2].casefold()
+    results = verdict.split(";", 1)[1] if ";" in verdict else ""
+    for clause in results.split(";"):
+        clause = clause.strip().casefold()
+        method = re.match(r"(dmarc|dkim|spf)\s*=\s*(\w+)", clause)
+        if method is None or method.group(2) != "pass":
+            continue
+        if method.group(1) == "dmarc":
+            return True
+        keys = ("header.d", "header.i") if method.group(1) == "dkim" else ("smtp.mailfrom",)
+        for key in keys:
+            found = re.search(re.escape(key) + r"\s*=\s*([^\s;]+)", clause)
+            if found and _aligned(found.group(1).rpartition("@")[2], sender_domain):
+                return True
+    return False
 
 
 def trusted_senders(session: Session, organization_id: str) -> list[TrustedSender]:
@@ -206,8 +243,8 @@ def receive(
         return None
     name, sender = parseaddr(str(msg.get("From", "")))
     sender = sender.casefold()
-    trusted = bool(sender) and not _failed_authentication(msg)
-    trusted = trusted and is_trusted(session, project.organization_id, sender)
+    verified = sender_verified(msg, sender, settings.inbound_authserv_id) if sender else None
+    trusted = verified is True and is_trusted(session, project.organization_id, sender)
     message = InboundMessage(
         organization_id=project.organization_id,
         project_id=project.id,
@@ -247,6 +284,11 @@ def receive(
         message.note = "No files were attached, so there was nothing to bring in."
     elif trusted:
         jobs.enqueue(session, "inbound.process", {"message_id": message.id})
+    elif verified is not True and sender and is_trusted(session, project.organization_id, sender):
+        message.note = (
+            f"This says it is from {sender}, but the sending service did not confirm it, so it "
+            "waits until someone in your team allows it. Check it was really sent by them."
+        )
     else:
         message.note = (
             f"{sender or 'The sender'} is not in your team or your trusted senders, so this "

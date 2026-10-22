@@ -551,7 +551,16 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         if worker is not None:
             worker.stop()
 
-    app = FastAPI(title="Lekhara API", version="0.1.0", lifespan=lifespan)
+    # The API's own documentation maps every route: shown only where asked for (development).
+    docs = settings.api_docs
+    app = FastAPI(
+        title="Lekhara API",
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
+    )
     app.state.settings = settings
     app.state.session_factory = session_factory
     app.state.storage = LocalStorage(settings.storage_dir)

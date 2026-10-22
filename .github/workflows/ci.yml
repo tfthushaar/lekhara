@@ -16,7 +16,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install -e ".[dev]"
+      # Exactly the versions in the lock, checked against their hashes; then Lekhara itself.
+      - run: python -m pip install --require-hashes -r requirements.txt
+      - run: python -m pip install --no-deps -e .
       - run: python -m ruff check .
       - run: python -m pytest
 
@@ -42,7 +44,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install -e ".[dev,postgres]"
+      - run: python -m pip install --require-hashes -r requirements.txt
+      - run: python -m pip install --no-deps -e .
       - run: python -m pytest
 
   web:
@@ -60,3 +63,29 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
+
+  security:
+    # Secrets committed by mistake, known vulnerabilities in what ships, and risky code.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install pip-audit bandit
+      - run: pip-audit --require-hashes --disable-pip -r api/requirements.txt
+      - run: bandit -r api/lekhara -ll -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm ci
+        working-directory: web
+      # What ships to production. The lint tools' own advisories are reviewed by hand
+      # (docs/development.md, Security).
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: web

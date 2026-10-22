@@ -268,3 +268,15 @@ def test_postgres_keeps_firms_apart_even_without_the_code(engine) -> None:
     with make() as session:
         rls.restrict(session, {other_id}, set())
         assert len(session.scalars(select(Unit).where(Unit.project_id == project_id)).all()) == 1
+
+
+def test_the_api_does_not_describe_itself_unless_asked(engine, tmp_path) -> None:
+    def client(**extra):
+        settings = Settings(database_url="sqlite://", auto_migrate=False,
+                            storage_dir=str(tmp_path / "files"), **extra)  # fmt: skip
+        return TestClient(create_app(settings, engine=engine))
+
+    closed = client()
+    assert closed.get("/docs").status_code == 404
+    assert closed.get("/openapi.json").status_code == 404
+    assert client(api_docs=True).get("/openapi.json").status_code == 200

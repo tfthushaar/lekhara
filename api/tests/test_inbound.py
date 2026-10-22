@@ -74,6 +74,14 @@ def firm(app) -> tuple[TestClient, str, str]:
 
 def mail(to: str, files: list[tuple[str, bytes]], sender="anil@kaverihomes.in", **headers) -> bytes:
     msg = EmailMessage()
+    # The receiving service's verdict, on top as it would be: by default, the sender's domain
+    # vouched for the message. Pass Authentication_Results=None for mail with no verdict.
+    domain = sender.rpartition("@")[2]
+    verdict = headers.pop(
+        "Authentication_Results", f"mx.lekhara.test; dmarc=pass header.from={domain}"
+    )
+    if verdict is not None:
+        msg["Authentication-Results"] = verdict
     msg["From"] = f"Anil <{sender}>"
     msg["To"] = to
     msg["Subject"] = headers.pop("subject", "Statements")
@@ -189,6 +197,52 @@ def test_a_forged_sender_is_not_trusted(mail_app) -> None:
         Authentication_Results="mx.example; spf=fail smtp.mailfrom=kaverihomes.in; dkim=fail",
     )
     assert post(mail_app, raw).json()["status"] == "held"
+
+
+def test_only_the_receiving_service_is_believed(mail_app) -> None:
+    _, _, address = firm(mail_app)
+    # A pass the sender wrote in sits below the receiving service's fail, and is ignored.
+    msg = EmailMessage()
+    msg["Authentication-Results"] = "mx.lekhara.test; dmarc=fail header.from=kaverihomes.in"
+    msg["Authentication-Results"] = "forged.example; dkim=pass header.d=kaverihomes.in"
+    msg["From"] = "Anil <anil@kaverihomes.in>"
+    msg["To"] = address
+    msg["Subject"] = "Statements"
+    msg.add_attachment(samples.hdfc_xls(), maintype="application", subtype="octet-stream",
+                       filename="s.xls")  # fmt: skip
+    assert post(mail_app, msg.as_bytes()).json()["status"] == "held"
+
+    # No verdict at all: held, saying why.
+    held = post(
+        mail_app, mail(address, [("s.xls", samples.hdfc_xls())], Authentication_Results=None)
+    )
+    assert held.json()["status"] == "held"
+
+
+def test_what_counts_as_the_sender_vouching() -> None:
+    def verdict(*results: str, sender="statements@hdfcbank.net", authserv=None):
+        msg = EmailMessage()
+        for r in results:
+            msg["Authentication-Results"] = r
+        return inbound.sender_verified(msg, sender, authserv)
+
+    assert verdict("mx.x; dmarc=pass header.from=hdfcbank.net") is True
+    assert verdict("mx.x; dkim=pass header.d=hdfcbank.net; spf=fail") is True
+    assert verdict("mx.x; dkim=pass header.d=alerts.hdfcbank.net") is True  # same organisation
+    assert (
+        verdict("mx.x; dkim=pass header.d=attacker.example; spf=pass smtp.mailfrom=a@b.example")
+        is False
+    )
+    assert verdict("mx.x; spf=pass smtp.mailfrom=bounce@hdfcbank.net") is True
+    assert verdict("mx.x; spf=softfail; dkim=none") is False
+    assert verdict() is None
+    # With the receiving service named, only its header counts, wherever it is.
+    assert (
+        verdict("other.example; dmarc=pass", "mx.google.com; dmarc=fail", authserv="mx.google.com")
+        is False
+    )
+    assert verdict("mx.google.com; dmarc=pass", authserv="mx.google.com") is True
+    assert verdict("other.example; dmarc=pass", authserv="mx.google.com") is None
 
 
 def test_tally_sheets_and_documents(mail_app) -> None:

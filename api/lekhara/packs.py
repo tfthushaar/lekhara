@@ -16,7 +16,7 @@ from openpyxl.styles import Font
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from lekhara import services, statutory
+from lekhara import services, sheets, statutory
 from lekhara.engines.escrow import ROLE_CERTIFIES, ROLE_LABEL, ROLE_ORDER, CertifierRole
 from lekhara.engines.obligations import _month_end_after
 from lekhara.models import (
@@ -104,17 +104,18 @@ def to_xlsx(pack: Pack) -> bytes:
     book = Workbook()
     sheet = book.active
     sheet.title = "Figures"
-    sheet.append([pack.title])
+    sheets.append(sheet, [pack.title])
     sheet["A1"].font = Font(bold=True, size=13)
-    sheet.append([pack.subtitle])
+    sheets.append(sheet, [pack.subtitle])
     sheet.append([])
     sheet.append(["Section", "Item", "Value"])
     for cell in sheet[4]:
         cell.font = Font(bold=True)
     for s in pack.sections:
         for label, value in s.rows:
-            sheet.append(
-                [s.title, label, float(value) if isinstance(value, Decimal) else _cell(value)]
+            sheets.append(
+                sheet,
+                [s.title, label, float(value) if isinstance(value, Decimal) else _cell(value)],
             )
             if isinstance(value, Decimal):
                 sheet.cell(row=sheet.max_row, column=3).number_format = "#,##,##0"

@@ -28,11 +28,17 @@ class Settings(BaseSettings):
     """Each project's forwarding address is <token>@ this domain."""
     inbound_secret: str | None = None
     """Shared with the email service that posts incoming mail to /inbound/email."""
+    inbound_authserv_id: str | None = None
+    """The name the receiving mail service puts on its Authentication-Results header (for
+    example mx.google.com or amazonses.com). Only that header's verdict is believed; unset, the
+    topmost header is read."""
     inbound_imap_url: str | None = None
     """imaps://user:password@host/INBOX: a catch-all mailbox to check instead of, or as well
     as, posted mail."""
     secret_key: str | None = None
     """Seals secrets kept for firms, such as statement passwords. Set it in production."""
+    api_docs: bool = False
+    """Serve /docs and /openapi.json. For development only: they map every route."""
     worker: bool = True
     """Run background jobs (incoming mail, connectors) inside the API process."""
     clamav_url: str | None = None
