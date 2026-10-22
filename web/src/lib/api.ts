@@ -1692,6 +1692,7 @@ export const api = {
   legal: () => get<LegalInfo>("/legal"),
   support: () => get<SupportState>("/organization/support"),
   sessions: () => get<{ sessions: OpenSession[] }>("/auth/sessions"),
+  passkeys: () => get<{ passkeys: { id: string; name: string; added: string; last_used: string | null }[] }>("/auth/passkeys"),
   staffFirm: (id: string) => get<StaffFirm>(`/staff/firms/${id}`),
   accessLog: () => get<AccessLog>("/organization/access-log"),
   gstImports: (projectId: string) => get<GstList>(`/projects/${projectId}/gst`),

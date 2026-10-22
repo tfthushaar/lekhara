@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { signIn } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { PasskeySignIn } from "@/components/passkey-buttons";
 import { demoAccounts } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -38,6 +39,7 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
             />
           </div>
         </ActionForm>
+        <PasskeySignIn />
         <p className="login-links">
           <Link href="/signup">New to Lekhara? Start your free month</Link>
           <Link href="/forgot">Forgot your password?</Link>

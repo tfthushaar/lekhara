@@ -860,6 +860,43 @@ export async function setTwoStepRule(required: boolean, _previous: ActionState):
   };
 }
 
+// Passkeys. These are called from the page's own scripts (the browser does the passkey part),
+// not from forms, so they return data rather than redirect, except where noted.
+
+export async function passkeyOptions(): Promise<{ options: unknown } | { error: string }> {
+  const result = await send<unknown>("POST", "/auth/passkeys/options");
+  if (!result.ok) return { error: result.error };
+  return { options: result.data };
+}
+
+export async function savePasskey(response: unknown, name: string): Promise<ActionState> {
+  const result = await send("POST", "/auth/passkeys", { response, name });
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Passkey added." };
+}
+
+export async function removePasskey(passkeyId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/auth/passkeys/${passkeyId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function passkeyLoginOptions(): Promise<{ ticket: string; options: unknown } | { error: string }> {
+  const result = await send<{ ticket: string; options: unknown }>("POST", "/auth/passkey/login/options");
+  if (!result.ok) return { error: result.error };
+  return result.data;
+}
+
+/** Signs in with the passkey's answer, and goes to Today. */
+export async function passkeyLogin(ticket: string, response: unknown): Promise<ActionState> {
+  const result = await send<{ token: string }>("POST", "/auth/passkey/login", { ticket, response });
+  if (!result.ok) return { error: result.error };
+  await startSession(result.data.token);
+  redirect("/");
+}
+
 // Support access, as the firm allows it
 
 export async function allowSupport(_previous: ActionState, form: FormData): Promise<ActionState> {

@@ -28,6 +28,7 @@ from lekhara import (
     krera_certificate,
     legal,
     packs,
+    passkeys,
     passwords,
     purchases,
     record_views,
@@ -956,6 +957,69 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         log(session, request, action, me=me, organization_id=org.id)
         return {"required": org.require_two_step}
 
+    # Passkeys
+
+    class PasskeyBody(BaseModel):
+        response: dict
+        name: str = ""
+
+    class PasskeyLogin(BaseModel):
+        ticket: str
+        response: dict
+
+    @app.get("/auth/passkeys")
+    def my_passkeys(session: SessionDep, me: Me) -> dict:
+        return {
+            "passkeys": [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "added": staff.iso(p.created_at),
+                    "last_used": staff.iso(p.last_used_at),
+                }
+                for p in passkeys.of(session, me.user_id)
+            ]
+        }
+
+    @app.post("/auth/passkeys/options")
+    def passkey_options(session: SessionDep, me: Me) -> Response:
+        auth.require_recent(me)
+        options = passkeys.registration_options(session, settings, session.get(User, me.user_id))
+        return Response(content=options, media_type="application/json")
+
+    @app.post("/auth/passkeys", status_code=201)
+    def add_passkey(body: PasskeyBody, session: SessionDep, me: Me, request: Request) -> dict:
+        auth.require_recent(me)
+        added = passkeys.register(
+            session, settings, session.get(User, me.user_id), body.response, body.name
+        )
+        log(session, request, "passkey_added", me=me, detail=added.name)
+        return {"id": added.id, "name": added.name}
+
+    @app.post("/auth/passkeys/{passkey_id}/delete")
+    def remove_passkey(passkey_id: str, session: SessionDep, me: Me, request: Request) -> dict:
+        auth.require_recent(me)
+        removed = passkeys.remove(session, session.get(User, me.user_id), passkey_id)
+        log(session, request, "passkey_removed", me=me, detail=removed.name)
+        return {"ok": True}
+
+    @app.post("/auth/passkey/login/options")
+    def passkey_login_options(session: SessionDep, request: Request) -> dict:
+        by_address["login"].check(address_of(request))
+        ticket, options = passkeys.login_options(session, settings)
+        return {"ticket": ticket, "options": json.loads(options)}
+
+    @app.post("/auth/passkey/login")
+    def passkey_login(body: PasskeyLogin, session: SessionDep, request: Request) -> dict:
+        address = address_of(request)
+        by_address["login"].check(address)
+        try:
+            user = passkeys.login(session, settings, body.ticket, body.response)
+        except ServiceError:
+            by_address["login"].failed(address)
+            raise
+        return signed_in(session, request, auth.start_session(session, user), user)
+
     @app.get("/organization/access-log")
     def access_log(session: SessionDep, me: Me) -> dict:
         org = accounts.current_org(session, me)
@@ -1120,7 +1184,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         if principal.support_for is not None:
             raise ServiceError("Not found.", 404)
         # Not restricted by row-level security: the console reads across firms by design.
-        user = staff.require_staff(session.get(User, principal.user_id))
+        user = staff.require_staff(session, session.get(User, principal.user_id))
         if request.method != "GET":
             auth.require_recent(principal)
         return user

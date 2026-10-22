@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import {
+  removePasskey,
   endOtherSessions,
   endSessionElsewhere,
   setTwoStepRule,
@@ -24,6 +25,7 @@ import {
   updateFirm,
 } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { AddPasskey } from "@/components/passkey-buttons";
 import { type Firm, api } from "@/lib/api";
 import { day, moment } from "@/lib/format";
 
@@ -416,6 +418,9 @@ function YourAccount({ f }: { f: Firm }) {
       </Suspense>
       {f.is_owner && !f.is_sample ? <TwoStepRule required={f.require_two_step} /> : null}
       <Suspense fallback={null}>
+        <Passkeys />
+      </Suspense>
+      <Suspense fallback={null}>
         <SignedIn />
       </Suspense>
       {f.can_manage ? (
@@ -503,6 +508,41 @@ function TwoStepRule({ required }: { required: boolean }) {
         pendingLabel="Saving"
         secondary
       />
+    </details>
+  );
+}
+
+async function Passkeys() {
+  const { passkeys } = await api.passkeys();
+  return (
+    <details className="disclosure">
+      <summary>{passkeys.length ? `Passkeys (${passkeys.length})` : "Sign in with a passkey"}</summary>
+      <p className="small muted" style={{ maxWidth: 640 }}>
+        A passkey lets this phone or computer sign you in with its own lock (your fingerprint, face or PIN) instead of a
+        password. It only works on Lekhara itself, so a fake sign-in page cannot use it, and it counts as two-step
+        sign-in.
+      </p>
+      {passkeys.length ? (
+        <ul className="rows">
+          {passkeys.map((p) => (
+            <li key={p.id} className="row">
+              <div>
+                <span className="tag tag-done">Passkey</span>
+              </div>
+              <div>
+                <p className="row-title">{p.name}</p>
+                <p className="row-detail">
+                  {`Added ${moment(p.added)}${p.last_used ? `, last used ${moment(p.last_used)}` : ", not used yet"}.`}
+                </p>
+              </div>
+              <div className="row-side">
+                <ActionForm action={removePasskey.bind(null, p.id)} label="Remove" pendingLabel="Removing" secondary />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <AddPasskey />
     </details>
   );
 }

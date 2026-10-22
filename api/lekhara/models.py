@@ -1179,3 +1179,31 @@ class SubscriptionPayment(Base):
     note: Mapped[str | None] = mapped_column(String(500))
     recorded_by: Mapped[str] = mapped_column(String(320))
     recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class Passkey(Base):
+    """A passkey: a key pair held by the person's phone or computer, unlocked by its own lock.
+    Only the public half is kept."""
+
+    __tablename__ = "passkeys"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    credential_id: Mapped[str] = mapped_column(String(1024), unique=True, index=True)
+    public_key: Mapped[str] = mapped_column(Text)
+    sign_count: Mapped[int] = mapped_column(Integer, default=0)
+    name: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class PasskeyChallenge(Base):
+    """A one-time challenge for adding a passkey or signing in with one, kept a few minutes."""
+
+    __tablename__ = "passkey_challenges"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    purpose: Mapped[str] = mapped_column(String(16))
+    challenge: Mapped[str] = mapped_column(String(128))
+    expires_at: Mapped[datetime] = mapped_column(DateTime)

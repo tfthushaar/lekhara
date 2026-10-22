@@ -19,7 +19,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from lekhara import auth, records, services
+from lekhara import auth, passkeys, records, services
 from lekhara.models import (
     AccessEvent,
     Membership,
@@ -47,13 +47,14 @@ STAFF_ACTIONS = ("staff_trial_extended", "staff_payment_recorded", "staff_paymen
                  "support_opened")  # fmt: skip
 
 
-def require_staff(user: User | None) -> User:
+def require_staff(session: Session, user: User | None) -> User:
     """Staff with two-step sign-in on. Anyone else is told the console does not exist."""
     if user is None or not user.is_staff:
         raise ServiceError("Not found.", 404)
-    if user.two_step_on is None:
+    if user.two_step_on is None and not passkeys.has_passkey(session, user.id):
         raise ServiceError(
-            "The admin console needs two-step sign-in. Turn it on in Settings first.", 403
+            "The admin console needs two-step sign-in or a passkey. Add one in Settings first.",
+            403,
         )
     return user
 

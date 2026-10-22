@@ -1,13 +1,27 @@
 version: 2
 updates:
+  # Minor and patch releases come together in one pull request a week; major versions, which
+  # can break things (TypeScript, ESLint, Node's types), are left to be upgraded by hand.
   - package-ecosystem: pip
     directory: /api
     schedule:
       interval: weekly
+    groups:
+      python:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
   - package-ecosystem: npm
     directory: /web
     schedule:
       interval: weekly
+    groups:
+      web:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
   - package-ecosystem: github-actions
     directory: /
     schedule:

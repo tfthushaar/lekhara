@@ -22,6 +22,7 @@ from lekhara.models import (
     Membership,
     OneTimeToken,
     Organization,
+    Passkey,
     ProjectAccess,
     User,
     UserSession,
@@ -175,6 +176,7 @@ def anonymise(session: Session, user: User) -> None:
     certificates, changes in the history) under "A former user"."""
     session.execute(delete(UserSession).where(UserSession.user_id == user.id))
     session.execute(delete(OneTimeToken).where(OneTimeToken.user_id == user.id))
+    session.execute(delete(Passkey).where(Passkey.user_id == user.id))
     session.execute(delete(Membership).where(Membership.user_id == user.id))
     session.execute(delete(ProjectAccess).where(ProjectAccess.user_id == user.id))
     user.name = "A former user"

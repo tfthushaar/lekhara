@@ -27,6 +27,7 @@ from lekhara.engines.escrow import CertifierRole
 from lekhara.models import (
     Membership,
     Organization,
+    Passkey,
     Project,
     ProjectAccess,
     SupportGrant,
@@ -411,7 +412,11 @@ def principal_for(
         is_staff=user.is_staff,
         session_id=row.id,
         confirmed_at=row.confirmed_at,
-        two_step_on=user.two_step_on is not None,
+        two_step_on=user.two_step_on is not None
+        or session.scalar(
+            select(func.count()).select_from(Passkey).where(Passkey.user_id == user.id)
+        )
+        > 0,
         two_step_required=bool(org_roles)
         and session.scalar(
             select(func.count())

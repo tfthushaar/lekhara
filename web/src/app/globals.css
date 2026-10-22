@@ -1444,3 +1444,11 @@ h3 {
     padding: 36px 0;
   }
 }
+
+.passkey-sign-in {
+  margin-top: 12px;
+}
+
+.passkey-sign-in .button {
+  width: 100%;
+}

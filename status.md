@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-22, with the commit "Ask again before sensitive steps, end idle sessions, verify data room visitors, refuse leaked passwords".
+Last updated: 2026-10-22, with the commit "Add passkeys".
 
 ## What we are building
 
@@ -280,9 +280,12 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - Passwords already leaked in data breaches elsewhere are refused at sign-up, reset and invitation, checked without the password leaving Lekhara (only five characters of its hash are sent); if the checking service is down, the password is accepted.
 - Tested: each sensitive step asking after a while and passing once confirmed, with the code when two-step is on; an idle session ending; two sessions listed and one ended; the new-browser and full-download emails; the firm's two-step rule sending a team member to set it up; a visitor's wrong code refused and the right one opening the room; leaked passwords refused and the check sending only a hash prefix. All end-to-end suites, and a new one for confirming, the two-step rule and sessions.
 
+- Passkeys: sign in with the phone's or computer's own lock (fingerprint, face or PIN) instead of a password. Added in Settings after confirming it is you, named to tell them apart, and removable. A passkey only works on Lekhara's own address, so a fake sign-in page cannot use it; it counts as two-step sign-in for the firm's rule and the admin console. Sign-in needs no email: the browser offers the passkeys it holds.
+- Tested: passkeys added, used to sign in, refused for a look-alike site or when unknown, the same answer refused twice, removal asking to confirm first, and a passkey counting as two-step (with a software authenticator in the tests); in Chrome with its virtual authenticator, a passkey added in Settings and used to sign back in without a password.
+
 ## In progress
 
-- Security hardening, next: passkeys, key rotation, backups, a tamper-evident access log, limits shared across servers, and a security page. Then the features borrowed from other software (`research-borrow-and-secure.md`, outside the repository).
+- Security hardening, next: key rotation, backups, a tamper-evident access log, limits shared across servers, and a security page. Then the features borrowed from other software (`research-borrow-and-secure.md`, outside the repository).
 
 ## Left
 

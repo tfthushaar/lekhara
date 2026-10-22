@@ -96,6 +96,8 @@ NOT_EXPORTED = {
     "statement_passwords": "sealed passwords, never given out",
     "support_grants": "when support was allowed in, which the access log records",
     "subscription_payments": "Lekhara's own billing records, sent as invoices",
+    "passkeys": "public halves of sign-in keys, of no use outside Lekhara",
+    "passkey_challenges": "one-time sign-in challenges",
 }
 """Tables left out of the export, and why."""
 
