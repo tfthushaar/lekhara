@@ -908,7 +908,12 @@ export type GstReview = GstRow & {
     outcome: "matched" | "differs" | "missing" | "note";
     note: string;
     bill_id: string | null;
+    /** What to do with it in the GST portal's Invoice Management System, and why. */
+    ims_action: "accept" | "pending" | "reject" | "check";
+    ims_label: string;
+    ims_reason: string;
   }[];
+  ims: Record<"accept" | "pending" | "reject" | "check", number>;
   unreported: { bill_id: string; supplier: string; bill_no: string; bill_date: string; taxable: string }[];
   new_suppliers: { gstin: string; name: string }[];
   gstin_updates: { vendor_id: string; name: string; gstin: string }[];

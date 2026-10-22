@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-23, with the commit "Bank rules the team writes, applied to every statement".
+Last updated: 2026-10-23, with the commit "Say what to do with each supplier invoice in the GST Invoice Management System".
 
 ## What we are building
 
@@ -316,9 +316,16 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - A unit a rule names, or a payer remembered from bank statements points at, can no longer be deleted out from under them.
 - Tested: a rule placing a line as not a buyer's, two rules for one line with the first deciding and the order changed, a choice for the line coming first, a rule coming before a remembered payer, a bounced cheque staying paired whatever the rules say; rules for the RERA account (sweeps left out both ways, a card fee as charges within an amount range, a line kept a deposit); trying a rule; every check on what a rule may say, rules for every project shown on each, and certifiers kept out; all end to end, from a statement line to the rule and back.
 
+- Help with the GST Invoice Management System (borrowed from india-compliance's purchase reconciliation):
+  - Every invoice and note in a GSTR-2A or GSTR-2B brought in gets what to do with it in IMS, and why: accept when the bill is in Lekhara with the same amounts; keep pending when the amounts differ (correct the bill and accept, or reject so the supplier corrects it) or when there is no bill yet (credit needs the goods or service received); reject a copy of an invoice already in an earlier month's return, so the credit is not taken twice; check a credit or debit note, which only the person who agreed to it can judge.
+  - A return covers the firm's GSTIN, so a bill is looked for in the firm's other projects too.
+  - The return's page explains when GSTR-2B is drawn up (the 14th, from what was accepted and what was left untouched) and that choices can change until GSTR-3B is filed, lists what is not simply to accept, and the whole list downloads as a spreadsheet to work through on the portal.
+  - Lekhara does not act in IMS itself: that needs a GST Suvidha Provider (decision 20). Which records may be kept pending has changed since IMS began, so the page says the portal's own choices for each record are the final word.
+- Tested: each suggestion and its reason (a bill that agrees, amounts that differ, no bill, the bill in another project, an invoice in August's return again in September's, a credit note), the counts, and the downloaded list; end to end with the GST import.
+
 ## In progress
 
-- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository), still to do: help with the GST Invoice Management System, and a signing record on certificates.
+- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository), still to do: a signing record on certificates.
 
 ## Left
 

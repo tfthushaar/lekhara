@@ -1,5 +1,7 @@
 import base64
+import csv
 import hmac
+import io
 import json
 import logging
 import re
@@ -42,6 +44,7 @@ from lekhara import (
     rls,
     scan,
     services,
+    sheets,
     staff,
     statutory,
     two_step,
@@ -2749,8 +2752,11 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     def gst_view(session: Session, me: auth.Principal, row, p: Project) -> dict:
         ret, plan = gst.review(session, app.state.storage, row)
+        advice = gst.ims_advice(session, app.state.storage, row, plan)
         editable = me.can_prepare(p) and not me.views_as_sample(p)
-        return views.gst_review(row, ret, plan, p, can_edit=editable, can_undo=gst.can_undo(row))
+        return views.gst_review(
+            row, ret, plan, p, advice, can_edit=editable, can_undo=gst.can_undo(row)
+        )
 
     @app.post("/projects/{project_id}/gst", status_code=201)
     def upload_gst(project_id: str, session: SessionDep, me: Me, file: UploadFile) -> dict:
@@ -2779,6 +2785,29 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     def get_gst(import_id: str, session: SessionDep, me: Me) -> dict:
         row, p = gst_for(session, me, import_id)
         return gst_view(session, me, row, p)
+
+    @app.get("/gst/{import_id}/ims.csv")
+    def gst_ims_list(import_id: str, session: SessionDep, me: Me) -> Response:
+        """The return's invoices with what to do with each in the Invoice Management System, to
+        work through on the GST portal."""
+        row, p = gst_for(session, me, import_id)
+        _, plan = gst.review(session, app.state.storage, row)
+        advice = gst.ims_advice(session, app.state.storage, row, plan)
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow(["Supplier GSTIN", "Supplier", "Kind", "Number", "Date", "Taxable value",
+                         "GST", "In IMS", "Why"])  # fmt: skip
+        kinds = {"invoice": "Invoice", "credit_note": "Credit note", "debit_note": "Debit note"}
+        for line, a in zip(plan.lines, advice, strict=True):
+            inv = line.invoice
+            writer.writerow([sheets.csv_value(v) for v in (
+                inv.supplier_gstin, inv.supplier_name or "", kinds.get(inv.kind, inv.kind),
+                inv.number, inv.on.isoformat() if inv.on else "", str(inv.taxable),
+                str(inv.gst), a.label, a.reason,
+            )])  # fmt: skip
+        period = gst.period_label(row.period) or "return"
+        name = f"IMS {period} {p.name}.csv".replace(" ", "-")
+        return file_download(out.getvalue().encode("utf-8-sig"), name)
 
     @app.put("/gst/{import_id}/options")
     def gst_options(import_id: str, body: GstOptions, session: SessionDep, me: Me) -> dict:

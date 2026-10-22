@@ -146,7 +146,7 @@ Statement passwords are sealed with `LEKHARA_SECRET_KEY` (`lekhara/secretbox.py`
 
 ### GSTR-2B
 
-`api/lekhara/gst/`: `reader.py` reads GSTR-2B JSON (by key, wherever it sits: `ctin`, `trdnm`, `inv` with `inum`, `dt`, `txval`, `igst`/`cgst`/`sgst`/`cess`, `itcavl`, `rev`; notes under `nt`), GSTR-2A JSON (item details `itm_det`), and the GSTR-2B Excel (B2B and CDNR sheets, two-row headers, matched by column meaning). `plan.py` matches invoices to bills by supplier GSTIN or name and `fold_number`, and lists agreements, differences, missing bills, unreported bills for the return's month and GSTIN updates; `service.py` uploads, applies (bills get `source_ref` `gstr2b:<gstin>:<number>`) and undoes. Samples are in `api/tests/gst_samples.py`.
+`api/lekhara/gst/`: `reader.py` reads GSTR-2B JSON (by key, wherever it sits: `ctin`, `trdnm`, `inv` with `inum`, `dt`, `txval`, `igst`/`cgst`/`sgst`/`cess`, `itcavl`, `rev`; notes under `nt`), GSTR-2A JSON (item details `itm_det`), and the GSTR-2B Excel (B2B and CDNR sheets, two-row headers, matched by column meaning). `plan.py` matches invoices to bills by supplier GSTIN or name and `fold_number`, and lists agreements, differences, missing bills, unreported bills for the return's month and GSTIN updates; `service.py` uploads, applies (bills get `source_ref` `gstr2b:<gstin>:<number>`) and undoes. `ims.py` turns each checked line into a suggestion for the Invoice Management System; `service.ims_advice` adds what it needs from outside the project (bills in the firm's other projects, invoices in earlier months' returns), and `GET /gst/{id}/ims.csv` gives the list. Samples are in `api/tests/gst_samples.py`.
 
 ### The review queue
 

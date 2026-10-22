@@ -30,6 +30,23 @@ const OUTCOME: Record<GstReview["lines"][number]["outcome"], { label: string; cl
   note: { label: "Note", className: "tag" },
 };
 
+const IMS: Record<GstReview["lines"][number]["ims_action"], string> = {
+  accept: "tag tag-done",
+  pending: "tag tag-soon",
+  reject: "tag tag-fail",
+  check: "tag",
+};
+
+function imsSummary(n: GstReview["ims"]): string {
+  const parts = [
+    n.accept ? `${n.accept} to accept` : "",
+    n.pending ? `${n.pending} to keep pending` : "",
+    n.reject ? `${n.reject} to reject` : "",
+    n.check ? `${n.check} to check` : "",
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(", ")}.` : "Nothing in the return.";
+}
+
 async function GstView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const g = await api.gst(id);
@@ -141,6 +158,57 @@ async function GstView({ params }: { params: Promise<{ id: string }> }) {
       ) : null}
 
       <section className="section">
+        <div className="section-head">
+          <h2>In the Invoice Management System</h2>
+          <p>{imsSummary(g.ims)}</p>
+        </div>
+        <p className="small muted" style={{ maxWidth: 760, marginTop: 12 }}>
+          On the GST portal, accept, reject or keep pending each invoice your suppliers report. GSTR-2B is drawn up on
+          the 14th of the next month from what you accepted and what you left untouched, which counts as accepted. You
+          can change your choices, and have GSTR-2B computed again, until you file GSTR-3B. The portal shows which
+          choices each record allows.
+        </p>
+        {g.lines.some((l) => l.ims_action !== "accept") ? (
+          <table className="table" style={{ marginTop: 12 }}>
+            <thead>
+              <tr>
+                <th>Supplier</th>
+                <th>Invoice</th>
+                <th className="right">GST</th>
+                <th>Do</th>
+                <th>Why</th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.lines
+                .filter((l) => l.ims_action !== "accept")
+                .map((l, i) => (
+                  <tr key={`${l.supplier_gstin}-${l.number}-${i}`}>
+                    <td>{l.supplier_name ?? l.supplier_gstin}</td>
+                    <td className="nowrap">
+                      {l.number}
+                      {l.kind !== "invoice" ? <span className="small muted">{l.kind === "credit_note" ? " credit note" : " debit note"}</span> : null}
+                    </td>
+                    <td className="right num">{inr(l.gst)}</td>
+                    <td className="nowrap">
+                      <span className={IMS[l.ims_action]}>{l.ims_label}</span>
+                    </td>
+                    <td className="small">{l.ims_reason}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="empty">Every invoice agrees with a bill: accept them all.</p>
+        )}
+        <div style={{ marginTop: 12 }}>
+          <a href={`/download/gst/${g.id}/ims.csv`} className="link-action">
+            Download the whole list, with what to do with each
+          </a>
+        </div>
+      </section>
+
+      <section className="section">
         <details className="disclosure">
           <summary>{`Every invoice in the return (${g.lines.length})`}</summary>
         <table className="table" style={{ marginTop: 12 }}>
@@ -152,6 +220,7 @@ async function GstView({ params }: { params: Promise<{ id: string }> }) {
               <th className="right">Taxable</th>
               <th className="right">GST</th>
               <th>In Lekhara</th>
+              <th>In IMS</th>
             </tr>
           </thead>
           <tbody>
@@ -173,6 +242,9 @@ async function GstView({ params }: { params: Promise<{ id: string }> }) {
                   <span className={OUTCOME[l.outcome].className}>{OUTCOME[l.outcome].label}</span>
                   {l.note ? <span className="small muted">{` ${l.note}`}</span> : null}
                   {l.itc_available === false ? <span className="small muted"> No credit</span> : null}
+                </td>
+                <td className="nowrap">
+                  <span className={IMS[l.ims_action]}>{l.ims_label}</span>
                 </td>
               </tr>
             ))}

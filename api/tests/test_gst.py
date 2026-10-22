@@ -1,3 +1,5 @@
+import csv
+import io
 from datetime import date
 from decimal import Decimal
 
@@ -171,3 +173,47 @@ def test_files_that_are_not_returns(app, engine) -> None:
         f"/projects/{project}/gst", files={"file": ("x.json", b'{"hello": 1}', "application/json")}
     )
     assert r.status_code == 400 and "GSTR-2B" in r.json()["detail"]
+
+
+def test_what_to_do_in_the_invoice_management_system(app, engine) -> None:
+    client, project = firm(app, engine)
+    other = client.post(
+        "/projects",
+        json={"name": "Kaveri Lakeside", "krera_registration": "PRM/K/2",
+              "registered_on": "2025-04-01"},
+    ).json()["id"]  # fmt: skip
+    r = client.post(
+        f"/projects/{other}/bills",
+        json={"supplier": "Bharat TMT Steel", "bill_no": "BTS/3", "bill_date": "18/09/2026",
+              "taxable_value": "100000", "gst_amount": "18000"},
+    )  # fmt: skip
+    assert r.status_code == 201, r.text
+    # August's return already had an invoice that September's has again.
+    august = [(samples.STEEL, "BHARAT TMT STEEL", "BTS-0001", "05-09-2026", 1200000, 0, 108000,
+               108000)]  # fmt: skip
+    upload(client, project, samples.gstr2b_json(august, [], period="082026"), "aug.json")
+    september = [
+        *samples.INVOICES[1:],
+        (samples.STEEL, "BHARAT TMT STEEL", "BTS-3", "18-09-2026", 100000, 0, 9000, 9000),
+        samples.INVOICES[0],
+    ]
+    view = upload(client, project, samples.gstr2b_json(september))
+    advice = {x["number"]: (x["ims_action"], x["ims_reason"]) for x in view["lines"]}
+    assert advice["RE-77"][0] == "accept"  # the bill agrees
+    assert advice["BTS/2"][0] == "pending" and "amounts differ" in advice["BTS/2"][1]
+    assert advice["NP-1"][0] == "pending" and "no bill" in advice["NP-1"][1]
+    assert advice["BTS-3"] == (
+        "accept", "The bill is in Lekhara under Kaveri Lakeside, with the same amounts."
+    )  # fmt: skip
+    assert advice["BTS-0001"][0] == "reject" and "Aug 2026" in advice["BTS-0001"][1]
+    assert advice["CN-4"][0] == "check" and "credit note" in advice["CN-4"][1]
+    assert view["ims"] == {"accept": 2, "pending": 2, "reject": 1, "check": 1}
+
+    sheet = client.get(f"/gst/{view['id']}/ims.csv")
+    assert (
+        sheet.status_code == 200
+        and "IMS-Sep-2026-Kaveri-Heights.csv" in sheet.headers["content-disposition"]
+    )
+    rows = list(csv.reader(io.StringIO(sheet.content.decode("utf-8-sig"))))
+    assert rows[0][-2:] == ["In IMS", "Why"] and len(rows) == 7
+    assert [rows[1][3], rows[1][7]] == ["BTS/2", "Keep pending"]

@@ -2079,8 +2079,13 @@ def gst_row(row) -> dict:
     }
 
 
-def gst_review(row, ret, plan, project: Project, *, can_edit: bool, can_undo: bool) -> dict:
+def gst_review(
+    row, ret, plan, project: Project, advice: list, *, can_edit: bool, can_undo: bool
+) -> dict:
+    from lekhara.gst.ims import ACTIONS
     from lekhara.gst.service import options
+
+    ims = {action: sum(1 for a in advice if a.action == action) for action in ACTIONS}
 
     return {
         **gst_row(row),
@@ -2090,6 +2095,7 @@ def gst_review(row, ret, plan, project: Project, *, can_edit: bool, can_undo: bo
         "can_undo": can_edit and can_undo,
         "add_missing": bool(options(row).get("add_missing")),
         "counts": plan.counts,
+        "ims": ims,
         "alerts": [
             {
                 "level": a.level,
@@ -2116,8 +2122,11 @@ def gst_review(row, ret, plan, project: Project, *, can_edit: bool, can_undo: bo
                 "outcome": x.outcome,
                 "note": x.note,
                 "bill_id": x.bill_id,
+                "ims_action": a.action,
+                "ims_label": a.label,
+                "ims_reason": a.reason,
             }
-            for x in plan.lines
+            for x, a in zip(plan.lines, advice, strict=True)
         ],
         "unreported": [
             {

@@ -4,13 +4,14 @@ added as bills. Undo takes them out again."""
 
 import json
 from collections import OrderedDict
-from datetime import timedelta
+from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from lekhara import purchases
-from lekhara.gst.plan import BillRef, Plan, VendorRef, make_plan
+from lekhara.gst.ims import Advice, Elsewhere, advise
+from lekhara.gst.plan import TOLERANCE, BillRef, Plan, VendorRef, make_plan, period_month
 from lekhara.gst.reader import Return, fold_number, read_return
 from lekhara.models import Bill, GstImport, Organization, Project, Vendor, utcnow
 from lekhara.services import ServiceError
@@ -111,6 +112,60 @@ def review(session: Session, storage: Storage, row: GstImport) -> tuple[Return, 
         for b in session.scalars(select(Bill).where(Bill.project_id == row.project_id))
     ]
     return ret, make_plan(ret, bills, vendors, firm_gstin=org.gstin if org else None)
+
+
+def period_label(period: str | None) -> str | None:
+    month = period_month(period)
+    return date(month[0], month[1], 1).strftime("%b %Y") if month else None
+
+
+def ims_advice(session: Session, storage: Storage, row: GstImport, plan: Plan) -> list[Advice]:
+    """What to do in the Invoice Management System with each line of the return, in order.
+    A return covers the firm's GSTIN, so a bill is looked for in its other projects too, and
+    an invoice already in an earlier month's return is caught."""
+    names = {
+        p.id: p.name
+        for p in session.scalars(
+            select(Project).where(Project.organization_id == row.organization_id)
+        )
+    }
+    elsewhere: dict[tuple[str, str], Bill] = {}
+    for b in session.scalars(
+        select(Bill).where(Bill.project_id.in_(names), Bill.project_id != row.project_id)
+    ):
+        elsewhere.setdefault((b.vendor_id, fold_number(b.bill_no)), b)
+    counted: dict[str, str] = {}
+    if row.period:
+        earlier = session.scalars(
+            select(GstImport)
+            .where(
+                GstImport.organization_id == row.organization_id,
+                GstImport.status != "undone",
+                GstImport.period != row.period,
+            )
+            .order_by(GstImport.created_at.desc())
+            .limit(24)
+        )
+        for other in earlier:
+            try:
+                invoices = return_of(storage, other).invoices
+            except ServiceError:
+                continue  # a file that can no longer be read is passed over
+            label = period_label(other.period) or other.period
+            for inv in invoices:
+                counted.setdefault(inv.key, label)
+    advice = []
+    for line in plan.lines:
+        found = None
+        if line.outcome == "missing" and line.vendor_id:
+            bill = elsewhere.get((line.vendor_id, fold_number(line.invoice.number)))
+            if bill is not None:
+                same = abs(bill.taxable_value - line.invoice.taxable) <= TOLERANCE and (
+                    bill.gst_amount is None or abs(bill.gst_amount - line.invoice.gst) <= TOLERANCE
+                )
+                found = Elsewhere(names[bill.project_id], same)
+        advice.append(advise(line, elsewhere=found, counted=counted.get(line.invoice.key)))
+    return advice
 
 
 def set_options(session: Session, row: GstImport, body: dict) -> None:
