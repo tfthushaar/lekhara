@@ -21,6 +21,7 @@ from lekhara import (
     auth,
     connectors,
     export,
+    filing,
     handover_desk,
     imports,
     inbound,
@@ -29,6 +30,7 @@ from lekhara import (
     krera_certificate,
     legal,
     limits,
+    originals,
     packs,
     passkeys,
     passwords,
@@ -47,6 +49,7 @@ from lekhara import (
 from lekhara.bank import service as bank
 from lekhara.config import Settings, get_settings
 from lekhara.db import make_engine, make_sessionmaker
+from lekhara.engines.documents import CATEGORY_LABEL
 from lekhara.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
 from lekhara.engines.obligations import ObligationStatus, sort_obligations
 from lekhara.gst import service as gst
@@ -66,6 +69,7 @@ from lekhara.models import (
     LandownerPaymentRow,
     Membership,
     Organization,
+    Original,
     PaymentMilestone,
     Project,
     Receipt,
@@ -3175,6 +3179,151 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             user_id=me.user_id,
         )
         return {"id": doc.id}
+
+    # The register of originals
+
+    class OriginalBody(BaseModel):
+        title: str | None = None
+        kind: str | None = None
+        document_id: str | None = None
+        held_at: str | None = None
+        held_by: str | None = None
+        since: str | None = None
+        against: str | None = None
+        note: str | None = None
+
+    def original_fields(body: OriginalBody) -> dict:
+        fields = body.model_dump()
+        fields["since"] = form_date(body.since, "The date it moved")
+        return fields
+
+    def original_for(session: Session, me: auth.Principal, original_id: str, edit: bool = False):
+        original = session.get(Original, original_id)
+        if original is None:
+            raise ServiceError("Original not found.", 404)
+        p = services.get_project(session, original.project_id)
+        auth.require_team(me, p)
+        if edit:
+            auth.require_prepare(me, p)
+        return original, p
+
+    @app.get("/projects/{project_id}/originals")
+    def project_originals(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        return {
+            "originals": [originals.row(o, on) for o in originals.of_project(session, p)],
+            "held_at": [{"value": k, "label": v} for k, v in originals.HELD_AT.items()],
+            "kinds": [{"value": k, "label": v} for k, v in CATEGORY_LABEL.items()],
+            "can_edit": me.can_prepare(p) and not me.views_as_sample(p),
+        }
+
+    @app.post("/projects/{project_id}/originals", status_code=201)
+    def add_original(
+        project_id: str, body: OriginalBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        auth.require_writable(me, p)
+        original = originals.create(session, p, original_fields(body), me.user_id, on)
+        return originals.row(original, on)
+
+    @app.get("/originals/find")
+    def find_original(number: str, session: SessionDep, me: Me) -> dict:
+        found = originals.find(session, set(me.org_roles), number)
+        if found is None:
+            raise ServiceError(f"No original numbered {number[:20]} in your firm.", 404)
+        return {"id": found.id, "project_id": found.project_id}
+
+    @app.get("/originals/{original_id}")
+    def original_detail(original_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        original, p = original_for(session, me, original_id)
+        names = {u.id: u.name for u in session.scalars(select(User))}
+        return {
+            **originals.row(original, on),
+            "project": {"id": p.id, "name": p.name},
+            "moves": [
+                {
+                    "held_at_label": originals.HELD_AT[m.held_at],
+                    "held_by": m.held_by,
+                    "since": m.since.isoformat(),
+                    "against": m.against,
+                    "note": m.note,
+                    "recorded_by": names.get(m.recorded_by or "", ""),
+                }
+                for m in originals.moves(session, original)
+            ],
+            "held_at_choices": [{"value": k, "label": v} for k, v in originals.HELD_AT.items()],
+            "can_edit": me.can_prepare(p) and not me.views_as_sample(p),
+        }
+
+    @app.post("/originals/{original_id}/move")
+    def move_original(
+        original_id: str, body: OriginalBody, session: SessionDep, me: Me, on: AsOf
+    ) -> dict:
+        original, p = original_for(session, me, original_id, edit=True)
+        auth.require_writable(me, p)
+        originals.move(session, original, original_fields(body), me.user_id, on)
+        return originals.row(original, on)
+
+    # Filing documents by rules
+
+    class RuleBody(BaseModel):
+        name: str | None = None
+        words: str | None = None
+        how: str | None = None
+        category: str | None = None
+        requirement: str | None = None
+
+    def filing_org(session: Session, me: auth.Principal) -> Organization:
+        """The firm whose rules these are; its team who can file documents may change them."""
+        org = accounts.current_org(session, me)
+        if me.org_roles.get(org.id) not in (
+            auth.OrgRole.OWNER, auth.OrgRole.FINANCE, auth.OrgRole.ACCOUNTS
+        ):  # fmt: skip
+            raise ServiceError("Your role cannot change how documents are filed.", 403)
+        return org
+
+    @app.get("/organization/filing-rules")
+    def filing_rules(session: SessionDep, me: Me) -> dict:
+        org = accounts.current_org(session, me)
+        role = me.org_roles.get(org.id)
+        return {
+            **filing.view(session, org),
+            "can_edit": role in (auth.OrgRole.OWNER, auth.OrgRole.FINANCE, auth.OrgRole.ACCOUNTS),
+        }
+
+    @app.post("/organization/filing-rules", status_code=201)
+    def add_filing_rule(body: RuleBody, session: SessionDep, me: Me) -> dict:
+        org = filing_org(session, me)
+        rule = filing.create_rule(session, org, body.model_dump(), me.user_id)
+        return {
+            "id": rule.id,
+            "would_file": len(filing.would_file(session, org, body.model_dump())),
+        }
+
+    @app.post("/organization/filing-rules/try")
+    def try_filing_rule(body: RuleBody, session: SessionDep, me: Me) -> dict:
+        org = filing_org(session, me)
+        return {
+            "documents": [
+                {"id": d.id, "title": d.title, "category": d.category}
+                for d in filing.would_file(session, org, body.model_dump())
+            ]
+        }
+
+    @app.post("/organization/filing-rules/standard")
+    def add_standard_rules(session: SessionDep, me: Me) -> dict:
+        return {"added": filing.add_standard(session, filing_org(session, me), me.user_id)}
+
+    @app.post("/organization/filing-rules/{rule_id}/delete")
+    def delete_filing_rule(rule_id: str, session: SessionDep, me: Me) -> dict:
+        filing.delete_rule(session, filing_org(session, me), rule_id)
+        return {"ok": True}
+
+    @app.post("/organization/filing-rules/refile")
+    def refile_documents(session: SessionDep, me: Me) -> dict:
+        return {"filed": filing.refile(session, filing_org(session, me))}
 
     @app.get("/documents")
     def documents_for_record(

@@ -1457,3 +1457,43 @@ h3 {
 .passkey-sign-in .button {
   width: 100%;
 }
+
+/* Labels for paper originals */
+
+.label-sheet {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.label {
+  border: 1px dashed var(--line-2);
+  padding: 12px;
+  break-inside: avoid;
+}
+
+.barcode svg {
+  display: block;
+  width: 100%;
+  height: 48px;
+}
+
+.label-number {
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  margin-top: 6px;
+}
+
+.label-title {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+@media print {
+  .label {
+    border-color: var(--ink);
+  }
+}
+

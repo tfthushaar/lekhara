@@ -20,15 +20,19 @@ export function CategoryField({
   categories,
   value,
   id = "category",
+  auto = false,
 }: {
   categories: Choice[];
   value?: string | null;
   id?: string;
+  /** Offer to let the firm's filing rules choose, and choose that first. */
+  auto?: boolean;
 }) {
   return (
     <div className="field">
       <label htmlFor={id}>Kind of document</label>
-      <select id={id} name="category" defaultValue={value ?? "other"}>
+      <select id={id} name="category" defaultValue={value ?? (auto ? "" : "other")}>
+        {auto ? <option value="">Let Lekhara file it, by your filing rules</option> : null}
         {categories.map((c) => (
           <option key={c.value} value={c.value}>
             {c.label}

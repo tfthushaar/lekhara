@@ -423,7 +423,9 @@ def _as_document(session, storage, settings, project, message, item, data) -> No
         data=data,
         filename=item.filename,
         fields={
-            "category": _category(f"{item.filename} {message.subject or ''}"),
+            # The firm's filing rules first; failing those, a guess from the name and subject.
+            "category": None,
+            "guess": _category(f"{item.filename} {message.subject or ''}"),
             "notes": f"Sent by {message.from_address}"
             + (f": {message.subject}" if message.subject else ""),
         },

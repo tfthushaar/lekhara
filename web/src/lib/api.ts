@@ -653,6 +653,8 @@ export type DocRow = {
   version: number;
   pages: number;
   text_status: "text" | "no_text" | "unreadable";
+  /** The filing rule that chose its kind, when no person did. */
+  filed_by: string | null;
   requirement: string | null;
   link_type: string | null;
   link_id: string | null;
@@ -938,6 +940,63 @@ export type LegalInfo = {
   log_days: number;
   sub_processors: { what: string; who: string }[];
 };
+
+export type FilingRules = {
+  rules: {
+    id: string;
+    name: string;
+    words: string;
+    how: string;
+    how_label: string;
+    category: string;
+    category_label: string;
+    requirement: string | null;
+    requirement_label: string | null;
+  }[];
+  hows: Choice[];
+  categories: Choice[];
+  requirements: Choice[];
+  standard_missing: number;
+  can_edit: boolean;
+};
+
+export type OriginalRow = {
+  id: string;
+  number: string;
+  title: string;
+  kind: string;
+  kind_label: string;
+  held_at: string;
+  held_at_label: string;
+  held_by: string | null;
+  since: string;
+  against: string | null;
+  note: string | null;
+  document_family_id: string | null;
+  away_too_long: boolean;
+  days_there: number;
+};
+
+export type ProjectOriginals = { originals: OriginalRow[]; held_at: Choice[]; kinds: Choice[]; can_edit: boolean };
+
+export type OriginalDetail = OriginalRow & {
+  project: { id: string; name: string };
+  moves: { held_at_label: string; held_by: string | null; since: string; against: string | null; note: string | null; recorded_by: string }[];
+  held_at_choices: Choice[];
+  can_edit: boolean;
+};
+
+/** The original a scanned or typed number names, or why there is none. */
+export async function findOriginal(number: string): Promise<{ id: string } | { error: string }> {
+  const response = await fetch(`${BASE}/originals/find?number=${encodeURIComponent(number)}`, {
+    cache: "no-store",
+    headers: await authHeaders(),
+  });
+  if (response.status === 401) redirect("/login");
+  if (response.ok) return response.json();
+  const detail = (await response.json().catch(() => null))?.detail;
+  return { error: typeof detail === "string" ? detail : "No original has that number." };
+}
 
 export type SupportState = {
   allowed_until: string | null;
@@ -1693,6 +1752,9 @@ export const api = {
   review: () => get<ReviewQueue>("/review"),
   legal: () => get<LegalInfo>("/legal"),
   support: () => get<SupportState>("/organization/support"),
+  originals: (projectId: string) => get<ProjectOriginals>(`/projects/${projectId}/originals`),
+  original: (id: string) => get<OriginalDetail>(`/originals/${id}`),
+  filingRules: () => get<FilingRules>("/organization/filing-rules"),
   sessions: () => get<{ sessions: OpenSession[] }>("/auth/sessions"),
   passkeys: () => get<{ passkeys: { id: string; name: string; added: string; last_used: string | null }[] }>("/auth/passkeys"),
   staffFirm: (id: string) => get<StaffFirm>(`/staff/firms/${id}`),

@@ -934,6 +934,7 @@ def doc_row(doc: Document, *, as_of: date, notice_days: int) -> dict:
         "version": doc.version,
         "pages": doc.pages,
         "text_status": doc.text_status,
+        "filed_by": doc.filed_by,
         "requirement": doc.requirement,
         "link_type": doc.link_type,
         "link_id": doc.link_id,

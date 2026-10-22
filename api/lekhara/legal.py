@@ -360,7 +360,12 @@ def _purge_scoped(session: Session, org: Organization) -> list[str]:
         if c.masters_key
     ]
 
+    originals = list(
+        session.scalars(select(m.Original.id).where(m.Original.organization_id == org.id))
+    )
     steps = [
+        (m.OriginalMove, m.OriginalMove.original_id, originals),
+        (m.Original, m.Original.organization_id, [org.id]),
         (m.DataRoomVisit, m.DataRoomVisit.room_id, rooms),
         (m.DataRoomVisitor, m.DataRoomVisitor.room_id, rooms),
         (m.DataRoomDocument, m.DataRoomDocument.room_id, rooms),
@@ -407,6 +412,7 @@ def _purge_scoped(session: Session, org: Organization) -> list[str]:
         (m.Project, m.Project.organization_id, [org.id]),
         (m.Vendor, m.Vendor.organization_id, [org.id]),
         (m.TrustedSender, m.TrustedSender.organization_id, [org.id]),
+        (m.FilingRule, m.FilingRule.organization_id, [org.id]),
         (m.StatementPassword, m.StatementPassword.organization_id, [org.id]),
         (m.Invitation, m.Invitation.organization_id, [org.id]),
         (m.SupportGrant, m.SupportGrant.organization_id, [org.id]),

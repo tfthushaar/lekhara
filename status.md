@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-23, with the commit "Sync Tally only when it has changed, and check stored files every night".
+Last updated: 2026-10-23, with the commit "File documents by the firm's own rules, and keep a register of paper originals".
 
 ## What we are building
 
@@ -297,9 +297,13 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - Every night, every stored file (documents, imports, statements, emails) is read and checked against its fingerprint, as Paperless-ngx does; files missing or changed are logged as errors and shown in the admin console (`python -m lekhara.integrity` runs it by hand).
 - Tested: the connector asking only for the numbers when nothing changed, exporting the day book alone when a voucher changed and the masters too when a master did, and falling back for an older Tally; the file check passing, then finding one document altered and one missing.
 
+- Filing documents by rules (borrowed from Paperless-ngx's matching): a firm writes rules (words, and whether any, all, the exact phrase, or all allowing small spelling differences must appear) saying what kind of document, and which checklist item, a document containing them is. A document uploaded or emailed in without a kind chosen is filed by the rule whose words come earliest in it, and says which rule did; it can always be changed. Seventeen rules for common Karnataka documents (occupancy and commencement certificates, fire NOC, encumbrance certificate, mother deed, sale deeds, khata and others) are added in one step; a new rule shows how many documents already in the vault it fits, and what is still under Other can be filed by the rules at once. Patterns (regular expressions) are left out, since one written carelessly can stall the server.
+- A register of paper originals (borrowed from Paperless-ngx's archive serial numbers): each title deed, plan, certificate or sale deed gets a number for the firm (O-0001 and on) on a printed barcode label for its folder, and Lekhara keeps where it is (in the office, with a bank as security and against which loan, with the lawyer, at the sub-registrar, with an authority, handed to the buyer) and every move, with who recorded it. An ordinary barcode reader scanning a label opens its record; one away with the lawyer, registrar or an authority for more than 30 days is flagged.
+- Tested: the four ways of matching (a scanned "OCCUPANCV CERTIFlCATE" found), an upload filed by a standard rule and one with its kind chosen left alone, a rule tried, added and used on documents already in, the rule nearest the top winning over a passing mention, and who may change rules; originals numbered across the firm, moved with history, found by a scanned or typed number, flagged when away too long, and hidden from other firms and certifiers; both end to end, with the label sheet's barcodes.
+
 ## In progress
 
-- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository), still to do: filing documents by rules, a register of originals, stronger data rooms, bank rules, help with the GST Invoice Management System, and a signing record on certificates.
+- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository), still to do: stronger data rooms, bank rules, help with the GST Invoice Management System, and a signing record on certificates.
 
 ## Left
 

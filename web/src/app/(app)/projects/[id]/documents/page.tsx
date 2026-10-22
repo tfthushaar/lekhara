@@ -1,9 +1,19 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { createRoom, restoreRequirement, uploadDocument, waiveRequirement } from "@/app/actions";
+import {
+  addFilingRule,
+  addStandardFilingRules,
+  createRoom,
+  deleteFilingRule,
+  refileDocuments,
+  restoreRequirement,
+  uploadDocument,
+  waiveRequirement,
+} from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { CategoryField, DateField, ExpiryTag, FileField } from "@/components/documents";
+import { OriginalsSection } from "@/components/originals";
 import { type ChecklistRow, type DocumentsView, type SearchResults, api } from "@/lib/api";
 import { day, plural } from "@/lib/format";
 
@@ -197,7 +207,7 @@ async function VaultView({
               <input type="hidden" name="then" value="open" />
               <div className="field-grid">
                 <FileField id="general-file" />
-                <CategoryField categories={r.categories} id="general-category" />
+                <CategoryField categories={r.categories} id="general-category" auto />
                 <div className="field">
                   <label htmlFor="general-title">Title (optional)</label>
                   <input id="general-title" name="title" />
@@ -214,8 +224,126 @@ async function VaultView({
         ) : null}
       </section>
 
+      <Suspense fallback={null}>
+        <OriginalsSection projectId={id} />
+      </Suspense>
+
+      {r.can_edit ? (
+        <Suspense fallback={null}>
+          <FilingRules />
+        </Suspense>
+      ) : null}
+
       <RoomsSection r={r} projectId={id} />
     </>
+  );
+}
+
+/** The firm's rules for filing documents no one chose a kind for. */
+async function FilingRules() {
+  const f = await api.filingRules();
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>Filing rules</h2>
+        <p>For every project: words that say what kind of document something is</p>
+      </div>
+      <p className="small muted" style={{ maxWidth: 760, marginTop: 12 }}>
+        When a document is uploaded or emailed in without a kind chosen, Lekhara reads it and files it by the first rule
+        that fits, and says which rule did. You can always change it.
+      </p>
+      {f.rules.length ? (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Rule</th>
+              <th>Looks for</th>
+              <th>Files it as</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {f.rules.map((rule) => (
+              <tr key={rule.id}>
+                <td>{rule.name}</td>
+                <td>
+                  {`"${rule.words}"`} <span className="small muted">{rule.how_label.toLowerCase()}</span>
+                </td>
+                <td>
+                  {rule.category_label}
+                  {rule.requirement_label ? <span className="small muted">{`, ${rule.requirement_label}`}</span> : null}
+                </td>
+                <td className="right">
+                  {f.can_edit ? (
+                    <ActionForm action={deleteFilingRule.bind(null, rule.id)} label="Remove" pendingLabel="Removing" secondary />
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="empty">No rules yet.</p>
+      )}
+      {f.can_edit ? (
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
+          {f.standard_missing ? (
+            <ActionForm action={addStandardFilingRules} label="Add the rules for common Karnataka documents" pendingLabel="Adding" secondary />
+          ) : null}
+          {f.rules.length ? (
+            <ActionForm action={refileDocuments} label="File what is still under Other" pendingLabel="Filing" secondary />
+          ) : null}
+        </div>
+      ) : null}
+      {f.can_edit ? (
+        <details className="disclosure">
+          <summary>Add a rule</summary>
+          <ActionForm action={addFilingRule} label="Add the rule" pendingLabel="Adding">
+            <div className="field-grid" style={{ marginTop: 12 }}>
+              <div className="field">
+                <label htmlFor="rule-name">Name</label>
+                <input id="rule-name" name="name" required placeholder="Lift licence" />
+              </div>
+              <div className="field">
+                <label htmlFor="rule-words">Words to look for</label>
+                <input id="rule-words" name="words" required placeholder="lift licence" />
+              </div>
+              <div className="field">
+                <label htmlFor="rule-how">How</label>
+                <select id="rule-how" name="how" defaultValue="phrase">
+                  {f.hows.map((h) => (
+                    <option key={h.value} value={h.value}>
+                      {h.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="rule-category">Files it as</label>
+                <select id="rule-category" name="category" defaultValue="approval">
+                  {f.categories.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="rule-requirement">Checklist item, if it is one</label>
+                <select id="rule-requirement" name="requirement" defaultValue="">
+                  <option value="">None</option>
+                  {f.requirements.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </ActionForm>
+        </details>
+      ) : null}
+    </section>
   );
 }
 

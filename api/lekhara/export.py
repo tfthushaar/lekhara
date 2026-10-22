@@ -49,12 +49,15 @@ from lekhara.models import (
     Document,
     EscrowTxn,
     Filing,
+    FilingRule,
     HandoverItem,
     Landowner,
     LandownerPaymentRow,
     LedgerEntry,
     Membership,
     Organization,
+    Original,
+    OriginalMove,
     PaymentMilestone,
     ProgressCertificate,
     Project,
@@ -138,6 +141,7 @@ class Scope:
     cases: list[str]
     requests: list[str]
     rooms: list[str]
+    originals: list[str]
 
 
 @dataclass(frozen=True)
@@ -203,6 +207,9 @@ SHEETS = [
     Sheet("Bank accounts", BankAccount, lambda s: BankAccount.project_id.in_(s.projects)),
     Sheet("Bank payers", BankPayer, lambda s: BankPayer.project_id.in_(s.projects)),
     Sheet("Trusted senders", TrustedSender, lambda s: TrustedSender.organization_id == s.org),
+    Sheet("Filing rules", FilingRule, lambda s: FilingRule.organization_id == s.org),
+    Sheet("Originals", Original, lambda s: Original.organization_id == s.org),
+    Sheet("Original moves", OriginalMove, lambda s: OriginalMove.original_id.in_(s.originals)),
     Sheet("Team", Membership, lambda s: Membership.organization_id == s.org),
     Sheet("Certifiers", ProjectAccess, lambda s: ProjectAccess.project_id.in_(s.projects)),
     Sheet("Change history", ChangeEntry, lambda s: ChangeEntry.organization_id == s.org),
@@ -232,6 +239,7 @@ def scope_for(session: Session, org: Organization) -> Scope:
         cases=cases,
         requests=_ids(session, WithdrawalRequest.id, WithdrawalRequest.project_id.in_(projects)),
         rooms=_ids(session, DataRoom.id, DataRoom.project_id.in_(projects)),
+        originals=_ids(session, Original.id, Original.organization_id == org.id),
     )
 
 

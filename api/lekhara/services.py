@@ -1347,6 +1347,8 @@ def store_document(
         return value if value is not None else getattr(previous, key, None)
 
     values = {key: inherit(key) for key in ("category", "requirement", "link_type", "link_id")}
+    # No kind chosen, and not a new version of a filed document: the firm's rules decide.
+    by_rules = values["category"] is None and values["requirement"] is None and previous is None
     if values["category"] is None:
         values["category"] = (
             REQUIREMENTS[values["requirement"]].category
@@ -1401,6 +1403,11 @@ def store_document(
     for number, page_text in enumerate(pages, start=1):
         if page_text:
             session.add(DocumentPage(document_id=doc_id, page_no=number, text=page_text))
+    if by_rules:
+        from lekhara import filing
+
+        session.flush()
+        filing.file_by_rules(session, doc, fallback=fields.get("guess"))
     session.commit()
     return doc
 

@@ -70,7 +70,7 @@ async function DocumentView({ params }: { params: Promise<{ id: string }> }) {
       ) : null}
 
       <ul className="calc" style={{ maxWidth: 640 }}>
-        <Fact label="Kind" value={d.category_label} />
+        <Fact label="Kind" value={d.filed_by ? `${d.category_label}, filed by the rule "${d.filed_by}"` : d.category_label} />
         {d.requirement_title ? <Fact label="Answers the checklist item" value={d.requirement_title} /> : null}
         {d.record ? <Fact label="Filed against" value={d.record} /> : null}
         <Fact label="Number on the document" value={d.reference ?? "None"} />

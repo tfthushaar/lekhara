@@ -540,6 +540,8 @@ class Document(Base):
     text_status: Mapped[str] = mapped_column(String(16), default="no_text")
     """text, no_text or unreadable."""
     archived_on: Mapped[date | None] = mapped_column(Date)
+    filed_by: Mapped[str | None] = mapped_column(String(100))
+    """The filing rule that chose its kind, when no person did."""
     uploaded_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
@@ -1251,3 +1253,63 @@ class IntegrityCheck(Base):
     altered: Mapped[int] = mapped_column(Integer)
     problems: Mapped[str] = mapped_column(Text)
     """The files found missing or altered, as JSON (the first 200)."""
+
+
+class FilingRule(Base):
+    """A firm's rule for filing documents: words to look for, how, and what kind of document
+    (and which checklist item) a document containing them is."""
+
+    __tablename__ = "filing_rules"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    words: Mapped[str] = mapped_column(String(200))
+    how: Mapped[str] = mapped_column(String(16))
+    category: Mapped[str] = mapped_column(String(32))
+    requirement: Mapped[str | None] = mapped_column(String(64))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class Original(Base):
+    """A paper original (a title deed, the sanctioned plan, a sale deed) and where it is now.
+    Its number goes on a barcode label on its folder."""
+
+    __tablename__ = "originals"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    number: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(300))
+    kind: Mapped[str] = mapped_column(String(32))
+    document_family_id: Mapped[str | None] = mapped_column(String(64))
+    """Its scan in the vault, if there is one."""
+    held_at: Mapped[str] = mapped_column(String(16))
+    held_by: Mapped[str | None] = mapped_column(String(200))
+    since: Mapped[date] = mapped_column(Date)
+    against: Mapped[str | None] = mapped_column(String(200))
+    """What it is held against, such as a loan."""
+    note: Mapped[str | None] = mapped_column(String(1000))
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (UniqueConstraint("organization_id", "number"),)
+
+
+class OriginalMove(Base):
+    """Where an original went, when, and who recorded it."""
+
+    __tablename__ = "original_moves"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    original_id: Mapped[str] = mapped_column(ForeignKey("originals.id"), index=True)
+    held_at: Mapped[str] = mapped_column(String(16))
+    held_by: Mapped[str | None] = mapped_column(String(200))
+    since: Mapped[date] = mapped_column(Date)
+    against: Mapped[str | None] = mapped_column(String(200))
+    note: Mapped[str | None] = mapped_column(String(500))
+    recorded_by: Mapped[str | None] = mapped_column(String(64))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

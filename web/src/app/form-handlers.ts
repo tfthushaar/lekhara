@@ -860,6 +860,64 @@ export async function setTwoStepRule(required: boolean, _previous: ActionState):
   };
 }
 
+// The register of originals
+
+const ORIGINAL_FIELDS = ["title", "kind", "held_at", "held_by", "since", "against", "note"];
+
+export async function addOriginal(projectId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send<{ number: string }>("POST", `/projects/${projectId}/originals`, filled(form, ORIGINAL_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: `Added as ${result.data.number}. Print its label and stick it on the folder.` };
+}
+
+export async function moveOriginal(originalId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send("POST", `/originals/${originalId}/move`, filled(form, ORIGINAL_FIELDS));
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Moved." };
+}
+
+// Filing documents by rules
+
+export async function addFilingRule(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const result = await send<{ would_file: number }>(
+    "POST",
+    "/organization/filing-rules",
+    filled(form, ["name", "words", "how", "category", "requirement"]),
+  );
+  if (!result.ok) return { error: result.error };
+  refresh();
+  const n = result.data.would_file;
+  return {
+    ok: n
+      ? `Added. It fits ${n === 1 ? "1 document" : `${n} documents`} already in the vault; file what is still under Other to use it on them.`
+      : "Added. It fits no document in the vault yet.",
+  };
+}
+
+export async function addStandardFilingRules(_previous: ActionState): Promise<ActionState> {
+  const result = await send<{ added: number }>("POST", "/organization/filing-rules/standard");
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: `${result.data.added} rules added.` };
+}
+
+export async function deleteFilingRule(ruleId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send("POST", `/organization/filing-rules/${ruleId}/delete`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
+export async function refileDocuments(_previous: ActionState): Promise<ActionState> {
+  const result = await send<{ filed: number }>("POST", "/organization/filing-rules/refile");
+  if (!result.ok) return { error: result.error };
+  refresh();
+  const n = result.data.filed;
+  return { ok: n ? `${n === 1 ? "1 document" : `${n} documents`} filed.` : "No document under Other fits a rule." };
+}
+
 // Passkeys. These are called from the page's own scripts (the browser does the passkey part),
 // not from forms, so they return data rather than redirect, except where noted.
 
