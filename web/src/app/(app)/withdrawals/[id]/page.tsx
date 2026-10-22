@@ -183,9 +183,12 @@ function CertificateCard({
       ))}
 
       {c.signed ? (
-        <p className="small" style={{ marginTop: 16 }}>
-          Signed by {c.signer_name}, {c.signer_firm}, on {day(c.issued_on)}.
-        </p>
+        <>
+          <p className="small" style={{ marginTop: 16 }}>
+            Signed by {c.signer_name}, {c.signer_firm}, on {day(c.issued_on)}.
+          </p>
+          <SigningRecordNote w={w} c={c} />
+        </>
       ) : mine ? (
         <>
           <details className="disclosure">
@@ -224,7 +227,9 @@ function CertificateCard({
           >
             <p className="small muted" style={{ marginBottom: 12 }}>
               Signs as {me.user.name}
-              {me.user.firm ? `, ${me.user.firm}` : ""}, dated today.
+              {me.user.firm ? `, ${me.user.firm}` : ""}, dated today. Lekhara records the time, your
+              address and browser, and a fingerprint of the certificate, and may ask for your password
+              first.
             </p>
           </ActionForm>
         </>
@@ -233,6 +238,33 @@ function CertificateCard({
           Waiting for the project&apos;s {c.label.toLowerCase()}.
         </p>
       )}
+    </div>
+  );
+}
+
+/** When, from where, and the check code: what Lekhara kept when the certificate was signed. */
+function SigningRecordNote({ w, c }: { w: Withdrawal; c: CertificateView }) {
+  const r = c.record;
+  if (!r || !r.kept) {
+    return <p className="small muted">Signed before Lekhara kept signing records.</p>;
+  }
+  return (
+    <div className="small muted" style={{ marginTop: 4 }}>
+      <p>
+        {`Signed at ${r.signed_at_label}${r.from ? `, by ${r.from}` : ""}. Two-step sign-in: ${r.two_step ? "yes" : "no"}.`}
+      </p>
+      <p>
+        Check code <span className="mono">{r.check_code}</span>, for the bank to check it at the{" "}
+        <Link href="/check">check page</Link>.
+      </p>
+      {r.unchanged === false ? (
+        <p className="strong">A figure has changed since this certificate was signed.</p>
+      ) : null}
+      <p style={{ marginTop: 6 }}>
+        <a href={`/download/withdrawals/${w.id}/certificates/${c.role}.pdf`} className="link-action">
+          The certificate with its signing record (PDF)
+        </a>
+      </p>
     </div>
   );
 }

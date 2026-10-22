@@ -14,7 +14,7 @@ Built for builders in Karnataka. Starting in Bengaluru.
 ## What only Lekhara does
 
 **Know how much you can withdraw from your RERA account today.**
-Lekhara works out what your costs entitle you to draw from the designated account. It prepares the architect's, engineer's and CA's certificates, checks that their figures agree before anything goes to the bank, and follows the request until the money is released.
+Lekhara works out what your costs entitle you to draw from the designated account. It prepares the architect's, engineer's and CA's certificates, checks that their figures agree before anything goes to the bank, and follows the request until the money is released. Each certificate signed in Lekhara keeps a record of who signed it, when and from where, with a code your bank can use to check that nothing changed after signing.
 
 **Never miss a K-RERA deadline.**
 Quarterly progress reports and the annual audit are prepared from your own records, and each one shows as due, late or filed until you record it with its acknowledgement. Download each quarter's figures for the K-RERA portal, and each year's audit pack for your CA, with a draft for the CA to check and sign. If possession runs late, Lekhara shows the delay interest building up, month by month.

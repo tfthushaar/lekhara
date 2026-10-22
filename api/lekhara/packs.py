@@ -152,7 +152,47 @@ STATEMENT = {
 }
 
 
-def withdrawal_pack(state: RequestState, as_of: date) -> Pack:
+def certificate_page(project: Project, role: CertifierRole, c, on: date) -> list[str]:
+    """One certificate as it is printed: the statement with its figures, and who signed it or
+    a place to sign."""
+    figures = {
+        "pct": f"{c.completion_pct}%" if c.completion_pct is not None else "not given",
+        "dev": rupees(c.development_cost_incurred),
+        "total": rupees(c.total_cost_incurred),
+        "draw": rupees(c.withdrawable_amount),
+    }
+    page = [
+        f"{HEADING}Certificate of the {ROLE_LABEL[role].lower()}",
+        f"{project.name}, K-RERA registration {project.krera_registration}",
+        f"Certifies: {ROLE_CERTIFIES[role]}",
+        "",
+        STATEMENT[role].format(project=project.name, on=when(c.issued_on or on), **figures),
+        "",
+    ]
+    if c.signed:
+        page.append(
+            f"Signed by {c.signer_name}"
+            + (f" of {c.signer_firm}" if c.signer_firm else "")
+            + f" on {when(c.issued_on)}."
+        )
+    else:
+        page += [
+            f"Not signed yet. Prepared by Lekhara from the books for review and signature by "
+            f"the {ROLE_LABEL[role].lower()}, who checks the figures and signs under their "
+            "own name and registration.",
+            "",
+            "Signature: ______________________________",
+            "Name and registration number: ______________________________",
+            "Date: ______________",
+        ]
+    return page
+
+
+def withdrawal_pack(
+    state: RequestState, as_of: date, records: dict[CertifierRole, list[str]] | None = None
+) -> Pack:
+    """The pack for the bank. `records` are the signing record pages that follow each signed
+    certificate (see `signing.record_page`)."""
     r, snap = state.request, state.snapshot
     p, e, money = snap.project, snap.escrow, snap.money
     on = r.submitted_on or as_of
@@ -214,37 +254,9 @@ def withdrawal_pack(state: RequestState, as_of: date) -> Pack:
         c = state.certificates.get(role)
         if c is None:
             continue
-        figures = {
-            "pct": f"{c.completion_pct}%" if c.completion_pct is not None else "not given",
-            "dev": rupees(c.development_cost_incurred),
-            "total": rupees(c.total_cost_incurred),
-            "draw": rupees(c.withdrawable_amount),
-        }
-        page = [
-            f"{HEADING}Certificate of the {ROLE_LABEL[role].lower()}",
-            f"{p.name}, K-RERA registration {p.krera_registration}",
-            f"Certifies: {ROLE_CERTIFIES[role]}",
-            "",
-            STATEMENT[role].format(project=p.name, on=when(c.issued_on or on), **figures),
-            "",
-        ]
-        if c.signed:
-            page.append(
-                f"Signed by {c.signer_name}"
-                + (f" of {c.signer_firm}" if c.signer_firm else "")
-                + f" on {when(c.issued_on)}."
-            )
-        else:
-            page += [
-                f"Not signed yet. Prepared by Lekhara from the books for review and signature by "
-                f"the {ROLE_LABEL[role].lower()}, who checks the figures and signs under their "
-                "own name and registration.",
-                "",
-                "Signature: ______________________________",
-                "Name and registration number: ______________________________",
-                "Date: ______________",
-            ]
-        certificate_pages.append(page)
+        certificate_pages.append(certificate_page(p, role, c, on))
+        if c.signed and records and role in records:
+            certificate_pages.append(records[role])
     checks = [f"{HEADING}Checks Lekhara ran before the bank sees it"] + [
         f"{c.status.value.upper()}: {c.title}. {c.detail}" for c in state.checks
     ]

@@ -244,6 +244,39 @@ export type CertificateView = {
   signer_firm: string | null;
   issued_on: string | null;
   figures: Figure[];
+  record?: SigningRecord;
+};
+
+/** What Lekhara kept when a certificate was signed (see the API's `signing.py`). */
+export type SigningRecord = {
+  /** False for a certificate signed before Lekhara kept signing records. */
+  kept: boolean;
+  signed_at: string | null;
+  signed_at_label: string | null;
+  fingerprint: string | null;
+  check_code: string | null;
+  two_step: boolean | null;
+  from: string | null;
+  /** Whether the certificate still says what was signed. */
+  unchanged: boolean | null;
+};
+
+/** What the public check page shows for a certificate's check code. */
+export type CertificateCheck = {
+  code: string;
+  certificate: string;
+  project: string;
+  krera_registration: string;
+  promoter: string;
+  amount_requested: string;
+  statement: string;
+  signer_name: string;
+  signer_firm: string;
+  issued_on: string;
+  signed_at: string;
+  fingerprint: string;
+  unchanged: boolean;
+  released: boolean;
 };
 
 export type CheckView = {
@@ -1561,6 +1594,24 @@ export async function invitationInfo(token: string): Promise<InvitationInfo | nu
 }
 
 /** A shared data room, opened without signing in. Null once the link has closed. */
+/** A certificate's signing record by its check code, for anyone holding the certificate. */
+export async function checkCertificate(code: string): Promise<{ found: CertificateCheck } | { error: string }> {
+  const incoming = await headers();
+  const ip = (incoming.get("x-forwarded-for") ?? incoming.get("x-real-ip") ?? "").split(",")[0].trim();
+  const response = await fetch(`${BASE}/check/${encodeURIComponent(code)}`, {
+    cache: "no-store",
+    headers: ip ? { "X-Lekhara-Client-IP": ip } : {},
+  });
+  if (response.ok) return { found: (await response.json()) as CertificateCheck };
+  try {
+    const problem = await response.json();
+    if (typeof problem?.detail === "string") return { error: problem.detail };
+  } catch {
+    // fall through
+  }
+  return { error: "The check could not be made. Try again." };
+}
+
 export const VISITOR_COOKIE = "lekhara_visitor";
 
 export async function sharedRoom(token: string, visitor?: string): Promise<SharedRoom | SharedGate | null> {

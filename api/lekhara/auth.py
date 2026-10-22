@@ -282,9 +282,14 @@ def require_recent(principal: Principal) -> None:
     a session left open on a shared computer cannot be used for them."""
     if principal.support_for is not None:
         raise ServiceError("Support can look but not change anything.", 403)
-    recent = _now() - timedelta(minutes=CONFIRM_MINUTES)
-    if principal.confirmed_at is None or principal.confirmed_at < recent:
+    if not is_recent(principal):
         raise ConfirmNeeded()
+
+
+def is_recent(principal: Principal) -> bool:
+    """Whether the person signed in or confirmed it was them in the last minutes."""
+    recent = _now() - timedelta(minutes=CONFIRM_MINUTES)
+    return principal.confirmed_at is not None and principal.confirmed_at >= recent
 
 
 def mark_confirmed(session: Session, session_id: str) -> None:

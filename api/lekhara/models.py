@@ -331,8 +331,36 @@ class WithdrawalCertificate(Base):
     total_cost_incurred: Mapped[Decimal | None] = mapped_column(Money)
     withdrawable_amount: Mapped[Decimal | None] = mapped_column(Money)
     signed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    signed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    fingerprint: Mapped[str | None] = mapped_column(String(64))
+    """SHA-256 of exactly what was signed (see `signing.content`)."""
+    check_code: Mapped[str | None] = mapped_column(String(19), unique=True, index=True)
+    """The code on the certificate's PDF for checking it on Lekhara's check page."""
 
     request: Mapped[WithdrawalRequest] = relationship(back_populates="certificates")
+
+
+class CertificateEvent(Base):
+    """A step in a certificate's signing record: its figures entered, or its signing, with who
+    did it, when, from where, and the fingerprint of the certificate at that moment."""
+
+    __tablename__ = "certificate_events"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    request_id: Mapped[str] = mapped_column(ForeignKey("withdrawal_requests.id"), index=True)
+    role: Mapped[str] = mapped_column(String(16))
+    action: Mapped[str] = mapped_column(String(16))
+    """figures or signed."""
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String(200), default="")
+    email: Mapped[str] = mapped_column(String(320), default="")
+    ip: Mapped[str | None] = mapped_column(String(64))
+    device: Mapped[str | None] = mapped_column(String(100))
+    two_step: Mapped[bool] = mapped_column(Boolean, default=False)
+    confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    """The person had proved it was them within the last minutes."""
+    fingerprint: Mapped[str] = mapped_column(String(64))
 
 
 # Collections

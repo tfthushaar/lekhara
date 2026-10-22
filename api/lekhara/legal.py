@@ -381,6 +381,7 @@ def _purge_scoped(session: Session, org: Organization) -> list[str]:
         (m.DisputeOrder, m.DisputeOrder.case_id, cases),
         (m.DisputeHearing, m.DisputeHearing.case_id, cases),
         (m.DisputeCase, m.DisputeCase.project_id, projects),
+        (m.CertificateEvent, m.CertificateEvent.request_id, requests),
         (m.WithdrawalCertificate, m.WithdrawalCertificate.request_id, requests),
         (m.WithdrawalRequest, m.WithdrawalRequest.project_id, projects),
         (m.LandownerPaymentRow, m.LandownerPaymentRow.landowner_id, landowners),

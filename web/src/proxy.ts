@@ -5,7 +5,7 @@ import { SESSION_COOKIE } from "@/lib/session-cookie";
 
 // The website, sign-up, password resets, email checks, invitations, shared data rooms and the
 // legal pages are opened without signing in.
-const OPEN = /^\/(welcome|pricing|contact|security|\.well-known|login|signup|forgot|reset|verify|invite|shared|legal)(\/|$)/;
+const OPEN = /^\/(welcome|pricing|contact|security|\.well-known|login|signup|forgot|reset|verify|invite|shared|check|legal)(\/|$)/;
 
 /**
  * An optimistic check only: without a session cookie, "/" shows the website and anything else

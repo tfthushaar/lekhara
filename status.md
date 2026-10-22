@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-23, with the commit "Say what to do with each supplier invoice in the GST Invoice Management System".
+Last updated: 2026-10-23, with the commit "Keep a signing record on certificates, with a public page to check them".
 
 ## What we are building
 
@@ -323,9 +323,18 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - Lekhara does not act in IMS itself: that needs a GST Suvidha Provider (decision 20). Which records may be kept pending has changed since IMS began, so the page says the portal's own choices for each record are the final word.
 - Tested: each suggestion and its reason (a bill that agrees, amounts that differ, no bill, the bill in another project, an invoice in August's return again in September's, a credit note), the counts, and the downloaded list; end to end with the GST import.
 
+- A signing record on certificates (borrowed from DocuSeal and Documenso's audit pages):
+  - When the architect, engineer or CA signs a withdrawal certificate, Lekhara keeps who signed (their account and its email), when, from which address and browser, whether they use two-step sign-in, and a SHA-256 fingerprint of exactly what they signed (the project, the request, the statement with its figures, the signer). Entering the figures is recorded the same way.
+  - Signing needs the person to have signed in or confirmed their password in the last 15 minutes, so a session left open cannot sign.
+  - Each certificate downloads as a PDF that ends with its signing record page and a check code; the withdrawal pack carries the same page after each signed certificate. Anyone holding the PDF, a bank first, can enter the code on the public check page (no sign-in, limited per network) and see what was signed, by whom and when, and whether it still says that.
+  - The demo's signed certificates come with records.
+  - A digital seal a PDF reader checks by itself needs a document-signing certificate from a certifying authority, and Aadhaar eSign needs a provider: decision 36.
+- Tested: the record kept at signing (address, browser, fingerprint, code), the check page found by the code typed any way and refusing unknown codes, the certificate PDF and the pack carrying the record, a figure changed after signing caught, and signing refused until the person confirms it is them; end to end, from the CA signing to a bank checking the code.
+- With these, every feature borrowed from other software in `research-borrow-and-secure.md` is built.
+
 ## In progress
 
-- The features borrowed from other software (`research-borrow-and-secure.md`, outside the repository), still to do: a signing record on certificates.
+- Nothing at the moment; the next work is under Left.
 
 ## Left
 

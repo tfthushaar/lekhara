@@ -1509,3 +1509,7 @@ h3 {
   }
 }
 
+
+.mono {
+  font-family: var(--mono);
+}

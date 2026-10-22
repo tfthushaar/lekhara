@@ -1285,6 +1285,18 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
             row.signed_by_user_id = users[account.email].id
             row.issued_on = sd.ago(2 if row.role == "architect" else 1)
     session.flush()
+    # Their signing records, as if each had signed in Lekhara from their office.
+    from lekhara import signing
+
+    for row in request.certificates:
+        if row.signed:
+            signing.seal(session, request, row)
+            signing.record(
+                session, request, row, "signed", user_id=row.signed_by_user_id,
+                ip="203.0.113.24", agent="Mozilla/5.0 (Windows NT 10.0) Chrome/131.0",
+                two_step=row.role == "architect", confirmed=True,
+            )  # fmt: skip
+    session.flush()
 
     # Disputes. Sarjapur Greens is past its promised possession date and buyers have gone to
     # K-RERA and the consumer commission; Whitefield has a boundary suit from a neighbour.

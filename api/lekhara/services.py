@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import re
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -2044,7 +2045,12 @@ FIGURE_FIELDS = {
 
 
 def update_certificate(
-    session: Session, request: WithdrawalRequest, role: CertifierRole, figures: dict
+    session: Session,
+    request: WithdrawalRequest,
+    role: CertifierRole,
+    figures: dict,
+    *,
+    on_changed: Callable[[WithdrawalCertificate], None] | None = None,
 ) -> None:
     _require_editable(request)
     row = _certificate(request, role)
@@ -2054,6 +2060,8 @@ def update_certificate(
         if key not in FIGURE_FIELDS[role]:
             raise ServiceError(f"The {role.value} does not certify {key}.")
         setattr(row, key, value)
+    if on_changed is not None:
+        on_changed(row)
     session.commit()
 
 
@@ -2066,7 +2074,9 @@ def sign_certificate(
     signer_firm: str | None,
     issued_on: date,
     user_id: str | None = None,
+    on_signed: Callable[[WithdrawalCertificate], None] | None = None,
 ) -> None:
+    """Signs the certificate; `on_signed` adds to the signing record before it is saved."""
     _require_editable(request)
     if not signer_name.strip():
         raise ServiceError("The signer's name is missing.")
@@ -2080,6 +2090,8 @@ def sign_certificate(
     row.signer_firm = signer_firm.strip()
     row.issued_on = issued_on
     row.signed_by_user_id = user_id
+    if on_signed is not None:
+        on_signed(row)
     session.commit()
 
 

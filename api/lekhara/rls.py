@@ -44,6 +44,7 @@ for the code to guard."""
 CHILDREN = {
     "landowner_payments": ("landowner_id", "landowners"),
     "withdrawal_certificates": ("request_id", "withdrawal_requests"),
+    "certificate_events": ("request_id", "withdrawal_requests"),
     "unit_handovers": ("unit_id", "units"),
     "dispute_hearings": ("case_id", "dispute_cases"),
     "dispute_orders": ("case_id", "dispute_cases"),

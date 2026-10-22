@@ -45,6 +45,7 @@ from lekhara import (
     scan,
     services,
     sheets,
+    signing,
     staff,
     statutory,
     two_step,
@@ -56,7 +57,7 @@ from lekhara.bank import service as bank
 from lekhara.config import Settings, get_settings
 from lekhara.db import make_engine, make_sessionmaker
 from lekhara.engines.documents import CATEGORY_LABEL
-from lekhara.engines.escrow import ROLE_ORDER, CertifierRole, RequestStatus
+from lekhara.engines.escrow import ROLE_LABEL, ROLE_ORDER, CertifierRole, RequestStatus
 from lekhara.engines.obligations import ObligationStatus, sort_obligations
 from lekhara.gst import service as gst
 from lekhara.migrate import upgrade
@@ -87,6 +88,7 @@ from lekhara.models import (
     Vendor,
 )
 from lekhara.money import ZERO
+from lekhara.pdf import write_pdf
 from lekhara.records import (
     APPROVALS,
     BILLS,
@@ -556,6 +558,12 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             3600,
             "Too many reset emails asked for from this network. Try again in an hour.",
             store=store("forgot"),
+        ),
+        "check": auth.LoginThrottle(
+            120,
+            3600,
+            "Too many certificate checks from this network. Try again in an hour.",
+            store=store("check"),
         ),
         "login": auth.LoginThrottle(
             settings.failed_logins_per_address,
@@ -3684,7 +3692,12 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         r = services.get_request(session, request_id)
         p = viewable_project(session, me, r.project_id)
         state = services.request_state(session, r, on)
-        return views.request(state, _withdrawal_permissions(me, p, state)), state, p
+        view = views.request(state, _withdrawal_permissions(me, p, state))
+        rows = {row.role: row for row in r.certificates}
+        for c in view["certificates"]:
+            if c["role"] in rows:
+                c["record"] = signing.summary(session, r, rows[c["role"]])
+        return view, state, p
 
     @app.post("/projects/{project_id}/withdrawals", status_code=201)
     def new_withdrawal(
@@ -3702,7 +3715,13 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     @app.get("/withdrawals/{request_id}/pack.pdf")
     def withdrawal_pack(request_id: str, session: SessionDep, me: Me, on: AsOf) -> Response:
         _, state, p = withdrawal_view(session, me, request_id, on)
-        data = packs.to_pdf(packs.withdrawal_pack(state, on))
+        check_url = f"{settings.web_url}/check"
+        records = {
+            CertifierRole(row.role): signing.record_page(session, state.request, row, check_url)
+            for row in state.request.certificates
+            if row.signed
+        }
+        data = packs.to_pdf(packs.withdrawal_pack(state, on, records))
         name = f"{p.name} withdrawal {state.request.created_on.isoformat()}.pdf"
         return file_download(data, name.replace(" ", "-"))
 
@@ -3730,10 +3749,18 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         session: SessionDep,
         me: Me,
         on: AsOf,
+        http: Request,
     ) -> dict:
         r = services.get_request(session, request_id)
         auth.require_certifier(me, services.get_project(session, r.project_id), role)
-        services.update_certificate(session, r, role, body.model_dump(exclude_unset=True))
+        ip, agent = client(http)
+        services.update_certificate(
+            session, r, role, body.model_dump(exclude_unset=True),
+            on_changed=lambda row: signing.record(
+                session, r, row, "figures", user_id=me.user_id, ip=ip, agent=agent,
+                two_step=me.two_step_on, confirmed=auth.is_recent(me),
+            ),
+        )  # fmt: skip
         return withdrawal_view(session, me, request_id, on)[0]
 
     @app.post("/withdrawals/{request_id}/certificates/{role}/sign")
@@ -3744,9 +3771,22 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         session: SessionDep,
         me: Me,
         on: AsOf,
+        http: Request,
     ) -> dict:
         r = services.get_request(session, request_id)
         auth.require_certifier(me, services.get_project(session, r.project_id), role)
+        # Signing is recorded as done by the person themselves, so it needs them to have
+        # signed in or confirmed it was them in the last minutes.
+        auth.require_recent(me)
+        ip, agent = client(http)
+
+        def sealed(row) -> None:
+            signing.seal(session, r, row)
+            signing.record(
+                session, r, row, "signed", user_id=me.user_id, ip=ip, agent=agent,
+                two_step=me.two_step_on, confirmed=True,
+            )  # fmt: skip
+
         services.sign_certificate(
             session,
             r,
@@ -3755,8 +3795,38 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             signer_firm=me.firm,
             issued_on=body.issued_on or on,
             user_id=me.user_id,
+            on_signed=sealed,
         )
         return withdrawal_view(session, me, request_id, on)[0]
+
+    @app.get("/withdrawals/{request_id}/certificates/{role}.pdf")
+    def certificate_pdf(
+        request_id: str, role: CertifierRole, session: SessionDep, me: Me, on: AsOf
+    ) -> Response:
+        _, state, p = withdrawal_view(session, me, request_id, on)
+        row = next((c for c in state.request.certificates if c.role == role.value), None)
+        if row is None or role not in state.certificates:
+            raise ServiceError("Certificate not found.", 404)
+        pages = [
+            packs.certificate_page(p, role, state.certificates[role], on),
+            signing.record_page(session, state.request, row, f"{settings.web_url}/check"),
+        ]
+        title = f"Certificate of the {ROLE_LABEL[role].lower()}"
+        data = write_pdf(pages, title=f"{title}, {p.name}")
+        name = f"{p.name} {role.value} certificate {state.request.created_on.isoformat()}.pdf"
+        return file_download(data, name.replace(" ", "-"))
+
+    @app.get("/check/{code}")
+    def check_certificate(code: str, request: Request, session: SessionDep) -> dict:
+        """The public check page: what a certificate with this code said when it was signed.
+        No sign-in; the code printed on the certificate is the permission."""
+        by_address["check"].count(address_of(request))
+        found = signing.check(session, code)
+        if found is None:
+            raise ServiceError(
+                "No signed certificate has that code. Check it against the certificate.", 404
+            )
+        return found
 
     @app.post("/withdrawals/{request_id}/submit")
     def submit(request_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:

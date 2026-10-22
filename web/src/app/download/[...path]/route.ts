@@ -7,6 +7,7 @@ const ALLOWED = [
   /^imports\/templates\/[a-z_]+\.(xlsx|csv)$/,
   /^organization\/export$/,
   /^withdrawals\/[A-Za-z0-9_-]+\/pack\.pdf$/,
+  /^withdrawals\/[A-Za-z0-9_-]+\/certificates\/(architect|engineer|ca)\.pdf$/,
   /^projects\/[A-Za-z0-9_-]+\/packs\/(qpr|audit)\/\d{4}-\d{2}-\d{2}\.(pdf|xlsx)$/,
   /^gst\/[A-Za-z0-9_-]+\/ims\.csv$/,
 ];
