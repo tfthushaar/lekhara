@@ -32,7 +32,7 @@ import { day, moment } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Settings" };
 
-const TEAM_ROLES = ["owner", "finance", "accounts", "viewer"];
+const TEAM_ROLES = ["owner", "finance", "accounts", "sales", "site", "viewer"];
 
 export default function SettingsPage() {
   return (

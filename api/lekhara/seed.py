@@ -68,6 +68,7 @@ from lekhara.models import (
 )
 from lekhara.pdf import write_pdf
 from lekhara.rules import KARNATAKA
+from lekhara.seed_ops import seed_ops
 from lekhara.seed_sales import seed_sales
 from lekhara.storage import LocalStorage, Storage, make_storage
 
@@ -100,6 +101,8 @@ DEMO_ACCOUNTS = (
     DemoAccount("promoter@demo.lekhara", "Ravi Kumar", "Owner (promoter)", org_role="owner"),
     DemoAccount("cfo@demo.lekhara", "Meera Rao", "Finance (CFO)", org_role="finance"),
     DemoAccount("accounts@demo.lekhara", "Prakash N", "Accounts", org_role="accounts"),
+    DemoAccount("sales@demo.lekhara", "Divya Shetty", "Sales", org_role="sales"),
+    DemoAccount("site@demo.lekhara", "Mohan Gowda", "Site engineer", org_role="site"),
     DemoAccount(
         "architect@demo.lekhara",
         "A. Kulkarni",
@@ -1479,6 +1482,7 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
         user_id=clerk,
     )
     seed_sales(session, sd.org, [wf, hb, sg], users, today)
+    seed_ops(session, [wf, hb, sg], users, today, storage)
     session.commit()
     if storage is not None:
         seed_documents(session, storage, today, users)

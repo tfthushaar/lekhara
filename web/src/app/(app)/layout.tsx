@@ -38,17 +38,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 async function Banners() {
-  const me = await api.me();
+  const [me, view] = await Promise.all([api.me(), currentView()]);
   const org = me.organization;
   return (
     <>
       {me.demo ? (
         <div className="banner" role="status">
-          <span>
-            You&apos;re trying the Lekhara demo. The firms, people and figures are made up, and it resets from time to
-            time, so please don&apos;t add real documents or personal details.
-          </span>
+          <span>This is the demo. Everything in it is made up and resets each night.</span>
           <Link href="/mailbox">Demo mailbox</Link>
+          <form action={chooseView.bind(null, view === "main" ? "expanded" : "main", "/")}>
+            <button type="submit" className="link-button">
+              {view === "main" ? "Show the expanded software" : "Show only the main software"}
+            </button>
+          </form>
         </div>
       ) : null}
       {me.support ? (
@@ -109,7 +111,7 @@ async function Banners() {
 }
 
 async function UserMenu() {
-  const [me, view] = await Promise.all([api.me(), currentView()]);
+  const me = await api.me();
   return (
     <div className="user-menu">
       <span className="org">
@@ -119,18 +121,6 @@ async function UserMenu() {
         <Link href="/admin" className="link-button">
           Admin
         </Link>
-      ) : null}
-      {me.demo ? (
-        <>
-          <Link href="/mailbox" className="link-button">
-            Mailbox
-          </Link>
-          <form action={chooseView.bind(null, view === "main" ? "expanded" : "main", "/")}>
-            <button type="submit" className="link-button">
-              {view === "main" ? "Show the expanded software" : "Show only the main software"}
-            </button>
-          </form>
-        </>
       ) : null}
       <form action={signOut}>
         <button type="submit" className="link-button">

@@ -48,8 +48,29 @@ Sign-in is required for everything except `/health`, `/rules`, sign-up, password
 | architect@demo.lekhara | Architect on every project |
 | engineer@demo.lekhara | Engineer on every project |
 | ca@demo.lekhara | Chartered accountant on every project |
+| sales@demo.lekhara | Sales |
+| site@demo.lekhara | Site engineer |
 
 Who may do what: the owner, finance and accounts start withdrawals and send them to the bank; only the owner and finance record a release or rejection; each certifier changes and signs only their own certificate, and sees only the projects they certify (escrow and money, not tax or units).
+
+### Roles and areas
+
+`api/lekhara/roles.py` says what each role in the firm sees. `AREAS` lists a role's areas (a project page's name, such as `site` or `sales`); owner, finance, accounts and viewer have them all, Sales has `sales`, `units`, `handover` and `issues`, and Site engineer has `site`, `materials` and `issues`. `/auth/me` returns the person's `role` and `areas`, and the web draws a project's places from them (`groupsFor` in `web/src/lib/places.ts`, which also puts a working role's own place first; `projectHome` is where a project opens for them).
+
+The API enforces the same: `current_principal` checks the matched route's path against `allowed_path`, so Sales and Site engineer get 403 outside their own routes (the patterns are in `_OPEN`). A new route a working role needs goes in `_OPEN` too. Project cards and project detail drop money figures for them (`roles.limited`). Who may change what within a page uses the tuples `MANAGERS`, `APPROVERS`, `SITE_WORK`, `ISSUE_WORK` and `SALES_WORK` with `roles.can`. On the web, a 403 from the API sends the person back to Today.
+
+`/today` changes with the role: `ops_routes.role_today` answers for Sales (the call list) and Site engineer (today's reports, requests, low stock), and `ops_routes.manager_extras` adds the managers' `tasks` (bills to approve and pay, held bills, material to order, late defects, lenders' conditions).
+
+### Contractors, site, after handover, cash
+
+The routes are in `api/lekhara/ops_routes.py`, registered from `app.py`.
+
+- `contractors.py`: a work order is a `Commitment` with `retention_pct`, `advance` and `deduct_cess`. `work_out` is the running-bill sum (retention, advance recovered in proportion and capped at what is left, TDS under s.194C from the PAN's fourth letter once past `it.contractor_tds_single` or `it.contractor_tds_aggregate`, labour cess); `/contractors/orders/{id}/bills/preview` returns it before saving. `add_running_bill` makes a `Bill` through `purchases.create_bill` and keeps the sum in `RaBill`. Bills carry `approval` (waiting, approved, held, paid); `approve` and `hold` are for `APPROVERS`, and `pay` lets accounts pay only an approved bill. `/payables` is the firm-wide list.
+- `site.py`: `DailyReport` is one per project per day (saving again replaces it, and its material used); photos are images up to 10 MB, six per report, served at `/daily-reports/{id}/photos/{pid}`. Stock is `MaterialMove` received less used, per `MaterialItem`. A `MaterialRequest` goes requested, ordered (from a `MaterialQuote`, which makes a `PO-` commitment), received or cancelled.
+- `aftercare.py`: `UnitIssue` of kind snag, defect or request. A defect is due `rera.defect_rectify_days` after it is reported; possession older than `rera.defect_liability_years` is noted.
+- `lending.py`: a `Loan` with `LoanMove`s (drawdown, repayment, interest; a future date is a plan) and `LoanCondition`s. `forecast` buckets buyers' balances by their latest demand's due date, unpaid bills by `contractors.pay_by`, and planned loan moves, for three months.
+
+Quantities use the `Quantity` column type (hundredths in a BigInteger). Summing a single `Money` or `Quantity` column through SQLAlchemy comes back already converted; a sum over an expression (`amount + gst`) comes back in paise.
 
 Main endpoints: `/today`, `/projects`, `/projects/{id}` (with `/money`, `/escrow`, `/collections`, `/handover`, `/disputes`, `/documents`, `/tax`, `/units`, `/setup`; `PUT` changes its details and `POST /progress` records certified progress), `/withdrawals/{id}`, `/demands/{id}`, `/units/{id}/handover`, `/cases/{id}`, `/documents/{id}`, `/rooms/{id}`, `/shared/{token}` (no sign-in) and `/rules`. Interactive docs are at `/docs` while the server runs.
 
@@ -269,7 +290,8 @@ Ease of use is Lekhara's selling point (decision 37 in the planning notes), so e
 - One job on a screen, and one obvious next step. Reference material goes in a `details.disclosure`, which also hides a nested section's own heading.
 - The fewest fields. Everything else gets a default or goes under "More details".
 - Record what happened and let the code move the work along. Nobody manages a stage or an approval by hand; see `sales.log_activity` and `sales.record_visit`.
-- A project has five places (`GROUPS` in `components/nav.tsx`); new pages join one of them.
+- A project has six places (`GROUPS` in `lib/places.ts`); new pages join one of them, and get an area in `roles.AREAS` for each role that works there.
+- Each role opens on its own work. A page shows only the buttons the person's role can use; the API sends flags such as `can_edit` and `can_approve` for that.
 - Files go through one box: `inbound.sort_upload` works out what a file is, using the same sorting as email.
 - Text stays at 14px or above, and fields and buttons are at least 44px tall. Check every page at 390px wide.
 - No lines as borders. Content sits on white tiles (`.row`, `.card`, `.stat`, `.table`) on the grey canvas. Fills are see-through black (`--fill-1` to `--fill-4`) so they work on both. A white container sets `--tile` and `--field` to the canvas grey, so the fields and disclosures inside it still stand out (the list is at the top of `globals.css`).

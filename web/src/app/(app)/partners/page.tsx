@@ -81,13 +81,13 @@ async function PartnersView() {
         ) : (
           <ul className="rows">
             {data.to_pay.map((c) => (
-              <li key={c.id} className="row" style={{ gridTemplateColumns: "1fr auto" }}>
+              <li key={c.id} className="row row-2">
                 <div>
                   <p className="row-title">{`${inr(c.payable)} to ${c.partner}`}</p>
                   <p className="row-detail">{`For ${c.buyer}, unit ${c.unit}, ${c.project}. ${sum(c)}.`}</p>
                 </div>
                 <div className="row-side">
-                  {data.can_edit ? (
+                  {data.can_pay ? (
                     <ActionForm action={payCommission.bind(null, c.id)} label="Mark paid" pendingLabel="Saving" secondary className="inline-form">
                       <div className="field">
                         <label htmlFor={`pay-${c.id}`}>UTR or cheque number</label>
@@ -106,7 +106,7 @@ async function PartnersView() {
             <p className="small muted">These fall due once the buyer has paid enough of the price.</p>
             <ul className="rows">
               {data.waiting.map((c) => (
-                <li key={c.id} className="row" style={{ gridTemplateColumns: "1fr" }}>
+                <li key={c.id} className="row row-1">
                   <div>
                     <p className="row-title">{`${inr(c.payable)} to ${c.partner}`}</p>
                     <p className="row-detail">{`For ${c.buyer}, unit ${c.unit}, ${c.project}.`}</p>
@@ -136,7 +136,7 @@ async function PartnersView() {
         ) : (
           <ul className="rows">
             {data.partners.map((p) => (
-              <li key={p.id} className="row" style={{ gridTemplateColumns: "1fr" }}>
+              <li key={p.id} className="row row-1">
                 <div>
                   <p className="row-title">
                     {p.firm ? `${p.name}, ${p.firm}` : p.name}

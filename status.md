@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-11-06, with the commit "The launch video in the new look".
+Last updated: 2026-11-06, with the commit "Contractors, site, after handover, cash and loans, and a screen for each role".
 
 ## What we are building
 
@@ -396,13 +396,37 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 
 - The launch video, remade (52 seconds, both formats): the same checked facts about the RERA account, K-RERA and late handover, then the new screens in the new look: the list of what to do today, the RERA account with its certificates, and one box for every file. In Inter, with no lines. It replaces the old video in the README's looping preview and at the hosted link.
 
+- Contractors and purchases, in the expanded software:
+  - A work order per contractor, with its value, retention (5% unless changed), any advance, and whether labour cess is taken from their bills.
+  - A running bill takes the value of work done and the GST. Lekhara works out what to hold back, the advance to recover (in step with the work, never more than is left), TDS from the contractor's PAN (1% for a person or family, 2% for a firm or company, 20% with no PAN, once over the single-bill or yearly limit) and labour cess, and what to pay. The sum is shown before it is saved.
+  - Retention released in one step when the work is done.
+  - Material: the site asks for what it needs, the office adds the quotes it gets, the cheapest first, and orders from one in one tap. The order becomes a purchase order against the budget. The site marks it arrived and it goes into stock.
+  - One list of bills to pay across every project. The owner or finance approves or holds each one, with a reason for a hold; accounts records the payment only once it is approved, so two people see every payment out. The date to pay by follows the MSME rule (15 or 45 days) for micro and small suppliers, 30 days for the rest.
+- Site:
+  - A daily report in four fields: the work done, workers on site, material used (picked from the site's own list) and up to six photos taken on the phone. It can be changed until the day ends. Days missed in the last week are shown.
+  - Stock for every material: received less used, and a warning when it runs below the level set for it.
+- After handover:
+  - Snags before handover, defects after it and buyers' requests on one list per project, each against its unit.
+  - A defect must be put right within 30 days of being reported, and for five years from possession. Late ones come first, and show on the owner's Today.
+- Cash and loans:
+  - The next three months: what buyers owe on demands already raised, bills still to pay by their due dates, and loan payments planned, with what can be drawn from the RERA account today.
+  - Construction loans: sanctioned, drawn, repaid and owed; a drawing over the sanctioned amount is refused. Planned drawings and payments, and the lender's conditions with their dates, which show on Today when they come due.
+- A screen for each role:
+  - Two new roles, Sales and Site engineer, join owner, finance, accounts and viewer.
+  - Each person sees only their own places and opens on their own work: the site engineer on today's report, sales on who to call today. Neither sees money figures. The server refuses the rest too, so a typed-in link gets nowhere.
+  - Today changes with the role. The owner's list now starts with bills to approve and pay, material to order, late defects and lenders' conditions due; the site engineer's is today's reports, requests and low stock; sales' is the call list, with a Call button on each.
+  - A project now has six places: Overview, Buyers, Money, Site, Government and Files. A place with one page for a role takes that page's name.
+- Less on every screen, and made for phones: overdue buyers, set-up steps and units show the first few with the rest one tap down; the demo banner is one line; the project heading is two short lines; figures sit two to a row on phones and a project's places wrap instead of scrolling sideways. The daily report and every new form fit a 390px screen and work with one thumb.
+- Demo: a contractor with three running bills (paid, approved, waiting), an electrical contractor, a bill on hold, five days of site reports, low stock and a cement request with three quotes on Hebbal Heights, defects and snags on Sarjapur Greens, and a 40 crore construction loan from Canara Bank with its conditions. Two more demo accounts: sales@demo.lekhara and site@demo.lekhara.
+- Tested: the running-bill sum, TDS by PAN, the two-person payment rule, each role's places and what the server refuses them, Today for each role, a daily report with a photo and the stock it moves, a request taken through quotes, an order and receipt, the defect clock, and loans with the cash forecast. End to end through the real pages as owner, accounts, site engineer and sales.
+
 ## In progress
 
 - Still to do with a real builder's office: watching someone who has never used a tool like this get through their first day alone. Until then, "easy" is the aim, not a tested fact.
 
 ## Next: the expanded software
 
-Decided on 2026-11-06: research and build the tools a Karnataka builder needs to run the whole firm, for firms with no ERP or CRM of their own, India-relevant only and with no HR or payroll. Each module joins the demo's expanded software as it's built, starting from the smallest version that does the job. Sales is done. Next: purchases and contractors, site, after possession, cash and lenders.
+Decided on 2026-11-06: research and build the tools a Karnataka builder needs to run the whole firm, for firms with no ERP or CRM of their own, India-relevant only and with no HR or payroll. Each module joins the demo's expanded software as it's built, starting from the smallest version that does the job. Done: sales; contractors and purchases; site; after handover; cash and loans. Next: trying each with a real office, then deepening the ones they use most.
 
 
 ## Left
@@ -425,19 +449,19 @@ In this order:
 
 - Home-loan disbursements, guarantees and insurance, approval conditions and environmental reports, vendor check.
 - Certifier practice workspace.
-- Buyer portal, payables on WhatsApp, contractor billing, notices.
+- Buyer portal, payables on WhatsApp, notices.
 - Mailbox connection (read-only) and documents sent on WhatsApp.
 - Kannada voice, the Monday briefing, back-office agents.
 
 ### v3
 
 - Plotted layouts, lender and independent-engineer workspace, landowner view, market intelligence, delay prediction.
-- Agreements and e-execution, site progress verification, snags and defects, board packs.
+- Agreements and e-execution, site progress checked from photos, board packs.
 - Other Karnataka cities.
 
 ### v4
 
-- Feasibility and land-deal underwriting, procurement, title due diligence, estimation from drawings, Lekhara Lite, other states.
+- Feasibility and land-deal underwriting, title due diligence, estimation from drawings, Lekhara Lite, other states.
 
 ## Decisions taken
 
@@ -455,6 +479,7 @@ In this order:
 - Team: two founders through v1; a seed raise after three paying customers funds the team for v2 onwards.
 - Design: minimal, monochrome, no emojis, no symbols in the branding, text wordmark only.
 - Ease of use is the selling point (2026-11-06): one job on each screen, the fewest fields, the software moves work along by itself, plain words, works on a phone.
+- Each role gets its own screen (2026-11-06): a person sees only the places their role works in and opens on their own work, and the server enforces the same. Phones are the main device, so every form is built for a phone first and checked on a computer too.
 
 ## Working assumptions (change any time)
 

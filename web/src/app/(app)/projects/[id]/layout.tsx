@@ -30,7 +30,7 @@ export default function ProjectLayout({ children, params }: LayoutProps<"/projec
 
 async function ProjectHeader({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [p, view] = await Promise.all([api.project(id), currentView()]);
+  const [p, view, me] = await Promise.all([api.project(id), currentView(), api.me()]);
   return (
     <>
       <div className="page-head">
@@ -43,18 +43,15 @@ async function ProjectHeader({ params }: { params: Promise<{ id: string }> }) {
             {p.access.sample ? <span className="tag tag-upcoming" style={{ marginLeft: 12, verticalAlign: "middle" }}>Sample, read-only</span> : null}
           </h1>
           <p>
-            {[p.locality, p.city].filter(Boolean).join(", ")}. {p.land_structure}. K-RERA {p.krera_registration}
+            {[[p.locality, p.city].filter(Boolean).join(", "), p.possession_due_on ? `possession by ${day(p.possession_due_on)}` : null]
+              .filter(Boolean)
+              .join(", ")}
           </p>
+          <p className="small muted" style={{ marginTop: 4 }}>{`${p.land_structure}. K-RERA ${p.krera_registration}`}</p>
         </div>
-        {p.possession_due_on ? (
-          <div className="head-side">
-            <p className="stat-label">Possession committed</p>
-            <p className="head-side-value">{day(p.possession_due_on)}</p>
-          </div>
-        ) : null}
       </div>
-      <Suspense fallback={<PlainProjectTabs projectId={id} team={p.access.team} view={view} />}>
-        <ProjectTabs projectId={id} team={p.access.team} view={view} />
+      <Suspense fallback={<PlainProjectTabs projectId={id} team={p.access.team} view={view} areas={me.areas} />}>
+        <ProjectTabs projectId={id} team={p.access.team} view={view} areas={me.areas} />
       </Suspense>
     </>
   );

@@ -24,7 +24,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from lekhara.db import Base, Money, Percent
+from lekhara.db import Base, Money, Percent, Quantity
 
 
 def _id() -> str:
@@ -186,6 +186,12 @@ class Bill(Base):
     Bills from Tally leave it empty, since Tally's ledgers carry their cost."""
 
     vendor: Mapped[Vendor] = relationship()
+    approval: Mapped[str | None] = mapped_column(String(16))
+    """approved or held, by the owner or finance; None until someone decides."""
+    approval_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    approval_at: Mapped[datetime | None] = mapped_column(DateTime)
+    approval_note: Mapped[str | None] = mapped_column(String(300))
+    pay_reference: Mapped[str | None] = mapped_column(String(200))
 
 
 class Unit(Base):
@@ -1188,6 +1194,13 @@ class Commitment(Base):
     amount: Mapped[Decimal] = mapped_column(Money)
     committed_on: Mapped[date] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    retention_pct: Mapped[Decimal] = mapped_column(Percent, default=Decimal("0"))
+    """A contractor's work order: the share of each running bill held back until the work is
+    accepted."""
+    advance: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    """Mobilisation advance paid to the contractor, recovered from running bills."""
+    deduct_cess: Mapped[bool] = mapped_column(Boolean, default=False)
+    retention_released_on: Mapped[date | None] = mapped_column(Date)
 
 
 class TrustedSender(Base):
@@ -1551,3 +1564,196 @@ class OriginalMove(Base):
     note: Mapped[str | None] = mapped_column(String(500))
     recorded_by: Mapped[str | None] = mapped_column(String(64))
     recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+# Contractors' running bills
+
+
+class RaBill(Base):
+    """A contractor's running-account bill against a work order. It is also a Bill, so its cost
+    counts on the order's cost line and it waits for approval and payment with every other
+    bill; this row keeps what is held back from it."""
+
+    __tablename__ = "ra_bills"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    commitment_id: Mapped[str] = mapped_column(ForeignKey("commitments.id"), index=True)
+    bill_id: Mapped[str] = mapped_column(ForeignKey("bills.id"), unique=True)
+    number: Mapped[int] = mapped_column(Integer)
+    period_to: Mapped[date] = mapped_column(Date)
+    work_value: Mapped[Decimal] = mapped_column(Money)
+    gst: Mapped[Decimal] = mapped_column(Money)
+    retention: Mapped[Decimal] = mapped_column(Money)
+    advance_recovery: Mapped[Decimal] = mapped_column(Money)
+    tds: Mapped[Decimal] = mapped_column(Money)
+    cess: Mapped[Decimal] = mapped_column(Money)
+    net_payable: Mapped[Decimal] = mapped_column(Money)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+# Site
+
+
+class MaterialItem(Base):
+    __tablename__ = "material_items"
+    __table_args__ = (UniqueConstraint("project_id", "name"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    unit: Mapped[str] = mapped_column(String(24))
+    min_level: Mapped[Decimal | None] = mapped_column(Quantity)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class DailyReport(Base):
+    """What happened on site in a day."""
+
+    __tablename__ = "daily_reports"
+    __table_args__ = (UniqueConstraint("project_id", "on"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    on: Mapped[date] = mapped_column(Date)
+    work_done: Mapped[str] = mapped_column(Text)
+    workers: Mapped[int | None] = mapped_column(Integer)
+    issues: Mapped[str | None] = mapped_column(Text)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class DailyReportPhoto(Base):
+    __tablename__ = "daily_report_photos"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    report_id: Mapped[str] = mapped_column(ForeignKey("daily_reports.id"), index=True)
+    storage_key: Mapped[str] = mapped_column(String(200))
+    filename: Mapped[str] = mapped_column(String(200))
+    content_type: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class MaterialRequest(Base):
+    """Site asks for material; the office gets quotes and orders it; site marks it received."""
+
+    __tablename__ = "material_requests"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    item_id: Mapped[str] = mapped_column(ForeignKey("material_items.id"), index=True)
+    quantity: Mapped[Decimal] = mapped_column(Quantity)
+    needed_by: Mapped[date | None] = mapped_column(Date)
+    note: Mapped[str | None] = mapped_column(String(300))
+    status: Mapped[str] = mapped_column(String(12), default="requested")
+    """requested, ordered, received or cancelled."""
+    commitment_id: Mapped[str | None] = mapped_column(ForeignKey("commitments.id"))
+    requested_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    ordered_at: Mapped[datetime | None] = mapped_column(DateTime)
+    received_on: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class MaterialQuote(Base):
+    __tablename__ = "material_quotes"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    request_id: Mapped[str] = mapped_column(ForeignKey("material_requests.id"), index=True)
+    supplier: Mapped[str] = mapped_column(String(200))
+    rate: Mapped[Decimal] = mapped_column(Money)
+    """Per unit, before GST."""
+    chosen: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class MaterialMove(Base):
+    """Material into the site's stock (received) or out of it (used)."""
+
+    __tablename__ = "material_moves"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    item_id: Mapped[str] = mapped_column(ForeignKey("material_items.id"), index=True)
+    on: Mapped[date] = mapped_column(Date)
+    kind: Mapped[str] = mapped_column(String(12))
+    quantity: Mapped[Decimal] = mapped_column(Quantity)
+    note: Mapped[str | None] = mapped_column(String(200))
+    report_id: Mapped[str | None] = mapped_column(ForeignKey("daily_reports.id"))
+    request_id: Mapped[str | None] = mapped_column(ForeignKey("material_requests.id"))
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+# After handover
+
+
+class UnitIssue(Base):
+    """A snag before possession, a defect after it (to put right within 30 days), or a buyer's
+    request."""
+
+    __tablename__ = "unit_issues"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    unit_id: Mapped[str] = mapped_column(ForeignKey("units.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(12))
+    title: Mapped[str] = mapped_column(String(200))
+    detail: Mapped[str | None] = mapped_column(Text)
+    reported_on: Mapped[date] = mapped_column(Date)
+    due_on: Mapped[date | None] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(12), default="open")
+    done_on: Mapped[date | None] = mapped_column(Date)
+    reply: Mapped[str | None] = mapped_column(Text)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+# Lenders
+
+
+class Loan(Base):
+    """Construction finance for a project."""
+
+    __tablename__ = "loans"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    lender: Mapped[str] = mapped_column(String(200))
+    sanctioned: Mapped[Decimal] = mapped_column(Money)
+    rate_pct: Mapped[Decimal | None] = mapped_column(Percent)
+    sanctioned_on: Mapped[date | None] = mapped_column(Date)
+    note: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class LoanMove(Base):
+    """Money drawn from a loan, or paid back: a date in the future is a planned payment."""
+
+    __tablename__ = "loan_moves"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    loan_id: Mapped[str] = mapped_column(ForeignKey("loans.id"), index=True)
+    on: Mapped[date] = mapped_column(Date)
+    kind: Mapped[str] = mapped_column(String(12))
+    """drawdown, repayment (of principal) or interest."""
+    amount: Mapped[Decimal] = mapped_column(Money)
+    note: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class LoanCondition(Base):
+    """Something the lender requires, by a date: a document, a sales figure, a certificate."""
+
+    __tablename__ = "loan_conditions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    loan_id: Mapped[str] = mapped_column(ForeignKey("loans.id"), index=True)
+    text: Mapped[str] = mapped_column(String(300))
+    due_on: Mapped[date | None] = mapped_column(Date)
+    met_on: Mapped[date | None] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

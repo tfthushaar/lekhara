@@ -151,7 +151,7 @@ async function SalesView({
         ) : (
           <ul className="rows">
             {s.call_today.map((l) => (
-              <li key={l.id} className="row" style={{ gridTemplateColumns: "1fr auto" }}>
+              <li key={l.id} className="row row-2">
                 <div>
                   <p className="row-title">
                     <Link href={`/leads/${l.id}`}>{l.name}</Link>
@@ -179,7 +179,7 @@ async function SalesView({
           </div>
           <ul className="rows">
             {s.visits.map((v) => (
-              <li key={v.id} className="row" style={{ gridTemplateColumns: "1fr" }}>
+              <li key={v.id} className="row row-1">
                 <div>
                   <p className="row-title">
                     <Link href={`/leads/${v.lead_id}`}>{v.lead}</Link>
@@ -233,7 +233,7 @@ async function SalesView({
               </table>
             </div>
           )}
-          {s.can_edit ? (
+          {s.can_import ? (
             <p className="small muted" style={{ marginTop: 12 }}>
               {"Have leads in a 99acres, MagicBricks or Facebook file? "}
               <Link href={`/projects/${id}/import`}>Add the file</Link>
@@ -374,9 +374,9 @@ async function SalesView({
           </div>
         </details>
 
-        <details className="disclosure" open={!s.price_list && s.can_edit}>
+        <details className="disclosure" open={!s.price_list && s.can_set_prices}>
           <summary>{s.price_list ? `Prices (${inr(s.price_list.base_rate)} a sq ft)` : "Prices, needed for cost sheets and bookings"}</summary>
-          {s.can_edit ? (
+          {s.can_set_prices ? (
             <ActionForm action={savePriceList.bind(null, id)} label="Save the prices" pendingLabel="Saving">
               <PriceFields s={s} />
             </ActionForm>

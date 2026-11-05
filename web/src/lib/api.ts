@@ -46,7 +46,10 @@ export type Today =
       to_review: number;
       summary: { drawable_now: string; at_stake: string; due_this_week: number; projects: number };
       items: Obligation[];
+      tasks?: Tasks;
     }
+  | SalesToday
+  | SiteToday
   | {
       kind: "certifier";
       as_of: string;
@@ -60,6 +63,10 @@ export type Access = "active" | "trial" | "read_only";
 export type Me = {
   user: { id: string; name: string; email: string; firm: string | null };
   role_label: string;
+  /** The person's role in their firm; null for a certifier or support. */
+  role: Role | null;
+  /** The places in a project this role works in. */
+  areas: string[];
   kind: "team" | "certifier";
   is_staff: boolean;
   two_step_on: boolean;
@@ -132,11 +139,13 @@ export type ProjectCard = {
   name: string;
   locality: string;
   land_structure: string;
-  progress_pct: string | null;
-  budget: string;
-  anticipated_final_cost: string;
-  incurred: string;
-  drawable_now: string;
+  progress_pct?: string | null;
+  budget?: string;
+  anticipated_final_cost?: string;
+  incurred?: string;
+  drawable_now?: string;
+  /** Sales and the site engineer see the project, not its money. */
+  limited?: boolean;
   possession_due_on: string | null;
   counts: Counts;
   next: Obligation | null;
@@ -1569,7 +1578,9 @@ async function get<T>(path: string): Promise<T> {
   if (response.status === 401) redirect("/login");
   // The firm requires two-step sign-in and this person has not set it up yet.
   if (response.status === 403 && response.headers.get("x-lekhara-two-step")) redirect("/secure");
-  if (response.status === 404 || response.status === 403) notFound();
+  // Outside this person's role: back to their own Today, where their work is.
+  if (response.status === 403) redirect("/");
+  if (response.status === 404) notFound();
   if (!response.ok) throw new Error(`Lekhara API ${response.status} on ${path}`);
   return response.json() as Promise<T>;
 }
@@ -1874,6 +1885,8 @@ export type SalesPage = {
     maintenance_months: number;
   } | null;
   partners: { id: string; name: string; firm: string | null }[];
+  can_set_prices: boolean;
+  can_import: boolean;
 };
 
 export type LeadDetail = LeadRow & {
@@ -1961,6 +1974,201 @@ export type Partners = {
   }[];
   to_pay: Commission[];
   waiting: Commission[];
+  can_pay: boolean;
+};
+
+export type Role = "owner" | "finance" | "accounts" | "viewer" | "sales" | "site";
+
+export type RaBillRow = {
+  id: string;
+  bill_id: string;
+  number: number;
+  bill_no: string;
+  period_to: string;
+  work_value: string;
+  gst: string;
+  retention: string;
+  advance_recovery: string;
+  tds: string;
+  cess: string;
+  net_payable: string;
+  state: "waiting" | "approved" | "held" | "paid";
+  paid_on: string | null;
+};
+
+export type Contractors = {
+  can_edit: boolean;
+  orders: {
+    id: string;
+    reference: string;
+    contractor: string;
+    description: string | null;
+    amount: string;
+    billed: string;
+    left: string;
+    over: boolean;
+    retention_pct: string;
+    retention_held: string;
+    retention_released_on: string | null;
+    advance: string;
+    advance_left: string;
+    deduct_cess: boolean;
+    has_pan: boolean;
+    bills: RaBillRow[];
+  }[];
+  cost_lines: Choice[];
+  retention_default: string;
+};
+
+export type PayableRow = {
+  id: string;
+  project: string;
+  project_id: string;
+  supplier: string;
+  bill_no: string;
+  bill_date: string;
+  amount: string;
+  running_bill: number | null;
+  held_back: string | null;
+  pay_by: string;
+  late: boolean;
+  msme: boolean;
+  note: string | null;
+  decided_by: string | null;
+};
+
+export type Payables = {
+  can_approve: boolean;
+  can_pay: boolean;
+  waiting: PayableRow[];
+  approved: PayableRow[];
+  held: PayableRow[];
+  totals: { waiting: string; approved: string; held: string };
+};
+
+export type DailyReportRow = {
+  id: string;
+  on: string;
+  work_done: string;
+  workers: number | null;
+  issues: string | null;
+  by: string | null;
+  used: { item: string; unit: string; quantity: string }[];
+  photos: string[];
+};
+
+export type SiteView = {
+  can_report: boolean;
+  today: string;
+  today_report: DailyReportRow | null;
+  reports: DailyReportRow[];
+  missed: string[];
+  items: { name: string; unit: string }[];
+};
+
+export type MaterialRequestRow = {
+  id: string;
+  item: string;
+  unit: string;
+  quantity: string;
+  needed_by: string | null;
+  late: boolean;
+  note: string | null;
+  status: "requested" | "ordered" | "received" | "cancelled";
+  status_label: string;
+  by: string | null;
+  order: string | null;
+  received_on: string | null;
+  quotes: { id: string; supplier: string; rate: string; total: string; chosen: boolean; cheapest: boolean }[];
+};
+
+export type Materials = {
+  can_ask: boolean;
+  can_order: boolean;
+  open: MaterialRequestRow[];
+  closed: MaterialRequestRow[];
+  stock: { id: string; name: string; unit: string; in_stock: string; received: string; used: string; min_level: string | null; low: boolean }[];
+  cost_lines: Choice[];
+};
+
+export type IssueRow = {
+  id: string;
+  unit: string;
+  unit_id: string;
+  buyer: string | null;
+  kind: "snag" | "defect" | "request";
+  kind_label: string;
+  title: string;
+  detail: string | null;
+  reported_on: string;
+  due_on: string | null;
+  late: boolean;
+  days_left: number | null;
+  status: "open" | "done";
+  done_on: string | null;
+  reply: string | null;
+  by: string | null;
+  note: string | null;
+};
+
+export type Issues = {
+  can_edit: boolean;
+  open: IssueRow[];
+  done: IssueRow[];
+  late: number;
+  kinds: Choice[];
+  units: { id: string; label: string; buyer: string | null }[];
+  defect_days: number;
+};
+
+export type Cash = {
+  can_edit: boolean;
+  drawable: string;
+  forecast: { month: string; in: string; out: string; net: string }[];
+  loans: {
+    id: string;
+    lender: string;
+    sanctioned: string;
+    rate_pct: string | null;
+    drawn: string;
+    repaid: string;
+    outstanding: string;
+    can_draw: string;
+    interest_paid: string;
+    next: { on: string; kind: string; amount: string } | null;
+    moves: { on: string; kind: string; kind_label: string; amount: string; note: string | null; planned: boolean }[];
+    conditions: { id: string; text: string; due_on: string | null; met_on: string | null; late: boolean }[];
+  }[];
+  kinds: Choice[];
+};
+
+export type SalesToday = {
+  kind: "sales";
+  as_of: string;
+  organization: string;
+  calls: (LeadRow & { project: string })[];
+  visits: { id: string; lead_id: string; lead: string; on: string; time: string | null; project: string }[];
+  requests: number;
+  first_project: string | null;
+};
+
+export type SiteToday = {
+  kind: "site";
+  as_of: string;
+  organization: string;
+  projects: { id: string; name: string; report_filed: boolean; requests_waiting: number; issues_open: number; issues_late: number; low_stock: number }[];
+};
+
+export type Tasks = {
+  to_approve: number;
+  to_pay: number;
+  held: number;
+  late_defects: number;
+  late_defects_at: string | null;
+  loan_conditions: number;
+  loan_at: string | null;
+  to_order: number;
+  to_order_at: string | null;
 };
 
 export const api = {
@@ -2032,6 +2240,12 @@ export const api = {
     get<SalesPage>(`/projects/${projectId}/sales${stage ? `?stage=${encodeURIComponent(stage)}` : ""}`),
   lead: (id: string) => get<LeadDetail>(`/leads/${id}`),
   partners: () => get<Partners>("/partners"),
+  contractors: (projectId: string) => get<Contractors>(`/projects/${projectId}/contractors`),
+  payables: () => get<Payables>("/payables"),
+  site: (projectId: string) => get<SiteView>(`/projects/${projectId}/site`),
+  materials: (projectId: string) => get<Materials>(`/projects/${projectId}/materials`),
+  issues: (projectId: string) => get<Issues>(`/projects/${projectId}/issues`),
+  cash: (projectId: string) => get<Cash>(`/projects/${projectId}/cash`),
   costSheet: (projectId: string, unitId: string, query: string) =>
     get<CostSheet>(`/projects/${projectId}/units/${unitId}/cost-sheet${query ? `?${query}` : ""}`),
 };

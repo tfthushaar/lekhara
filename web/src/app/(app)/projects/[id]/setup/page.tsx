@@ -5,6 +5,37 @@ import { recordProgress, updateProject } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { type Setup, api } from "@/lib/api";
 
+function SetupRows({ items }: { items: Setup["items"] }) {
+  if (!items.length) return null;
+  return (
+    <ul className="rows">
+      {items.map((item) => (
+        <li key={item.key} className="row row-2 row-stack">
+          <div>
+            <p className="row-title">
+              {item.title}
+              {item.status === "partial" || item.status === "stale" ? (
+                <span className={STATUS[item.status].className} style={{ marginLeft: 8 }}>
+                  {STATUS[item.status].label}
+                </span>
+              ) : null}
+            </p>
+            <p className="row-detail">{item.detail}</p>
+            {item.status !== "done" ? <p className="row-meta">{`Switches on: ${item.unlocks}`}</p> : null}
+          </div>
+          <div className="row-side">
+            {item.status !== "done" || item.href.includes("#") ? (
+              <Link href={item.href} className={item.status === "done" ? "link-action" : "button button-secondary"}>
+                {item.action}
+              </Link>
+            ) : null}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function SetupPage({ params }: PageProps<"/projects/[id]/setup">) {
   return (
     <Suspense fallback={<p className="loading">Checking what is in</p>}>
@@ -31,27 +62,13 @@ async function SetupView({ params }: { params: Promise<{ id: string }> }) {
           ? "Everything Lekhara needs for this project is in."
           : `${s.summary.done} of ${s.summary.total} in. Each one left switches on more of Lekhara.`}
       </p>
-      <ul className="rows">
-        {s.items.map((item) => (
-          <li key={item.key} className="row">
-            <div>
-              <span className={STATUS[item.status].className}>{STATUS[item.status].label}</span>
-            </div>
-            <div>
-              <p className="row-title">{item.title}</p>
-              <p className="row-detail">{item.detail}</p>
-              <p className="row-meta">{`Switches on: ${item.unlocks}`}</p>
-            </div>
-            <div className="row-side">
-              {item.status !== "done" || item.href.includes("#") ? (
-                <Link href={item.href} className="link-action">
-                  {item.action}
-                </Link>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ul>
+      <SetupRows items={s.items.filter((i) => i.status !== "done")} />
+      {s.items.some((i) => i.status === "done") ? (
+        <details className="disclosure">
+          <summary>{`Done (${s.items.filter((i) => i.status === "done").length})`}</summary>
+          <SetupRows items={s.items.filter((i) => i.status === "done")} />
+        </details>
+      ) : null}
 
       {s.can_edit ? (
         <>

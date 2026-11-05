@@ -7,6 +7,28 @@ import { Needs, has, missing } from "@/components/needs";
 import { type Collections, type PaymentPlan, api } from "@/lib/api";
 import { day, inr, pct, plural } from "@/lib/format";
 
+function OverdueRows({ rows }: { rows: { unit: string; buyer: string | null; overdue: string; days_overdue: number; interest: string; demand_id: string | null }[] }) {
+  return (
+    <ul className="rows">
+      {rows.map((o) => (
+        <li key={o.unit} className="row row-2 row-stack">
+          <div>
+            <p className="row-title">{`${inr(o.overdue)} from ${o.buyer ?? "the buyer"}`}</p>
+            <p className="row-detail">{`Unit ${o.unit}, ${o.days_overdue} days late, ${inr(o.interest)} interest so far`}</p>
+          </div>
+          <div className="row-side">
+            {o.demand_id ? (
+              <Link href={`/demands/${o.demand_id}`} className="button button-secondary">
+                Demand letter
+              </Link>
+            ) : null}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function CollectionsPage({ params }: PageProps<"/projects/[id]/collections">) {
   return (
     <Suspense fallback={<p className="loading">Working out what buyers owe</p>}>
@@ -107,36 +129,15 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
         {c.overdue.length === 0 ? (
           <p className="empty">{paymentsIn || c.accounts.length === 0 ? "No buyer is overdue." : "No buyer is overdue on the demands raised so far."}</p>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Unit</th>
-                <th>Buyer</th>
-                <th className="right">Overdue</th>
-                <th className="right">Days late</th>
-                <th className="right">Interest</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {c.overdue.map((o) => (
-                <tr key={o.unit}>
-                  <td>{o.unit}</td>
-                  <td>{o.buyer}</td>
-                  <td className="right num">{inr(o.overdue)}</td>
-                  <td className="right num">{o.days_overdue}</td>
-                  <td className="right num">{inr(o.interest)}</td>
-                  <td className="right">
-                    {o.demand_id ? (
-                      <Link href={`/demands/${o.demand_id}`} className="link-action">
-                        Demand letter
-                      </Link>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <OverdueRows rows={c.overdue.slice(0, 5)} />
+            {c.overdue.length > 5 ? (
+              <details className="disclosure">
+                <summary>{`${c.overdue.length - 5} more`}</summary>
+                <OverdueRows rows={c.overdue.slice(5)} />
+              </details>
+            ) : null}
+          </>
         )}
       </section>
 

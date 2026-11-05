@@ -26,6 +26,9 @@ from lekhara.models import (
 from lekhara.services import ServiceError
 
 MANAGERS = (auth.OrgRole.OWNER, auth.OrgRole.FINANCE, auth.OrgRole.ACCOUNTS)
+SELLERS = (*MANAGERS, auth.OrgRole.SALES)
+"""Who works leads, visits, holds, bookings and partners. Prices and paying commission stay
+with the owner, finance and accounts."""
 
 
 class LeadBody(BaseModel):
@@ -122,7 +125,8 @@ def _pdf(data: bytes, filename: str) -> Response:
 
 
 def register(app: FastAPI, SessionDep, Me, AsOf) -> None:  # noqa: C901, N803
-    def org_access(session: Session, me: auth.Principal, org_id: str, *, edit: bool):
+    def org_access(session: Session, me: auth.Principal, org_id: str, *, edit: bool,
+                   who: tuple = SELLERS):  # fmt: skip
         org = session.get(Organization, org_id)
         role = me.org_roles.get(org_id)
         if org is None or (role is None and not org.is_sample):
@@ -130,22 +134,23 @@ def register(app: FastAPI, SessionDep, Me, AsOf) -> None:  # noqa: C901, N803
         if edit:
             if role is None:
                 raise ServiceError("The sample firm is read-only.", 403)
-            if role not in MANAGERS:
-                raise ServiceError("Your role cannot change sales records.", 403)
+            if role not in who:
+                raise ServiceError("Your role can't change this.", 403)
             if services.access_state(org, me.as_of) == "read_only":
                 raise ServiceError(services.read_only_message(org), 402)
         return org
 
-    def can_edit(session: Session, me: auth.Principal, org_id: str) -> bool:
+    def can_edit(session: Session, me: auth.Principal, org_id: str, who: tuple = SELLERS) -> bool:
         try:
-            return org_access(session, me, org_id, edit=True) is not None
+            return org_access(session, me, org_id, edit=True, who=who) is not None
         except ServiceError:
             return False
 
-    def project_for(session: Session, me: auth.Principal, project_id: str, *, edit=False):
+    def project_for(session: Session, me: auth.Principal, project_id: str, *, edit=False,
+                    who: tuple = SELLERS):  # fmt: skip
         project = services.get_project(session, project_id)
         auth.require_team(me, project)
-        if org_access(session, me, project.organization_id, edit=edit) is None:
+        if org_access(session, me, project.organization_id, edit=edit, who=who) is None:
             raise ServiceError("Project not found.", 404)
         return project
 
@@ -190,9 +195,12 @@ def register(app: FastAPI, SessionDep, Me, AsOf) -> None:  # noqa: C901, N803
         p = project_for(session, me, project_id)
         if stage is not None and stage not in sales.STAGES:
             stage = None
-        return sales.project_view(
+        view = sales.project_view(
             session, p, as_of=on, stage=stage, can_edit=can_edit(session, me, p.organization_id)
         )
+        view["can_set_prices"] = can_edit(session, me, p.organization_id, MANAGERS)
+        view["can_import"] = view["can_set_prices"]
+        return view
 
     @app.post("/projects/{project_id}/leads", status_code=201)
     def create_lead(project_id: str, body: LeadBody, session: SessionDep, me: Me, on: AsOf):
@@ -253,7 +261,7 @@ def register(app: FastAPI, SessionDep, Me, AsOf) -> None:  # noqa: C901, N803
 
     @app.put("/projects/{project_id}/price-list")
     def put_price_list(project_id: str, body: PriceListBody, session: SessionDep, me: Me):
-        p = project_for(session, me, project_id, edit=True)
+        p = project_for(session, me, project_id, edit=True, who=MANAGERS)
         sales.set_price_list(session, p, _fields(body), user_id=me.user_id)
         return {"ok": True}
 
@@ -313,7 +321,9 @@ def register(app: FastAPI, SessionDep, Me, AsOf) -> None:  # noqa: C901, N803
         org = accounts.current_org(session, me)
         if org is None or org_access(session, me, org.id, edit=False) is None:
             raise ServiceError("Firm not found.", 404)
-        return sales.partners_view(session, org, as_of=on, can_edit=can_edit(session, me, org.id))
+        view = sales.partners_view(session, org, as_of=on, can_edit=can_edit(session, me, org.id))
+        view["can_pay"] = can_edit(session, me, org.id, MANAGERS)
+        return view
 
     @app.post("/partners", status_code=201)
     def create_partner(body: PartnerBody, session: SessionDep, me: Me) -> dict:
@@ -344,7 +354,7 @@ def register(app: FastAPI, SessionDep, Me, AsOf) -> None:  # noqa: C901, N803
 
     def commission_for(session: Session, me: auth.Principal, commission_id: str) -> Commission:
         c = session.get(Commission, commission_id)
-        if c is None or org_access(session, me, c.organization_id, edit=True) is None:
+        if c is None or org_access(session, me, c.organization_id, edit=True, who=MANAGERS) is None:
             raise ServiceError("Commission not found.", 404)
         return c
 

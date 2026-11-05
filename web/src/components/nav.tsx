@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { type PlaceTab, type View, groupsFor } from "@/lib/places";
+
 const LINKS = [
   { href: "/", label: "Today" },
   { href: "/projects", label: "Projects" },
@@ -48,62 +50,12 @@ export function Nav() {
   );
 }
 
-type Tab = { segment: string; label: string; team: boolean; expanded: boolean };
+type Tab = PlaceTab;
 
-/** A project's work, in the few places a builder would look for it. Each place opens on its
- * first page, with the rest beside it. `expanded` marks the business modules, left out of the
- * main software's view. */
-const GROUPS: { label: string; tabs: Tab[] }[] = [
-  { label: "Overview", tabs: [{ segment: "", label: "Overview", team: false, expanded: false }] },
-  {
-    label: "Buyers",
-    tabs: [
-      { segment: "/sales", label: "Leads and bookings", team: true, expanded: true },
-      { segment: "/units", label: "Units", team: true, expanded: true },
-      { segment: "/collections", label: "Payments", team: true, expanded: true },
-      { segment: "/handover", label: "Handover", team: true, expanded: false },
-      { segment: "/disputes", label: "Cases", team: true, expanded: false },
-    ],
-  },
-  {
-    label: "Money",
-    tabs: [
-      { segment: "/escrow", label: "RERA account", team: false, expanded: false },
-      { segment: "/suppliers", label: "Suppliers", team: true, expanded: true },
-      { segment: "/budget", label: "Budget", team: true, expanded: true },
-    ],
-  },
-  {
-    label: "Government",
-    tabs: [
-      { segment: "/krera", label: "K-RERA", team: true, expanded: false },
-      { segment: "/tax", label: "Tax", team: true, expanded: false },
-      { segment: "/approvals", label: "Approvals", team: true, expanded: false },
-    ],
-  },
-  {
-    label: "Files",
-    tabs: [
-      { segment: "/documents", label: "Documents", team: true, expanded: false },
-      { segment: "/import", label: "Add files", team: true, expanded: false },
-      { segment: "/setup", label: "Set-up", team: true, expanded: false },
-    ],
-  },
-];
-
-type View = "main" | "expanded";
-
-function groupsFor(team: boolean, view: View) {
-  return GROUPS.map((group) => ({
-    label: group.label,
-    tabs: group.tabs.filter((tab) => (team || !tab.team) && (view === "expanded" || !tab.expanded)),
-  })).filter((group) => group.tabs.length > 0);
-}
-
-export function ProjectTabs({ projectId, team, view = "expanded" }: { projectId: string; team: boolean; view?: View }) {
+export function ProjectTabs({ projectId, team, view = "expanded", areas = [] }: { projectId: string; team: boolean; view?: View; areas?: string[] }) {
   const pathname = usePathname();
   const base = `/projects/${projectId}`;
-  const groups = groupsFor(team, view);
+  const groups = groupsFor(team, view, areas);
   const here = (tab: Tab) => (tab.segment ? pathname.startsWith(`${base}${tab.segment}`) : pathname === base);
   const current = groups.find((group) => group.tabs.some(here));
   return (
@@ -128,11 +80,11 @@ export function ProjectTabs({ projectId, team, view = "expanded" }: { projectId:
   );
 }
 
-export function PlainProjectTabs({ projectId, team, view = "expanded" }: { projectId: string; team: boolean; view?: View }) {
+export function PlainProjectTabs({ projectId, team, view = "expanded", areas = [] }: { projectId: string; team: boolean; view?: View; areas?: string[] }) {
   const base = `/projects/${projectId}`;
   return (
     <nav className="tabs" aria-label="Project">
-      {groupsFor(team, view).map((group) => (
+      {groupsFor(team, view, areas).map((group) => (
         <Link key={group.label} href={`${base}${group.tabs[0].segment}`}>
           {group.label}
         </Link>

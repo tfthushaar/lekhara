@@ -35,6 +35,7 @@ from lekhara import (
     krera_certificate,
     legal,
     limits,
+    ops_routes,
     originals,
     packs,
     passkeys,
@@ -44,6 +45,7 @@ from lekhara import (
     registers,
     review,
     rls,
+    roles,
     sales_routes,
     scan,
     services,
@@ -537,6 +539,15 @@ def _withdrawal_permissions(
     }
 
 
+def _limit_card(card: dict, me, project) -> dict:
+    """A project's card for Sales and the site engineer: the project, without its money."""
+    if not roles.limited(me, project):
+        return card
+    hidden = ("progress_pct", "budget", "anticipated_final_cost", "incurred", "drawable_now")
+    return {**{k: v for k, v in card.items() if k not in hidden}, "counts": {}, "next": None,
+            "limited": True}  # fmt: skip
+
+
 def create_app(settings: Settings | None = None, engine: Engine | None = None) -> FastAPI:
     settings = settings or get_settings()
     engine = engine or make_engine(settings.database_url)
@@ -679,6 +690,9 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         # projects they certify.
         sample = set(session.scalars(select(Organization.id).where(Organization.is_sample)))
         rls.restrict(session, set(principal.org_roles) | sample, set(principal.project_roles))
+        route = request.scope.get("route")
+        if not roles.allowed_path(principal, getattr(route, "path", None) or request.url.path):
+            raise ServiceError("This isn't part of your work in Lekhara.", 403)
         return principal
 
     Me = Annotated[auth.Principal, Depends(current_principal)]
@@ -823,6 +837,10 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         return {
             "user": {"id": me.user_id, "name": me.name, "email": me.email, "firm": me.firm},
             "role_label": me.describe(),
+            "role": roles.role_of(me, firm["id"] if firm else None),
+            "areas": list(roles.areas_for(roles.role_of(me, firm["id"] if firm else None)))
+            if me.org_roles
+            else [],
             "is_staff": me.is_staff,
             "two_step_on": me.two_step_on,
             "two_step_needed": me.two_step_required and not me.two_step_on,
@@ -2962,6 +2980,9 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         projects = visible(session, me)
         if me.is_certifier_only:
             return certifier_today(session, me, projects, on)
+        for_role = ops_routes.role_today(session, me, on)
+        if for_role is not None:
+            return for_role
 
         snaps = [services.snapshot(session, p, on) for p in projects if me.is_team(p)]
         items = sort_obligations([o for s in snaps for o in s.obligations])
@@ -2985,6 +3006,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
                 "projects": len(snaps),
             },
             "items": [views.obligation(o) for o in items if o.status != ObligationStatus.DONE],
+            **ops_routes.manager_extras(session, me, on),
         }
 
     def certifier_today(
@@ -3034,9 +3056,10 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     @app.get("/projects")
     def list_projects(session: SessionDep, me: Me, on: AsOf) -> list[dict]:
         own = [
-            {**views.project_card(services.snapshot(session, p, on)), "sample": False}
+            {**_limit_card(views.project_card(services.snapshot(session, p, on)), me, p),
+             "sample": False}
             for p in visible(session, me)
-        ]
+        ]  # fmt: skip
         samples = [
             {**views.project_card(services.snapshot(session, p, on)), "sample": True}
             for p in services.sample_projects(session, set(me.org_roles))
@@ -3060,6 +3083,12 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             "team": me.is_team(p),
             "certifies": [r.value for r in ROLE_ORDER if me.certifies(p, r)],
         }
+        if roles.limited(me, p):
+            # Sales and the site engineer see the project, not its money.
+            keep = ("id", "name", "locality", "city", "land_structure", "krera_registration",
+                    "possession_due_on", "access")  # fmt: skip
+            detail = {k: v for k, v in detail.items() if k in keep}
+            detail.update({"obligations": [], "counts": {}})
         return detail
 
     @app.get("/projects/{project_id}/money")
@@ -3964,6 +3993,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         return views.rules(KARNATAKA, on)
 
     sales_routes.register(app, SessionDep, Me, AsOf)
+    ops_routes.register(app, SessionDep, Me, AsOf, settings)
 
     return app
 

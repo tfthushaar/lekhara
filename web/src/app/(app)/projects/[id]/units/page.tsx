@@ -16,7 +16,7 @@ export default function UnitsPage({ params, searchParams }: PageProps<"/projects
   );
 }
 
-const PAGE = 50;
+const PAGE = 20;
 
 async function UnitsView({
   params,
@@ -70,6 +70,9 @@ async function UnitsView({
         </div>
       </div>
 
+      {u.landowners.length === 0 ? (
+        <details className="disclosure">
+          <summary>Landowners: none recorded</summary>
       <section className="section">
         <div className="section-head">
           <h2>Landowners</h2>
@@ -116,6 +119,55 @@ async function UnitsView({
           </table>
         )}
       </section>
+        </details>
+      ) : (
+      <section className="section">
+        <div className="section-head">
+          <h2>Landowners</h2>
+          <p>Entitlements and payments under each joint development agreement</p>
+        </div>
+        {list.can_import ? (
+          <details className="disclosure">
+            <summary>Add a landowner</summary>
+            <ActionForm action={createLandowner.bind(null, id)} label="Add the landowner" pendingLabel="Adding">
+              <LandownerFields prefix="new-lo" />
+            </ActionForm>
+          </details>
+        ) : null}
+        {u.landowners.length === 0 ? (
+          <p className="empty">No landowners recorded. Add them if this project is a joint development.</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Landowner</th>
+                <th>Share</th>
+                <th className="right">Refundable deposit</th>
+                <th className="right">Paid to date</th>
+                <th className="right">TDS deducted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {u.landowners.map((o) => (
+                <tr key={o.id}>
+                  <td>
+                    <Link href={`/landowners/${o.id}`}>{o.name}</Link>
+                    <br />
+                    <span className="small muted">{o.pan ? `PAN ${o.pan}` : "PAN not recorded"}</span>
+                  </td>
+                  <td>
+                    {pct(o.share_pct)} of {o.share_type === "area" ? "the built area" : "revenue"}
+                  </td>
+                  <td className="right num">{inr(o.refundable_deposit)}</td>
+                  <td className="right num">{inr(o.paid_to_date)}</td>
+                  <td className="right num">{inr(o.tds_to_date)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+      )}
 
       <section className="section">
         <div className="section-head">

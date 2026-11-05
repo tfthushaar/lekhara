@@ -48,6 +48,20 @@ class Percent(TypeDecorator):
         return None if value is None else (Decimal(value) / 100).quantize(Decimal("0.01"))
 
 
+class Quantity(TypeDecorator):
+    """A quantity of material (bags, tonnes, cubic metres) to two decimals, stored as
+    hundredths."""
+
+    impl = BigInteger
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        return None if value is None else int((Decimal(value) * 100).to_integral_value())
+
+    def process_result_value(self, value, dialect):
+        return None if value is None else (Decimal(value) / 100).quantize(Decimal("0.01"))
+
+
 def make_engine(url: str) -> Engine:
     if url.startswith("sqlite"):
         kwargs: dict = {"connect_args": {"check_same_thread": False}}

@@ -45,6 +45,11 @@ class OrgRole(StrEnum):
     FINANCE = "finance"
     ACCOUNTS = "accounts"
     VIEWER = "viewer"
+    SALES = "sales"
+    """Works leads and bookings, and buyers' requests; sees no money pages."""
+    SITE = "site"
+    """Writes the daily site report, asks for and receives material, logs snags and defects;
+    sees no money pages."""
 
 
 ORG_ROLE_LABEL = {
@@ -52,6 +57,8 @@ ORG_ROLE_LABEL = {
     OrgRole.FINANCE: "Finance",
     OrgRole.ACCOUNTS: "Accounts",
     OrgRole.VIEWER: "Viewer",
+    OrgRole.SALES: "Sales",
+    OrgRole.SITE: "Site engineer",
 }
 
 CERTIFIER_LABEL = {

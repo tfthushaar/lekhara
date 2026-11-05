@@ -335,7 +335,7 @@ async function LeadView({ params }: { params: Promise<{ id: string }> }) {
           {l.units
             .filter((u) => u.held_by_this_lead)
             .map((u) => (
-              <div key={u.id} className="row" style={{ gridTemplateColumns: "1fr auto" }}>
+              <div key={u.id} className="row row-2">
                 <div>
                   <p className="row-title">{`Unit ${u.label} is held for them`}</p>
                   <p className="row-detail">{`Until ${moment(u.held_until)}`}</p>
@@ -397,7 +397,7 @@ async function LeadView({ params }: { params: Promise<{ id: string }> }) {
         </div>
         <ul className="rows">
           {l.activities.map((a, i) => (
-            <li key={`${a.at}-${i}`} className="row" style={{ gridTemplateColumns: "1fr" }}>
+            <li key={`${a.at}-${i}`} className="row row-1">
               <div>
                 <p>{a.detail}</p>
                 <p className="row-meta">{`${moment(a.at)}${a.by ? `, ${a.by}` : ""}`}</p>

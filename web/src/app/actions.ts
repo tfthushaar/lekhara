@@ -5,6 +5,7 @@
 // loaded still shows its error or result.
 
 import * as handlers from "@/app/form-handlers";
+import * as ops from "@/app/ops-handlers";
 import * as sales from "@/app/sales-handlers";
 import { settled } from "@/lib/settle";
 
@@ -170,3 +171,24 @@ export const bookUnit = settled(sales.bookUnit);
 export const addPartner = settled(sales.addPartner);
 export const updatePartner = settled(sales.updatePartner);
 export const payCommission = settled(sales.payCommission);
+
+// Running the firm
+export const addWorkOrder = settled(ops.addWorkOrder);
+export const addRunningBill = settled(ops.addRunningBill);
+export const releaseRetention = settled(ops.releaseRetention);
+export const approveBill = settled(ops.approveBill);
+export const holdBill = settled(ops.holdBill);
+export const payBill = settled(ops.payBill);
+export const saveDailyReport = settled(ops.saveDailyReport);
+export const askForMaterial = settled(ops.askForMaterial);
+export const materialArrived = settled(ops.materialArrived);
+export const addQuote = settled(ops.addQuote);
+export const orderMaterial = settled(ops.orderMaterial);
+export const receiveMaterial = settled(ops.receiveMaterial);
+export const cancelMaterial = settled(ops.cancelMaterial);
+export const addIssue = settled(ops.addIssue);
+export const closeIssue = settled(ops.closeIssue);
+export const addLoan = settled(ops.addLoan);
+export const addLoanMove = settled(ops.addLoanMove);
+export const addLoanCondition = settled(ops.addLoanCondition);
+export const meetLoanCondition = settled(ops.meetLoanCondition);

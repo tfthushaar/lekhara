@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { has } from "@/components/needs";
 import { ObligationRows } from "@/components/obligations";
 import { api } from "@/lib/api";
+import { projectHome } from "@/lib/places";
 import { inr, pct } from "@/lib/format";
 
 export default function ProjectOverviewPage({ params }: PageProps<"/projects/[id]">) {
@@ -16,6 +18,9 @@ export default function ProjectOverviewPage({ params }: PageProps<"/projects/[id
 
 async function Overview({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const me = await api.me();
+  // Sales and the site engineer open straight on their own work.
+  if (me.areas.length && !me.areas.includes("overview")) redirect(projectHome(id, me.areas));
   const [project, money] = await Promise.all([api.project(id), api.money(id)]);
   const setup = project.access.team ? await api.setup(id) : null;
   const next = setup?.items.find((i) => i.key === setup.summary.next);

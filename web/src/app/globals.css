@@ -1909,3 +1909,166 @@ form .disclosure {
     text-align: left;
   }
 }
+
+/* Two-column rows: the text, then a button or two. On a phone they stay side by side when the
+   side is one short button, and stack (row-stack) when there are several. */
+.row.row-2 {
+  grid-template-columns: 1fr auto;
+}
+
+.row.row-1 {
+  grid-template-columns: 1fr;
+}
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.tile {
+  background: var(--paper);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+}
+
+.tile-label {
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+.tile-value {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+.photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.photos img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  background: var(--canvas);
+}
+
+.choice-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.choice-pills label {
+  position: relative;
+}
+
+.choice-pills input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+}
+
+.choice-pills span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: var(--pill);
+  background: var(--fill-1);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.choice-pills input:checked + span {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.choice-pills input:focus-visible + span {
+  outline: 3px solid var(--fill-4);
+}
+
+@media (max-width: 720px) {
+  .row.row-2.row-stack {
+    grid-template-columns: 1fr;
+  }
+  .row.row-2.row-stack .row-side {
+    justify-content: flex-start;
+  }
+  .tile-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Fields never push the page wider than the phone. */
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Two fields side by side that stay side by side on a phone: a material and how much. */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pair .field {
+  margin-bottom: 0;
+}
+
+.pair input {
+  width: 100%;
+  min-width: 0;
+}
+
+.banner form {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .stat {
+    padding: 14px 16px 16px;
+  }
+  .stat-value {
+    font-size: 22px;
+  }
+  .stat-note {
+    font-size: 13px;
+  }
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    overflow: visible;
+    border-radius: 22px;
+  }
+  .tabs a {
+    flex: 1 1 auto;
+    text-align: center;
+    padding: 8px 12px;
+  }
+  .banner {
+    font-size: 13px;
+    padding: 10px 14px;
+    gap: 4px 14px;
+  }
+}

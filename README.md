@@ -34,6 +34,7 @@ Most builders' offices have never used software like this, so Lekhara is built t
 - **One box for every file.** Tally export, bank statement, GST return, Excel sheet or PDF. Put it in the box and Lekhara works out what it is.
 - **Start today.** Add a project by uploading its K-RERA certificate, and it fills in the rest. There's nothing to install.
 - **Works on your phone.** See what's late from the site, tap to call a buyer, and note what they said in one line.
+- **Each person sees their own work.** Your site engineer opens on today's report, your sales team on who to call, and your accountant on the bills to pay. Nobody sees what isn't theirs.
 - **Plain words.** Where a legal term can't be avoided, it's explained beside it.
 - **Nothing is saved without you.** You see what's in every file before it's saved, and you can undo it for 30 days.
 
@@ -80,6 +81,27 @@ Most builders' offices have never used software like this, so Lekhara is built t
 - **Your payment plan** set up in a minute from a standard one, and demand letters that go out when your architect certifies a stage.
 - **Buyers' payments** typed in, imported from your collections register, or matched to their units from your bank statement.
 
+## Contractors and purchases
+
+- **Running bills worked out for you.** Type the value of work done and the GST. Lekhara holds back the retention, recovers the advance, deducts TDS at the right rate for the contractor's PAN and the labour cess, and shows what to pay.
+- **Material from request to stock.** The site asks for it, you add the quotes you got, order from one in one tap, and the site marks it arrived.
+- **Every bill to pay, on one list.** You approve, your accountant pays, so two people see every payment out. Micro and small suppliers show the date the law gives you to pay them by.
+
+## Site
+
+- **A daily report in under a minute,** from the phone: what was done, how many workers, what material was used, and photos.
+- **Stock for every material,** with a warning before it runs out.
+
+## After handover
+
+- **Snags, defects and buyers' requests** on one list per project, each against its unit.
+- **The five-year defect liability,** with each defect's 30 days to put it right counted for you, and late ones on your Today list.
+
+## Cash and loans
+
+- **The next three months:** what buyers owe, bills falling due and loan payments, month by month.
+- **Construction loans:** drawn, repaid and owed, what you can still draw, and the lender's conditions with their dates.
+
 ## Landowners and documents
 
 - **Landowners' shares kept straight:** every unit marked as yours or the landowner's, with entitlements, payments and TDS under each joint development agreement.
@@ -117,7 +139,7 @@ Most builders' offices have never used software like this, so Lekhara is built t
 - **Agreements** that are e-stamped and e-signed.
 - **On WhatsApp:** a buyer portal, and approving bills with the budget and tax position in front of you.
 - **Home-loan disbursements** tracked by bank and milestone.
-- **Contractor bills, site progress from ordinary site photos, snags and the five-year defect liability.**
+- **Site progress checked from ordinary site photos.**
 - **Guarantees and insurance,** and the conditions attached to each approval.
 - **Plotted layouts:** which plots are released or mortgaged, and a stop on selling plots that aren't free yet.
 - **New land:** an outright purchase against a joint development, with GST and the RERA account built in.
@@ -133,6 +155,11 @@ Lekhara is in development. Everything above "Coming next" works today, and you c
 - the RERA account and certificates;
 - K-RERA filings and the tax checks;
 - leads, bookings, cost sheets and channel partners;
+- contractors' running bills, material, and bills to approve and pay;
+- daily site reports and stock;
+- snags, defects and buyers' requests after handover;
+- the cash for the next three months, and construction loans;
+- a screen for each role: owner, accounts, sales and site engineer;
 - registration and handover;
 - complaints and orders;
 - buyers' payments, landowners and documents;

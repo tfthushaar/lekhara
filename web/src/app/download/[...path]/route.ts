@@ -14,6 +14,7 @@ const ALLOWED = [
   /^demo\/samples\/krera-certificate\.pdf$/,
   /^projects\/[A-Za-z0-9_-]+\/units\/[A-Za-z0-9_-]+\/cost-sheet\.pdf$/,
   /^bookings\/[A-Za-z0-9_-]+\/allotment\.pdf$/,
+  /^daily-reports\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/,
 ];
 const PASS_ON = ["content-type", "content-disposition", "content-length"];
 
