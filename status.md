@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-11-06, with the commit "Rework every screen for people new to software".
+Last updated: 2026-11-06, with the commit "Update pypdf and pyasn1 for known vulnerabilities".
 
 ## What we are building
 
@@ -383,6 +383,8 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - Adding a project starts from its K-RERA certificate, with four details to type if it isn't to hand.
   - Plain words across the product and in the messages the server writes: no vault, exposure, commitments or cost incurred. The wording on certificates stays as the law has it. "1 units" is fixed.
   - The website and README now lead with ease of use. Tested: 381 API tests, a walk through the real pages, and phone-width checks of every reworked page.
+
+- pypdf is now 6.21.4 and pyasn1 0.6.5, which fix 11 known vulnerabilities. The CI security job had been failing on them since the first demo commit, and stopping before its code scan and npm audit; both of those pass.
 
 ## In progress
 
