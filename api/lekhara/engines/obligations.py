@@ -191,8 +191,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
             exposure=False,
             title="Money is waiting in the RERA account",
             detail=(
-                "Cost incurred allows a withdrawal now. Lekhara has prepared the three "
-                "certificates for your architect, engineer and CA."
+                "You have spent enough to draw this now. The certificates for your architect, "
+                "engineer and CA are ready."
             ),
             owed_to="Escrow bank",
             status=ObligationStatus.OPPORTUNITY,
@@ -240,7 +240,8 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
                 key=f"demand:{ready.milestone.id}",
                 title="Demands are ready to raise",
                 detail=(
-                    f"{ready.milestone.name}, for {len(ready.unit_ids)} booked units. "
+                    f"{ready.milestone.name}, for {len(ready.unit_ids)} booked "
+                    f"unit{'' if len(ready.unit_ids) == 1 else 's'}. "
                     f"{ready.reason}"
                 ),
                 owed_to="Buyers",
@@ -565,7 +566,7 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
                 due_on=d.possession_due_on,
                 amount=d.accrued,
                 rule_key="rera.delay_interest_margin",
-                action="See the exposure",
+                action="See how much",
             )
         elif d.days_to_possession is not None and d.days_to_possession <= 120:
             add(
@@ -583,7 +584,7 @@ def project_obligations(f: ProjectFacts, *, rules: RulesPack) -> list[Obligation
                 due_on=d.possession_due_on,
                 amount=d.per_month,
                 rule_key="rera.delay_interest_margin",
-                action="See the exposure",
+                action="See how much",
             )
 
     # GST: the 80% registered-procurement test

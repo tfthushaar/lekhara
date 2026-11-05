@@ -640,15 +640,26 @@ h3 {
 }
 
 .disclosure {
-  margin-top: 16px;
-  font-size: 14px;
+  margin-top: 8px;
 }
 
 .disclosure summary {
   cursor: pointer;
-  color: var(--ink-2);
+  color: var(--ink);
+  font-size: 15px;
+  padding: 8px 0;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+.disclosure > section > .section-head,
+.disclosure > div > section > .section-head {
+  display: none;
+}
+
+.disclosure > section.section {
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .disclosure[open] summary {

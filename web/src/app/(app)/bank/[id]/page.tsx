@@ -51,7 +51,7 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
             {"  /  "}
             <Link href={base}>{s.project_name}</Link>
             {"  /  "}
-            <Link href={`${base}/import`}>Import</Link>
+            <Link href={`${base}/import`}>Add files</Link>
           </p>
           <h1>{s.filename}</h1>
           <p>
@@ -214,7 +214,7 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
 
       {s.can_apply ? (
         <section className="section">
-          <ActionForm action={applyStatement.bind(null, s.id)} label="Bring it in" pendingLabel="Bringing it in">
+          <ActionForm action={applyStatement.bind(null, s.id)} label="Save it" pendingLabel="Saving">
             <p style={{ marginBottom: 12, maxWidth: 720 }}>
               {waiting > 0
                 ? `Payments waiting for their unit stay out; everything else comes in now. Bring in the same statement again later once they are placed; nothing is added twice.`
@@ -226,7 +226,7 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
 
       {s.can_apply_rest ? (
         <section className="section">
-          <ActionForm action={applyStatement.bind(null, s.id)} label="Bring in the rest" pendingLabel="Bringing it in">
+          <ActionForm action={applyStatement.bind(null, s.id)} label="Save the rest" pendingLabel="Saving">
             <p style={{ marginBottom: 12, maxWidth: 720 }}>
               {`${plural(added, "payment")} placed since the statement came in can come in now.`}
             </p>

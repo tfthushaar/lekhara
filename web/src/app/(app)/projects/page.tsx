@@ -74,7 +74,7 @@ function ProjectList({ projects }: { projects: ProjectCard[] }) {
       <thead>
         <tr>
           <th>Project</th>
-          <th className="right">Certified progress</th>
+          <th className="right">Work done</th>
           <th className="right">Final cost</th>
           <th className="right">Can draw now</th>
           <th>Needs attention</th>

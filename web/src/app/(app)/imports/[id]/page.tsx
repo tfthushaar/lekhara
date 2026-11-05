@@ -42,7 +42,7 @@ async function BatchView({ params }: { params: Promise<{ id: string }> }) {
             {"  /  "}
             <Link href={base}>{b.project_name}</Link>
             {"  /  "}
-            <Link href={`${base}/import`}>Import</Link>
+            <Link href={`${base}/import`}>Add files</Link>
           </p>
           <h1>{b.filename}</h1>
           <p>

@@ -74,7 +74,7 @@ async function LandownerView({ params }: { params: Promise<{ id: string }> }) {
           </details>
         ) : null}
         {o.payments.length === 0 ? (
-          <p className="empty">No payments yet. Add them here, import a sheet, or bring in Tally.</p>
+          <p className="empty">No payments yet. Add them here, or add your Tally file.</p>
         ) : (
           <table className="table">
             <thead>

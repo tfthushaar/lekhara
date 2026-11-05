@@ -145,8 +145,8 @@ async function BudgetView({ params }: { params: Promise<{ id: string }> }) {
       {c.lines.length > 0 ? (
         <section className="section">
           <div className="section-head">
-            <h2>Commitments</h2>
-            <p>Work orders, purchase orders and contracts: what each cost line is committed to</p>
+            <h2>Orders</h2>
+            <p>Work orders, purchase orders and contracts</p>
           </div>
           <p className="small" style={{ marginTop: 12 }}>
             {`${plural(orders.commitments.length, "order")}, ${inr(orders.total)} in all. `}

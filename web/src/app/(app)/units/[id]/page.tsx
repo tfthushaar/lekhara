@@ -59,13 +59,18 @@ async function UnitView({ params }: { params: Promise<{ id: string }> }) {
         </div>
       </div>
 
-      <UnitDetails unit={unit} />
-      {unit.booked ? <Payments unit={unit} /> : null}
+      {unit.booked ? <Payments unit={unit} /> : <UnitDetails unit={unit} />}
 
       {unit.booked ? (
-        <Suspense fallback={<p className="loading">Loading the handover steps</p>}>
-          <HandoverView id={id} />
-        </Suspense>
+        <>
+          <Suspense fallback={<p className="loading">Loading the handover steps</p>}>
+            <HandoverView id={id} />
+          </Suspense>
+          <details className="disclosure no-print">
+            <summary>The unit&apos;s details and its history</summary>
+            <UnitDetails unit={unit} />
+          </details>
+        </>
       ) : (
         <Suspense fallback={null}>
           <LinkedDocuments
@@ -243,7 +248,9 @@ async function HandoverView({ id }: { id: string }) {
         </section>
       </div>
 
-      <section className="section">
+      <details className="disclosure">
+<summary>Facts for the sale deed</summary>
+<section className="section">
         <div className="section-head">
           <h2>Sale deed fact sheet</h2>
           <p>The facts your lawyer needs for the deed, taken from the books</p>
@@ -260,8 +267,11 @@ async function HandoverView({ id }: { id: string }) {
           <PrintButton label="Print the fact sheet" />
         </div>
       </section>
+</details>
 
-      <section className="section no-print">
+      <details className="disclosure">
+<summary>Stamp duty and fees the buyer pays</summary>
+<section className="section no-print">
         <div className="section-head">
           <h2>Stamp duty and fees, estimated</h2>
           <p>Paid by the buyer at registration. Confirm the rates before quoting them.</p>
@@ -289,6 +299,7 @@ async function HandoverView({ id }: { id: string }) {
           </li>
         </ul>
       </section>
+</details>
 
       <Suspense fallback={null}>
         <LinkedDocuments
@@ -452,7 +463,7 @@ function NextStep({ u }: { u: UnitHandover }) {
       return (
         <>
           <p style={{ marginBottom: 16 }}>
-            Send the fact sheet below to your lawyer. Record the date once the deed is drafted and
+            Send the facts for the sale deed, below, to your lawyer. Record the date once the deed is drafted and
             the buyer has seen it.
           </p>
           {form(
@@ -524,38 +535,6 @@ function Payments({ unit }: { unit: UnitDetail }) {
         <h2>Payments received</h2>
         <p>{`${inrFull(String(total))} so far, counting TDS the buyer deducted`}</p>
       </div>
-      {unit.receipts.length === 0 ? (
-        <p className="empty">No payments recorded yet.</p>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Received</th>
-              <th className="right">Amount</th>
-              <th className="right">TDS</th>
-              <th>Reference</th>
-              <th>From</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {unit.receipts.map((r) => (
-              <tr key={r.id}>
-                <td className="nowrap">{day(r.received_on)}</td>
-                <td className="right num">{inrFull(r.amount)}</td>
-                <td className="right num">{Number(r.tds) ? inrFull(r.tds) : ""}</td>
-                <td>{r.reference}</td>
-                <td className="small muted">{r.source}</td>
-                <td className="right">
-                  {unit.can_edit && r.can_delete ? (
-                    <ActionForm action={deleteReceipt.bind(null, r.id)} label="Delete" pendingLabel="Deleting" secondary />
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
       {unit.can_edit ? (
         <details className="disclosure">
           <summary>Record a payment</summary>
@@ -581,6 +560,42 @@ function Payments({ unit }: { unit: UnitDetail }) {
           </ActionForm>
         </details>
       ) : null}
+      {unit.receipts.length === 0 ? (
+        <p className="empty">No payments recorded yet.</p>
+      ) : (
+        <details className="disclosure" open={unit.receipts.length <= 3}>
+          <summary>{`Payments so far (${unit.receipts.length})`}</summary>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Received</th>
+              <th className="right">Amount</th>
+              <th className="right">TDS</th>
+              <th>Reference</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {unit.receipts.map((r) => (
+              <tr key={r.id}>
+                <td className="nowrap">{day(r.received_on)}</td>
+                <td className="right num">{inrFull(r.amount)}</td>
+                <td className="right num">{Number(r.tds) ? inrFull(r.tds) : ""}</td>
+                <td>{r.reference}</td>
+                <td className="right">
+                  {unit.can_edit && r.can_delete ? (
+                    <details className="disclosure">
+                      <summary>Remove</summary>
+                      <ActionForm action={deleteReceipt.bind(null, r.id)} label="Yes, delete this payment" pendingLabel="Deleting" secondary />
+                    </details>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        </details>
+      )}
     </section>
   );
 }

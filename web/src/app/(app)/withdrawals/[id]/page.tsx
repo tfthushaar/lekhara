@@ -31,9 +31,9 @@ export default function WithdrawalPage({ params }: PageProps<"/withdrawals/[id]"
 }
 
 const CHECK_TAG: Record<CheckView["status"], { label: string; className: string }> = {
-  pass: { label: "Pass", className: "tag tag-pass" },
+  pass: { label: "Fine", className: "tag tag-pass" },
   warn: { label: "Check", className: "tag tag-warn" },
-  fail: { label: "Fails", className: "tag tag-fail" },
+  fail: { label: "Problem", className: "tag tag-fail" },
   pending: { label: "Waiting", className: "tag tag-upcoming" },
 };
 
@@ -65,6 +65,8 @@ async function WithdrawalView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [w, me] = await Promise.all([api.withdrawal(id), api.me()]);
   const failing = w.checks.some((c) => c.status === "fail");
+  const needsLook = w.checks.filter((c) => c.status !== "pass");
+  const cleared = w.checks.filter((c) => c.status === "pass");
 
   return (
     <>
@@ -75,7 +77,7 @@ async function WithdrawalView({ params }: { params: Promise<{ id: string }> }) {
             {"  /  "}
             <Link href={`/projects/${w.project_id}`}>{w.project_name}</Link>
             {"  /  "}
-            <Link href={`/projects/${w.project_id}/escrow`}>Escrow</Link>
+            <Link href={`/projects/${w.project_id}/escrow`}>RERA account</Link>
           </p>
           <h1>Withdrawal of {inr(w.amount)}</h1>
           <p>
@@ -99,6 +101,15 @@ async function WithdrawalView({ params }: { params: Promise<{ id: string }> }) {
         ))}
       </ol>
 
+      <section style={{ marginBottom: 40 }}>
+        <div className="section-head">
+          <h2>Next step</h2>
+        </div>
+        <div style={{ marginTop: 16, maxWidth: 560 }}>
+          <NextStep w={w} failing={failing} />
+        </div>
+      </section>
+
       <section>
         <div className="section-head">
           <h2>Certificates</h2>
@@ -119,34 +130,42 @@ async function WithdrawalView({ params }: { params: Promise<{ id: string }> }) {
 
       <section className="section">
         <div className="section-head">
-          <h2>Checks before the bank sees it</h2>
-          <p>The same checks a bank or the K-RERA auditor would run</p>
+          <h2>Checks before it goes to the bank</h2>
         </div>
-        <ul className="rows">
-          {w.checks.map((c) => (
-            <li key={c.code} className="row">
-              <div>
-                <span className={CHECK_TAG[c.status].className}>{CHECK_TAG[c.status].label}</span>
-              </div>
-              <div>
-                <p className="row-title">{c.title}</p>
-                <p className="row-detail">{c.detail}</p>
-              </div>
-              <div />
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="section">
-        <div className="section-head">
-          <h2>Next step</h2>
-        </div>
-        <div style={{ marginTop: 16, maxWidth: 560 }}>
-          <NextStep w={w} failing={failing} />
-        </div>
+        {needsLook.length === 0 ? <p style={{ marginTop: 12 }}>{w.checks.length === 1 ? "The check is fine." : `All ${w.checks.length} checks are fine.`}</p> : <CheckRows checks={needsLook} />}
+        {cleared.length > 0 && needsLook.length > 0 ? (
+          <details className="disclosure">
+            <summary>{`${cleared.length === 1 ? "1 check is" : `${cleared.length} checks are`} fine`}</summary>
+            <CheckRows checks={cleared} />
+          </details>
+        ) : null}
+        {cleared.length > 0 && needsLook.length === 0 ? (
+          <details className="disclosure">
+            <summary>See them</summary>
+            <CheckRows checks={cleared} />
+          </details>
+        ) : null}
       </section>
     </>
+  );
+}
+
+function CheckRows({ checks }: { checks: CheckView[] }) {
+  return (
+    <ul className="rows">
+      {checks.map((c) => (
+        <li key={c.code} className="row">
+          <div>
+            <span className={CHECK_TAG[c.status].className}>{CHECK_TAG[c.status].label}</span>
+          </div>
+          <div>
+            <p className="row-title">{c.title}</p>
+            <p className="row-detail">{c.detail}</p>
+          </div>
+          <div />
+        </li>
+      ))}
+    </ul>
   );
 }
 

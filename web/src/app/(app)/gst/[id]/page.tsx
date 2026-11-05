@@ -63,7 +63,7 @@ async function GstView({ params }: { params: Promise<{ id: string }> }) {
             {"  /  "}
             <Link href={base}>{g.project_name}</Link>
             {"  /  "}
-            <Link href={`${base}/import`}>Import</Link>
+            <Link href={`${base}/import`}>Add files</Link>
           </p>
           <h1>{`${g.form}${g.period_label ? `, ${g.period_label}` : ""}`}</h1>
           <p>{`${g.filename}${g.gstin ? `, for GSTIN ${g.gstin}` : ""}. ${plural(invoices.length, "invoice")} from suppliers.`}</p>
@@ -270,7 +270,7 @@ async function GstView({ params }: { params: Promise<{ id: string }> }) {
                 </label>
               </div>
             </ActionForm>
-            <ActionForm action={applyGst.bind(null, g.id)} label="Bring it in" pendingLabel="Bringing it in" />
+            <ActionForm action={applyGst.bind(null, g.id)} label="Save it" pendingLabel="Saving" />
           </div>
         </section>
       ) : null}

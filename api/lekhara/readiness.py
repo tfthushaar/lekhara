@@ -86,7 +86,7 @@ def readiness(session: Session, project: Project, as_of: date) -> list[Item]:
             f"{len(units)} units, {sold} sold." if units else "No units yet.",
             "Collections, registration and handover, GST on development rights, the "
             "guidance-value check.",
-            "Import units",
+            "Add your units",
             f"{base}/import",
         )
     )
@@ -150,8 +150,8 @@ def readiness(session: Session, project: Project, as_of: date) -> list[Item]:
             "Costs from your accounts",
             LedgerEntry,
             LedgerEntry.entry_date,
-            "Cost incurred and paid, and how much can be withdrawn from the RERA account.",
-            "Import from Tally",
+            "What has been spent, and how much can be drawn from the RERA account.",
+            "Add your Tally file",
             "import",
         ),
         (
@@ -169,7 +169,7 @@ def readiness(session: Session, project: Project, as_of: date) -> list[Item]:
             Receipt,
             Receipt.received_on,
             "Collections, overdue interest and the 70% deposit check.",
-            "Import a bank statement or Tally",
+            "Add a bank statement or Tally file",
             "import",
         ),
         (
@@ -178,7 +178,7 @@ def readiness(session: Session, project: Project, as_of: date) -> list[Item]:
             EscrowTxn,
             EscrowTxn.txn_date,
             "The 70% deposit check and withdrawals.",
-            "Import the RERA account's statement",
+            "Add the RERA account's statement",
             "import",
         ),
     ):

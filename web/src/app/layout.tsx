@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "Lekhara", template: "%s | Lekhara" },
-  description: "Outside obligations for Karnataka real estate projects",
+  description: "Easy software for Karnataka builders: what is due, what you can draw, and what to do next",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

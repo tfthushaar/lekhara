@@ -54,10 +54,8 @@ export function InboundBox({ box, demo }: { box: Inbound; demo?: boolean }) {
       <details className="disclosure">
         <summary>How email works</summary>
         <p className="small muted" style={{ maxWidth: 760 }}>
-          Each file is brought in the way it would be if you uploaded it: statements into collections and the RERA account,
-          Tally exports into the books, a GSTR-2B for checking, sheets into a preview, and everything else into the
-          documents. Mail from your team and from the senders you trust (Settings, Email in) is read at once; anyone
-          else&apos;s waits here until you allow it.
+          Each file is read just as if you had added it here. Mail from your team and from senders you trust is read at
+          once; anyone else&apos;s waits here until you allow it.
         </p>
       </details>
       {attention.length > 0 ? (

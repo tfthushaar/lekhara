@@ -2,10 +2,10 @@
 
 # Lekhara
 
-**What your projects owe, worked out.**
+**If you can use WhatsApp, you can use Lekhara.**
 
-The RERA account, K-RERA filings, tax, registrations and buyer complaints, kept track of for every project.<br>
-For builders in Karnataka. Free for a month. Starting in Bengaluru.
+Easy software for builders in Karnataka. It tells you what to do today on each project, and does the paperwork for it.<br>
+Free for a month. No training, nothing to install. Starting in Bengaluru.
 
 [**Try the demo**](https://lekhara-demo.vercel.app) · [**Watch the video**](https://cdn.jsdelivr.net/gh/tfthushaar/lekhara@site/lekhara.mp4) · [What works today](#what-works-today) · [Pricing](#pricing)
 
@@ -18,13 +18,24 @@ For builders in Karnataka. Free for a month. Starting in Bengaluru.
 </div>
 
 <p align="center">
-  <img src="media/screen-today.jpg" alt="Today: what you can draw from your RERA accounts, what's due this week, and what needs you now" width="49%">
-  <img src="media/screen-rera-account.jpg" alt="The RERA account: how much you can withdraw today, and how Lekhara worked it out" width="49%">
-  <img src="media/screen-krera.jpg" alt="K-RERA: each quarterly update shown as filed, current or late" width="49%">
-  <img src="media/screen-handover.jpg" alt="Handover: where each unit is held up on the way to registration" width="49%">
+  <img src="media/screen-today.jpg" alt="Today: a list of what needs you, each line with the button that does it" width="49%">
+  <img src="media/screen-lead.jpg" alt="A lead: tap to call, note what they said, and the one next step" width="49%">
+  <img src="media/screen-rera-account.jpg" alt="The RERA account: how much you can withdraw today, and one button to start" width="49%">
+  <img src="media/screen-files.jpg" alt="Add files: one box for any file" width="49%">
 </p>
 
 Every project you build owes something to someone: K-RERA, the bank that holds your RERA account, the tax department, your landowners and your buyers. Lekhara keeps track of all of it from the Tally files and bank statements you already have. It tells you what's due and what's late, and prepares the papers, so your architect, engineer and CA only have to check and sign.
+
+## Easy from the first day
+
+Most builders' offices have never used software like this, so we built Lekhara for them.
+
+- **It tells you what to do.** Open it and you see a list of what needs doing today. Each line has one button that does it.
+- **One box for every file.** Tally export, bank statement, GST return, Excel sheet or PDF. Put it in the box and Lekhara works out what it is.
+- **No training and no computer person.** Add a project by uploading its K-RERA certificate, and it fills in the rest.
+- **Works on your phone.** See what's late from the site, tap to call a buyer, and note what they said in one line.
+- **Plain words.** Where a legal term can't be avoided, it's explained beside it.
+- **You can't break anything.** You see every file before it's saved, and you can undo it for 30 days.
 
 ## Your RERA account
 
@@ -59,14 +70,19 @@ Every project you build owes something to someone: K-RERA, the bank that holds y
 - **What an order directs, to the rupee,** the date to comply by, and the last day to appeal with the deposit an appeal needs.
 - **Weigh a settlement against the order** before you agree to it.
 
-## Collections and landowners
+## Buyers
 
+- **Who to call today,** on one list. Adding a lead takes three fields, and the same person coming again from another portal stays one lead. Leads come in from 99acres, MagicBricks, Housing.com, NoBroker and your Facebook and Google ads.
+- **One next step on every lead.** Note what they said, and Lekhara moves the lead along and sets the next call for you.
+- **A cost sheet for any unit:** the price, GST, stamp duty and registration, ready to print, with a warning if a discount takes it below guidance value.
+- **Hold a unit for 48 hours,** then book it in three fields. The booking amount goes in as the first payment and the allotment letter is ready to print.
+- **Channel partners:** their K-RERA registration checked on the day of booking, and their commission worked out with GST and TDS, due once the buyer has paid enough.
 - **Your payment plan** set up in a minute from a standard one, and demand letters that go out when your architect certifies a stage.
 - **Buyers' payments** typed in, imported from your collections register, or matched to their units from your bank statement.
+
+## Landowners and documents
+
 - **Landowners' shares kept straight:** every unit marked as yours or the landowner's, with entitlements, payments and TDS under each joint development agreement.
-
-## Documents
-
 - **Every paper filed against its project, unit, case or approval,** and searchable to the page it's on. Documents file themselves by your own rules, such as "fire NOC" meaning an approval.
 - **Approvals and policies,** with a reminder before each one lapses.
 - **Paper originals** each get a barcode label, so you know whether the title deed is in the safe, with the bank or with the lawyer.
@@ -94,12 +110,11 @@ Every project you build owes something to someone: K-RERA, the bank that holds y
 
 - It doesn't replace your accounting. Tally stays.
 - It never files, signs, submits or pays anything on its own.
-- It doesn't run your site: no labour attendance or site diaries.
 
 ## Coming next
 
 - **Reading documents for you,** including Kannada ones, with a choice to keep all of it inside India.
-- **Sales and bookings,** channel partners, and agreements that are e-stamped and e-signed.
+- **Agreements** that are e-stamped and e-signed.
 - **On WhatsApp:** a buyer portal, and approving bills with the budget and tax position in front of you.
 - **Home-loan disbursements** tracked by bank and milestone.
 - **Contractor bills, site progress from ordinary site photos, snags and the five-year defect liability.**
@@ -117,19 +132,21 @@ One subscription for your whole firm, covering every project and everyone on you
 Lekhara is in development. Everything above "Coming next" works today, and you can try all of it in [the demo](https://lekhara-demo.vercel.app), on a made-up developer with three Bengaluru projects:
 - the RERA account and certificates;
 - K-RERA filings and the tax checks;
+- leads, bookings, cost sheets and channel partners;
 - registration and handover;
 - complaints and orders;
-- collections, landowners and documents;
+- buyers' payments, landowners and documents;
 - bringing data in from Tally, bank statements, email and the GST portal.
 
 We're opening to our first builders in Bengaluru as each part is ready, with other cities in Karnataka to follow.
 
 ## Get started
 
-1. **Sign up** and start your free month. No call with us needed and nothing to install.
-2. **Add your company** from its GSTIN, and each project from its K-RERA certificate.
-3. **Drop in what you already have:** Tally exports, bank statements, your unit list from Excel or your CRM, and your approvals. Each project shows what's in, what's out of date, and where each missing piece comes in.
-4. **Invite your team,** and your architect, engineer and CA, who join free.
+1. **Sign up** and upload your project's K-RERA certificate.
+2. **Add your files:** your Tally export, bank statement and list of units, in the one box.
+3. **Open Lekhara each morning** and do what it says.
+
+Invite your team when you're ready. Your architect, engineer and CA join free.
 
 ---
 

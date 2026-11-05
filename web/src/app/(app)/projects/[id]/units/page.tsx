@@ -125,7 +125,7 @@ async function UnitsView({
         <p className="chips" style={{ alignItems: "center" }}>
           {list.can_import ? (
             <Link href={`/projects/${id}/import`} className="button">
-              Import from Excel
+              Add from Excel
             </Link>
           ) : null}
           <a href={`/download/projects/${id}/exports/units.xlsx`} className="button button-secondary">
@@ -150,7 +150,7 @@ async function UnitsView({
         ) : null}
         {u.units.length === 0 ? (
           <p className="empty" style={{ marginTop: 16 }}>
-            No units yet. Import them from your sales sheet, or add them one by one.
+            No units yet. Add your sales sheet, or type them in one by one.
           </p>
         ) : null}
         {u.units.length > 0 ? (

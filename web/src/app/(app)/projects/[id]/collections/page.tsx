@@ -5,7 +5,7 @@ import { applyPlanTemplate, raiseDemands, savePlan } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { Needs, has, missing } from "@/components/needs";
 import { type Collections, type PaymentPlan, api } from "@/lib/api";
-import { day, inr, pct } from "@/lib/format";
+import { day, inr, pct, plural } from "@/lib/format";
 
 export default function CollectionsPage({ params }: PageProps<"/projects/[id]/collections">) {
   return (
@@ -59,13 +59,13 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
       <section className="section">
         <div className="section-head">
           <h2>Ready to raise</h2>
-          <p>Milestones the latest certified progress has reached</p>
+          <p>Stages the work has reached</p>
         </div>
         {c.ready.length === 0 ? (
           <p className="empty">
             {canRaise
               ? "Every milestone reached so far has been demanded."
-              : "Demands are ready to raise once the units, the payment plan and certified progress are in."}
+              : "Demands can be raised once the units, the payment plan and the architect&apos;s progress are in."}
           </p>
         ) : (
           <ul className="rows">
@@ -77,7 +77,7 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
                 <div>
                   <p className="row-title">{r.name}</p>
                   <p className="row-detail">
-                    {r.reason} {r.units} booked units, {inr(r.amount)} plus GST of {inr(r.gst)}.
+                    {r.reason} {plural(r.units, "booked unit")}, {inr(r.amount)} plus GST of {inr(r.gst)}.
                   </p>
                 </div>
                 <div className="row-side">
@@ -87,7 +87,7 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
                     <div style={{ marginTop: 8 }}>
                       <ActionForm
                         action={raiseDemands.bind(null, id, r.milestone_id)}
-                        label={`Raise demands for ${r.units} units`}
+                        label={`Raise demands for ${plural(r.units, "unit")}`}
                         pendingLabel="Raising the demands"
                       />
                     </div>
@@ -140,7 +140,9 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
         )}
       </section>
 
-      <section className="section">
+      <details className="disclosure">
+<summary>Payment plan</summary>
+<section className="section">
         <div className="section-head">
           <h2>Payment plan</h2>
           <p>Each milestone is a share of the agreement value</p>
@@ -168,7 +170,7 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
                     {ready ? (
                       <span className="tag tag-opportunity">Ready to raise</span>
                     ) : m.raised_units > 0 ? (
-                      `Raised for ${m.raised_units} units`
+                      `Raised for ${plural(m.raised_units, "unit")}`
                     ) : (
                       <span className="muted">Not reached</span>
                     )}
@@ -180,9 +182,12 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
           </tbody>
         </table>
       </section>
+</details>
 
       {paymentsIn ? (
-      <section className="section">
+      <details className="disclosure">
+<summary>The 70% rule: what must go into the RERA account</summary>
+<section className="section">
         <div className="section-head">
           <h2>Deposits against the 70% rule</h2>
           <p>At each month end, was 70% of everything buyers paid in the RERA account?</p>
@@ -212,6 +217,7 @@ async function CollectionsView({ params }: { params: Promise<{ id: string }> }) 
           </tbody>
         </table>
       </section>
+</details>
       ) : null}
 
       <section className="section">

@@ -7,7 +7,7 @@ import { day, inr, pct, relative } from "@/lib/format";
 
 export default function TaxPage({ params }: PageProps<"/projects/[id]/tax">) {
   return (
-    <Suspense fallback={<p className="loading">Working out tax and statutory exposure</p>}>
+    <Suspense fallback={<p className="loading">Working out your tax</p>}>
       <TaxView params={params} />
     </Suspense>
   );
@@ -28,14 +28,16 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
   return (
     <>
       <Needs items={missing(setup, ["bills", "costs", "receipts"])} purpose="For the tax checks" />
-      <p className="muted small" style={{ marginBottom: 24 }}>
-        GST regime: {t.regime}. Rates come from the Karnataka rules pack; some are marked for your
-        CA to confirm. <Link href="/rules">See the rules</Link>
+      <p className="small muted" style={{ marginBottom: 12 }}>
+        {`${t.regime}. Your CA should confirm the rates marked on `}
+        <Link href="/rules">the rules page</Link>.
       </p>
 
-      <div className="grid-2">
+      <div>
         {p.applies && !billsIn ? (
-          <div className="card">
+          <details className="disclosure">
+<summary>{`Bought from GST-registered suppliers: no bills yet`}</summary>
+<div className="card">
             <h2>Registered suppliers, FY {p.fy}</h2>
             <p className="hero-value">No bills yet</p>
             <p>
@@ -43,9 +45,12 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
               Add suppliers&apos; bills, or bring them in from Tally, to track it.
             </p>
           </div>
+</details>
         ) : null}
         {p.applies && billsIn ? (
-          <div className="card">
+          <details className="disclosure" open={Number(p.shortfall) > 0}>
+<summary>{`Bought from GST-registered suppliers: ${pct(p.registered_share_pct)}, at least ${pct(p.min_share_pct)} needed`}</summary>
+<div className="card">
             <h2>Registered suppliers, FY {p.fy}</h2>
             <p className="hero-value">{pct(p.registered_share_pct)}</p>
             <div className="meter" aria-hidden="true">
@@ -75,10 +80,13 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
               </p>
             ) : null}
           </div>
+</details>
         ) : null}
 
         {dr.applies ? (
-          <div className="card">
+          <details className="disclosure">
+<summary>{`GST on development rights: ${inr(dr.liability)} if the project finished today`}</summary>
+<div className="card">
             <h2>GST on development rights</h2>
             <p className="stat-label" style={{ marginTop: 12 }}>
               Payable in cash if completion were today
@@ -103,9 +111,12 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
               </li>
             </ul>
           </div>
+</details>
         ) : null}
 
-        <div className="card">
+        <details className="disclosure" open={t.delay.days_late > 0}>
+<summary>{`Delay interest owed to buyers: ${t.delay.days_late > 0 ? inr(t.delay.accrued) : "none so far"}`}</summary>
+<div className="card">
           <h2>Delay interest owed to buyers</h2>
           {t.delay.days_late > 0 ? (
             <>
@@ -141,8 +152,11 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
             At {pct(t.delay.annual_rate_pct)} a year, simple interest.
           </p>
         </div>
+</details>
 
-        <div className="card">
+        <details className="disclosure">
+<summary>{`Labour cess still to pay: ${costsIn ? inr(t.cess.balance_due) || "₹0" : "not known yet"}`}</summary>
+<div className="card">
           <h2>Labour cess</h2>
           <p className="stat-label" style={{ marginTop: 12 }}>
             Still to pay on construction to date
@@ -157,12 +171,15 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
               </p>
             </>
           ) : (
-            <p>1% of construction cost. Bring in your costs to see what is due.</p>
+            <p>1% of construction cost. Add your Tally file to see what is due.</p>
           )}
         </div>
+</details>
       </div>
 
-      <section className="section">
+      <details className="disclosure" open={t.guidance.length > 0}>
+<summary>{`Sales below guidance value (${t.guidance.length})`}</summary>
+<section className="section">
         <div className="section-head">
           <h2>Sales below guidance value</h2>
           <p>More than 10% below guidance value, the gap may be taxed as income</p>
@@ -196,8 +213,11 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
           </table>
         )}
       </section>
+</details>
 
-      <section className="section">
+      <details className="disclosure">
+<summary>{`Small suppliers you must pay within 45 days (${t.msme.length})`}</summary>
+<section className="section">
         <div className="section-head">
           <h2>MSME suppliers</h2>
           <p>Pay micro and small suppliers within 45 days, or 15 without an agreement, to keep the deduction</p>
@@ -236,8 +256,11 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
           </table>
         )}
       </section>
+</details>
 
-      <section className="section">
+      <details className="disclosure">
+<summary>{`TDS on payments to landowners (${t.landowner_tds.length})`}</summary>
+<section className="section">
         <div className="section-head">
           <h2>TDS on payments to landowners</h2>
           <p>10% applies to money paid under a joint development agreement</p>
@@ -271,6 +294,7 @@ async function TaxView({ params }: { params: Promise<{ id: string }> }) {
           </table>
         )}
       </section>
+</details>
     </>
   );
 }

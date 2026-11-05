@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-11-06, with the commit "Make Lekhara easy to use: fewer places, one box for files, and Sales".
+Last updated: 2026-11-06, with the commit "Rework every screen for people new to software".
 
 ## What we are building
 
@@ -376,10 +376,17 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - Today is one list of what to do, each with the button that does it. Money you can draw sits under it, and later items are folded away. Overview starts with what needs doing; the cost tables are one click down.
   - One box takes any file: a Tally export, bank statement, GST return, Excel sheet or PDF. Lekhara works out what it is and opens the right preview. Eleven upload forms became one, with one more for a sheet it can't place.
   - Larger text, bigger buttons and fields, and a phone layout where nothing is cut off. On phones the main menu had been squeezed out entirely in the demo; it now has its own row.
+- Easy to use, second stage:
+  - Settings starts with your team; everything else is one line each, down from 21 visible forms.
+  - A unit's page starts with its payments and next step. A withdrawal starts with its next step, and shows only the checks that need a look.
+  - Tax is one plain line for each check, opening by itself when something is wrong. The RERA account is the amount and one button. Documents starts with what is missing.
+  - Adding a project starts from its K-RERA certificate, with four details to type if it isn't to hand.
+  - Plain words across the product and in the messages the server writes: no vault, exposure, commitments or cost incurred. The wording on certificates stays as the law has it. "1 units" is fixed.
+  - The website and README now lead with ease of use. Tested: 381 API tests, a walk through the real pages, and phone-width checks of every reworked page.
 
 ## In progress
 
-- Making every screen easy to use, for people who have never used a software tool (decision 37): Settings, the unit page, Documents, Payments, the withdrawal, the rest of the tabs, then the words used across the product.
+- Nothing half-built. A real builder's office still has to try it: the test of all this is someone who has never used a tool like it getting through their first day alone.
 
 ## Next: the expanded software
 

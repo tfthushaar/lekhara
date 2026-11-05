@@ -37,7 +37,7 @@ async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
         </div>
       ) : null}
 
-      <div className="grid-2">
+      <div>
         <div>
           <p className="stat-label">You can withdraw today</p>
           <p className="hero-value">{known ? inr(e.drawable_now) : "Not known yet"}</p>
@@ -58,13 +58,13 @@ async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
           ) : null}
           {!open && drawable <= 0 && e.can_start && known ? (
             <p className="muted" style={{ marginTop: 24 }}>
-              Nothing can be drawn until more cost is incurred or more is deposited.
+              Nothing can be drawn until more has been spent or deposited.
             </p>
           ) : null}
         </div>
 
-        <div>
-          <h2 style={{ marginBottom: 8 }}>How Lekhara worked this out</h2>
+        <details className="disclosure" style={{ marginTop: 24 }}>
+          <summary>How this was worked out</summary>
           <ul className="calc">
             {e.steps.map((s) => (
               <li key={s.label}>
@@ -77,10 +77,12 @@ async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
               <span className="num">{inr(e.drawable_now)}</span>
             </li>
           </ul>
-        </div>
+        </details>
       </div>
 
-      <section className="section">
+      <details className="disclosure" open={Number(e.deposits.shortfall) > 0}>
+<summary>{`Deposits${Number(e.deposits.shortfall) > 0 ? `: ${inr(e.deposits.shortfall)} still to put in` : ""}`}</summary>
+<section className="section">
         <div className="section-head">
           <h2>Deposits</h2>
           <p>{e.deposits.deposit_share_pct}% of what buyers pay must go into the RERA account</p>
@@ -112,6 +114,7 @@ async function EscrowView({ params }: { params: Promise<{ id: string }> }) {
           </li>
         </ul>
       </section>
+</details>
 
       <section className="section">
         <div className="section-head">

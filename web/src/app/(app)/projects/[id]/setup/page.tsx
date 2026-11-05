@@ -57,7 +57,7 @@ async function SetupView({ params }: { params: Promise<{ id: string }> }) {
         <>
           <section className="section" id="progress">
             <div className="section-head">
-              <h2>Certified progress</h2>
+              <h2>Work done so far</h2>
               <p>From the architect&apos;s or engineer&apos;s latest certificate of completion</p>
             </div>
             <div style={{ maxWidth: 880, marginTop: 12 }}>

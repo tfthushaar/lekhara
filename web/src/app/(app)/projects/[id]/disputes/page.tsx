@@ -162,7 +162,9 @@ function CaseTable({ cases }: { cases: Disputes["cases"] }) {
 function PatternsSection({ r }: { r: Disputes }) {
   const p = r.patterns;
   return (
-    <section className="section">
+    <details className="disclosure">
+<summary>Patterns across cases</summary>
+<section className="section">
       <div className="section-head">
         <h2>Patterns</h2>
         <p>Where complaints come from, to deal with the cause and not only the case</p>
@@ -196,6 +198,7 @@ function PatternsSection({ r }: { r: Disputes }) {
         ))}
       </ul>
     </section>
+</details>
   );
 }
 

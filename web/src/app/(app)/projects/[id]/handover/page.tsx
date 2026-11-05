@@ -152,7 +152,9 @@ async function HandoverView({ params }: { params: Promise<{ id: string }> }) {
 function Association({ h, projectId }: { h: Handover; projectId: string }) {
   const done = h.association.filter((i) => i.done_on).length;
   return (
-    <section className="section">
+    <details className="disclosure">
+<summary>Handing over to the residents&apos; association</summary>
+<section className="section">
       <div className="section-head">
         <h2>Handing over to the residents&apos; association</h2>
         <p>{`${done} of ${h.association.length} done`}</p>
@@ -193,5 +195,6 @@ function Association({ h, projectId }: { h: Handover; projectId: string }) {
         ))}
       </ul>
     </section>
+</details>
   );
 }

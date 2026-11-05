@@ -261,3 +261,15 @@ Review the generated file, then run the tests: `test_migrations.py` fails if the
 - **Rules are data.** Every statutory rate, threshold and deadline lives in the versioned rules pack with its legal basis and source quality, never as a literal in an engine.
 - **Design:** minimal and monochrome. No emojis, no icons or symbols in the branding, text wordmark only. State is shown with weight, borders and words, not colour.
 - **Commits:** update `status.md` in every commit. Do not add AI co-author trailers.
+
+## Screens are for people new to software
+
+Ease of use is Lekhara's selling point (decision 37 in the planning notes), so every screen, new or old, follows these rules:
+
+- One job on a screen, and one obvious next step. Reference material goes in a `details.disclosure`, which also hides a nested section's own heading.
+- The fewest fields. Everything else gets a default or goes under "More details".
+- Record what happened and let the code move the work along. Nobody manages a stage or an approval by hand; see `sales.log_activity` and `sales.record_visit`.
+- A project has five places (`GROUPS` in `components/nav.tsx`); new pages join one of them.
+- Files go through one box: `inbound.sort_upload` works out what a file is, using the same sorting as email.
+- Text stays at 14px or above, and fields and buttons are at least 44px tall. Check every page at 390px wide.
+- Legal wording stays on certificates, where the signer certifies it. Everywhere else, use plain words.

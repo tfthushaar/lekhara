@@ -19,14 +19,14 @@ import { day, plural } from "@/lib/format";
 
 export default function DocumentsPage({ params, searchParams }: PageProps<"/projects/[id]/documents">) {
   return (
-    <Suspense fallback={<p className="loading">Opening the vault</p>}>
+    <Suspense fallback={<p className="loading">Opening your documents</p>}>
       <VaultView params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
 const STATUS: Record<ChecklistRow["status"], { label: string; className: string }> = {
-  held: { label: "In the vault", className: "tag tag-done" },
+  held: { label: "Saved", className: "tag tag-done" },
   missing: { label: "Missing", className: "tag tag-fail" },
   expiring: { label: "Expires soon", className: "tag tag-soon" },
   expired: { label: "Lapsed", className: "tag tag-overdue" },
@@ -66,28 +66,16 @@ async function VaultView({
 
   return (
     <>
-      <div className="stats">
-        <div className="stat">
-          <p className="stat-label">In the vault</p>
-          <p className="stat-value">{s.documents}</p>
-          <p className="stat-note">Latest versions; older ones are kept</p>
-        </div>
-        <div className="stat">
-          <p className="stat-label">Missing</p>
-          <p className="stat-value">{s.missing}</p>
-          <p className="stat-note">From the checklist below</p>
-        </div>
-        <div className="stat">
-          <p className="stat-label">About to lapse</p>
-          <p className="stat-value">{s.expiring}</p>
-          <p className="stat-note">Expired, or expiring within {r.notice_days} days</p>
-        </div>
-        <div className="stat">
-          <p className="stat-label">Data rooms open</p>
-          <p className="stat-value">{s.rooms_open}</p>
-          <p className="stat-note">Shared with lenders or investors</p>
-        </div>
-      </div>
+      <p className="status-line">
+        {s.missing || s.expiring
+          ? `${s.missing} missing, ${s.expiring} about to run out, from ${s.documents} saved.`
+          : `All ${s.documents} documents are in order.`}
+      </p>
+      <p style={{ marginBottom: 8 }}>
+        <Link href={`/projects/${id}/import`} className="button">
+          Add a document
+        </Link>
+      </p>
 
       <section className="section">
         <form action={base} method="get" role="search" className="inline-form">
@@ -115,7 +103,9 @@ async function VaultView({
       </section>
 
       {r.records.length > 0 ? (
-        <section className="section">
+        <details className="disclosure">
+<summary>Missing for each unit, case and withdrawal</summary>
+<section className="section">
           <div className="section-head">
             <h2>For each unit, case and withdrawal</h2>
             <p>File these from the unit, case or withdrawal they belong to</p>
@@ -146,9 +136,12 @@ async function VaultView({
             ))}
           </ul>
         </section>
+</details>
       ) : null}
 
-      <section className="section">
+      <details className="disclosure" open={Boolean(category)}>
+<summary>{`All documents (${s.documents})`}</summary>
+<section className="section">
         <div className="section-head">
           <h2>All documents</h2>
           <p>The latest version of each</p>
@@ -203,7 +196,7 @@ async function VaultView({
         {r.can_edit ? (
           <details className="disclosure">
             <summary>Add a document</summary>
-            <ActionForm action={uploadDocument.bind(null, id)} label="Add to the vault" pendingLabel="Uploading">
+            <ActionForm action={uploadDocument.bind(null, id)} label="Add the document" pendingLabel="Uploading">
               <input type="hidden" name="then" value="open" />
               <div className="field-grid">
                 <FileField id="general-file" />
@@ -223,9 +216,13 @@ async function VaultView({
           </details>
         ) : null}
       </section>
+</details>
 
       <Suspense fallback={null}>
-        <OriginalsSection projectId={id} />
+        <details className="disclosure">
+          <summary>Where the paper originals are</summary>
+          <OriginalsSection projectId={id} />
+        </details>
       </Suspense>
 
       {r.can_edit ? (
@@ -243,7 +240,9 @@ async function VaultView({
 async function FilingRules() {
   const f = await api.filingRules();
   return (
-    <section className="section">
+    <details className="disclosure">
+<summary>How documents get filed</summary>
+<section className="section">
       <div className="section-head">
         <h2>Filing rules</h2>
         <p>For every project: words that say what kind of document something is</p>
@@ -344,6 +343,7 @@ async function FilingRules() {
         </details>
       ) : null}
     </section>
+</details>
   );
 }
 
@@ -411,7 +411,7 @@ function ChecklistItem({ item, r, projectId }: { item: ChecklistRow; r: Document
           <>
             <details className="disclosure">
               <summary>Add it</summary>
-              <ActionForm action={uploadDocument.bind(null, projectId)} label="Add to the vault" pendingLabel="Uploading">
+              <ActionForm action={uploadDocument.bind(null, projectId)} label="Add the document" pendingLabel="Uploading">
                 <input type="hidden" name="requirement" value={item.key} />
                 <input type="hidden" name="category" value={item.category} />
                 <div className="field-grid">
@@ -465,7 +465,9 @@ function ChecklistItem({ item, r, projectId }: { item: ChecklistRow; r: Document
 
 function RoomsSection({ r, projectId }: { r: DocumentsView; projectId: string }) {
   return (
-    <section className="section">
+    <details className="disclosure">
+<summary>Share documents with a lender or investor</summary>
+<section className="section">
       <div className="section-head">
         <h2>Data rooms</h2>
         <p>Share chosen documents with a lender or investor through a link that closes on a date</p>
@@ -564,5 +566,6 @@ function RoomsSection({ r, projectId }: { r: DocumentsView; projectId: string })
         </details>
       ) : null}
     </section>
+</details>
   );
 }

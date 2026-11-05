@@ -5,15 +5,15 @@ import { Suspense } from "react";
 import { type ReviewQueue, api } from "@/lib/api";
 import { moment, plural } from "@/lib/format";
 
-export const metadata: Metadata = { title: "To review" };
+export const metadata: Metadata = { title: "Files waiting for you" };
 
 export default function ReviewPage() {
   return (
     <>
       <div className="page-head">
         <div>
-          <h1>To review</h1>
-          <p>Everything brought in that waits for a choice from you, oldest first</p>
+          <h1>Files waiting for you</h1>
+          <p>Each one needs a quick choice from you.</p>
         </div>
       </div>
       <Suspense fallback={<p className="loading">Gathering what waits</p>}>
@@ -34,7 +34,7 @@ const KIND: Record<ReviewQueue["items"][number]["kind"], string> = {
 async function ReviewView() {
   const q = await api.review();
   if (q.count === 0) {
-    return <p className="empty">Nothing waits for you. Imports and email that need no choice come in by themselves.</p>;
+    return <p className="empty">Nothing is waiting for you.</p>;
   }
   const projects = [...new Set(q.items.map((i) => i.project_name))];
   return (

@@ -242,12 +242,14 @@ def check_request(
                 "amount",
                 CheckStatus.PASS,
                 "Amount is within what can be drawn",
-                "The amount requested is covered by cost incurred and the account balance.",
+                "The amount asked for is covered by what has been spent and the account balance.",
             )
         )
     else:
         reason = (
-            "the account balance" if escrow.limited_by == LimitedBy.BALANCE else "cost incurred"
+            "the account balance"
+            if escrow.limited_by == LimitedBy.BALANCE
+            else "what has been spent"
         )
         checks.append(
             Check(
@@ -343,7 +345,7 @@ def check_request(
                 "ca_covers_request",
                 CheckStatus.FAIL,
                 "CA's withdrawable amount is more than can be drawn",
-                "The certified amount is above what cost incurred and the balance allow.",
+                "The certified amount is more than spending and the balance allow.",
             )
         )
     else:
@@ -361,7 +363,7 @@ def check_request(
             Check(
                 "progress_matches_cost",
                 CheckStatus.PENDING,
-                "Progress and cost tell the same story",
+                "Spending and the work done match",
                 "Waiting for the architect's completion figure.",
             )
         )
@@ -372,10 +374,10 @@ def check_request(
                 Check(
                     "progress_matches_cost",
                     CheckStatus.WARN,
-                    "Cost is running ahead of certified progress",
-                    f"{money.development_incurred_pct}% of development cost is incurred against "
-                    f"{architect.completion_pct}% completion. Expect questions from the bank and "
-                    "the K-RERA auditor; keep an explanation ready.",
+                    "Spending is ahead of the work done",
+                    f"{money.development_incurred_pct}% of the cost is spent, but the work is "
+                    f"{architect.completion_pct}% done. The bank or K-RERA auditor may ask why; "
+                    "keep an answer ready.",
                 )
             )
         else:
@@ -383,8 +385,8 @@ def check_request(
                 Check(
                     "progress_matches_cost",
                     CheckStatus.PASS,
-                    "Progress and cost tell the same story",
-                    "Certified completion and cost incurred are in line.",
+                    "Spending and the work done match",
+                    "What has been spent is in line with the work done.",
                 )
             )
 

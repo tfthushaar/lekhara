@@ -109,7 +109,7 @@ export async function LinkedDocuments({
           <summary>Add a document</summary>
           <ActionForm
             action={uploadDocument.bind(null, r.project_id)}
-            label="Add to the vault"
+            label="Add the document"
             pendingLabel="Uploading"
           >
             <input type="hidden" name="link_type" value={linkType} />

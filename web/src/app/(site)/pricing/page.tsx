@@ -11,17 +11,18 @@ export const metadata: Metadata = {
 };
 
 const INCLUDED = [
-  "Escrow withdrawals, with the architect's, engineer's and CA's certificates",
+  "RERA account withdrawals, with the architect's, engineer's and CA's certificates",
   "K-RERA deadlines, quarterly report figures and annual audit packs",
   "The real-estate tax checks: the 80% test, development rights, guidance value, TDS, labour cess, MSME",
-  "Collections: payment plans, demand letters and the 70% deposit check",
+  "Leads, site visits, cost sheets, bookings and channel partners",
+  "Buyers' payments, demand letters and the 70% deposit check",
   "Registration, possession letters and the handover to the residents' association",
   "Disputes, hearings and orders",
   "Landowners and joint development agreements",
   "Suppliers, bills and work orders",
   "Approvals, with reminders before they lapse",
-  "The document vault, and data rooms for lenders",
-  "Imports from Tally, bank statements, your CRM and the GST portal, and the Tally connector",
+  "All your documents in one place, and safe sharing with lenders",
+  "One box for every file: Tally, bank statements, GST returns and Excel",
   "Every list in Excel, and your whole workspace in one download",
 ];
 

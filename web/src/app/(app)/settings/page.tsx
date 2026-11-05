@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import {
@@ -39,7 +40,7 @@ export default function SettingsPage() {
       <div className="page-head">
         <div>
           <h1>Settings</h1>
-          <p>Your firm, your team and your subscription.</p>
+          <p>Your team and your firm.</p>
         </div>
       </div>
       <Suspense fallback={<p className="loading">Loading your firm</p>}>
@@ -62,106 +63,6 @@ async function SettingsView() {
   const f = await api.firm();
   return (
     <>
-      <section className="section">
-        <div className="section-head">
-          <h2>Subscription</h2>
-          <p>One subscription for the whole firm: every project and everyone on your team</p>
-        </div>
-        <p className="status-line" style={{ marginTop: 16 }}>
-          {accessLine(f)}
-        </p>
-        {!f.is_sample && f.access !== "active" ? (
-          <p className="small muted" style={{ maxWidth: 640 }}>
-            Subscriptions through Razorpay (UPI AutoPay, card or bank mandate, with a GST invoice)
-            open shortly. Your data stays in place when you subscribe; nothing needs setting up
-            again.
-          </p>
-        ) : null}
-      </section>
-
-      <section className="section">
-        <div className="section-head">
-          <h2>Your data</h2>
-          <p>Everything your firm has in Lekhara, in one file, at any time</p>
-        </div>
-        <p className="small muted" style={{ maxWidth: 640, marginTop: 16 }}>
-          A ZIP file with an Excel workbook (a sheet for every kind of record), the same records as
-          JSON for another system, and every document in the vault, every version. It stays open
-          even if the subscription lapses.
-        </p>
-        {f.can_manage ? (
-          // A file from a route handler, not a page: a plain link, so the browser downloads it.
-          // eslint-disable-next-line @next/next/no-html-link-for-pages
-          <a href="/download/organization/export" className="button button-secondary">
-            Download everything
-          </a>
-        ) : (
-          <p className="small">The owner or finance can download it.</p>
-        )}
-      </section>
-
-      <YourAccount f={f} />
-
-      {!f.is_sample ? (
-        <Suspense fallback={<p className="loading">Loading support access</p>}>
-          <SupportAccess />
-        </Suspense>
-      ) : null}
-
-      <Suspense fallback={<p className="loading">Loading email settings</p>}>
-        <EmailIn />
-      </Suspense>
-
-      <section className="section">
-        <div className="section-head">
-          <h2>Your firm</h2>
-          <p>Printed on demand letters, packs and invoices</p>
-        </div>
-        {f.is_owner ? (
-          <ActionForm action={updateFirm} label="Save" pendingLabel="Saving" secondary>
-            <div className="field-grid" style={{ marginTop: 16 }}>
-              <div className="field">
-                <label htmlFor="firm-name">Name</label>
-                <input id="firm-name" name="name" defaultValue={f.name} required />
-              </div>
-              <div className="field">
-                <label htmlFor="legal-name">Legal name</label>
-                <input id="legal-name" name="legal_name" defaultValue={f.legal_name ?? ""} placeholder="As registered" />
-              </div>
-              <div className="field">
-                <label htmlFor="gstin">GSTIN</label>
-                <input id="gstin" name="gstin" defaultValue={f.gstin ?? ""} placeholder="29ABCDE1234F1Z5" />
-              </div>
-            </div>
-          </ActionForm>
-        ) : (
-          <ul className="calc" style={{ marginTop: 12, maxWidth: 640 }}>
-            <li>
-              <span className="muted">Name</span>
-              <span>{f.name}</span>
-            </li>
-            <li>
-              <span className="muted">Legal name</span>
-              <span>{f.legal_name ?? "Not entered"}</span>
-            </li>
-            <li>
-              <span className="muted">GSTIN</span>
-              <span>{f.gstin ?? "Not entered"}</span>
-            </li>
-          </ul>
-        )}
-        {f.gstin ? (
-          <p className="small muted">
-            {`From the GSTIN: ${[f.constitution, f.state ? `registered in ${f.state}` : null, f.pan ? `PAN ${f.pan}` : null]
-              .filter(Boolean)
-              .join(", ")}.`}
-            {f.legal_name ? "" : " The legal name is on your GST certificate; enter it above."}
-          </p>
-        ) : (
-          <p className="small muted">Your GSTIN goes on the packs and letters Lekhara prepares, and fills in your state and PAN.</p>
-        )}
-      </section>
-
       <section className="section">
         <div className="section-head">
           <h2>Your team</h2>
@@ -210,41 +111,6 @@ async function SettingsView() {
             ))}
           </tbody>
         </table>
-      </section>
-
-      <section className="section">
-        <div className="section-head">
-          <h2>Certifiers</h2>
-          <p>Architects, engineers and CAs. They see only the projects they certify, and join free.</p>
-        </div>
-        {f.certifiers.length === 0 ? (
-          <p className="empty">No certifier has joined yet.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Firm</th>
-                <th>Projects</th>
-              </tr>
-            </thead>
-            <tbody>
-              {f.certifiers.map((c) => (
-                <tr key={`${c.user_id}-${c.role_label}`}>
-                  <td>
-                    {c.name}
-                    <br />
-                    <span className="small muted">{c.email}</span>
-                  </td>
-                  <td>{c.role_label}</td>
-                  <td>{c.firm}</td>
-                  <td>{c.projects.join(", ")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
       </section>
 
       {f.can_manage ? (
@@ -313,6 +179,155 @@ async function SettingsView() {
           </ActionForm>
         </section>
       ) : null}
+      <section className="section">
+        <p className="status-line">{accessLine(f)}</p>
+        {!f.is_sample && f.access !== "active" ? (
+          <p className="small muted" style={{ maxWidth: 640 }}>
+            Subscribing opens shortly. Everything you have added stays as it is.
+          </p>
+        ) : null}
+        <details className="disclosure">
+          <summary>Your firm&apos;s name and GSTIN</summary>
+      <section className="section">
+        <div className="section-head">
+          <h2>Your firm</h2>
+          <p>Printed on demand letters, packs and invoices</p>
+        </div>
+        {f.is_owner ? (
+          <ActionForm action={updateFirm} label="Save" pendingLabel="Saving" secondary>
+            <div className="field-grid" style={{ marginTop: 16 }}>
+              <div className="field">
+                <label htmlFor="firm-name">Name</label>
+                <input id="firm-name" name="name" defaultValue={f.name} required />
+              </div>
+              <div className="field">
+                <label htmlFor="legal-name">Legal name</label>
+                <input id="legal-name" name="legal_name" defaultValue={f.legal_name ?? ""} placeholder="As registered" />
+              </div>
+              <div className="field">
+                <label htmlFor="gstin">GSTIN</label>
+                <input id="gstin" name="gstin" defaultValue={f.gstin ?? ""} placeholder="29ABCDE1234F1Z5" />
+              </div>
+            </div>
+          </ActionForm>
+        ) : (
+          <ul className="calc" style={{ marginTop: 12, maxWidth: 640 }}>
+            <li>
+              <span className="muted">Name</span>
+              <span>{f.name}</span>
+            </li>
+            <li>
+              <span className="muted">Legal name</span>
+              <span>{f.legal_name ?? "Not entered"}</span>
+            </li>
+            <li>
+              <span className="muted">GSTIN</span>
+              <span>{f.gstin ?? "Not entered"}</span>
+            </li>
+          </ul>
+        )}
+        {f.gstin ? (
+          <p className="small muted">
+            {`From the GSTIN: ${[f.constitution, f.state ? `registered in ${f.state}` : null, f.pan ? `PAN ${f.pan}` : null]
+              .filter(Boolean)
+              .join(", ")}.`}
+            {f.legal_name ? "" : " The legal name is on your GST certificate; enter it above."}
+          </p>
+        ) : (
+          <p className="small muted">Your GSTIN goes on the packs and letters Lekhara prepares, and fills in your state and PAN.</p>
+        )}
+      </section>
+
+        </details>
+        <details className="disclosure">
+          <summary>{`Architects, engineers and CAs (${f.certifiers.length})`}</summary>
+      <section className="section">
+        <div className="section-head">
+          <h2>Certifiers</h2>
+          <p>Architects, engineers and CAs. They see only the projects they certify, and join free.</p>
+        </div>
+        {f.certifiers.length === 0 ? (
+          <p className="empty">No certifier has joined yet.</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Firm</th>
+                <th>Projects</th>
+              </tr>
+            </thead>
+            <tbody>
+              {f.certifiers.map((c) => (
+                <tr key={`${c.user_id}-${c.role_label}`}>
+                  <td>
+                    {c.name}
+                    <br />
+                    <span className="small muted">{c.email}</span>
+                  </td>
+                  <td>{c.role_label}</td>
+                  <td>{c.firm}</td>
+                  <td>{c.projects.join(", ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+        </details>
+        <details className="disclosure">
+          <summary>Download all your data</summary>
+      <section className="section">
+        <div className="section-head">
+          <h2>Your data</h2>
+          <p>Everything your firm has in Lekhara, in one file, at any time</p>
+        </div>
+        <p className="small muted" style={{ maxWidth: 640, marginTop: 16 }}>
+          A ZIP file with an Excel workbook (a sheet for every kind of record), the same records as
+          JSON for another system, and every document, every version. It stays open
+          even if the subscription lapses.
+        </p>
+        {f.can_manage ? (
+          // A file from a route handler, not a page: a plain link, so the browser downloads it.
+          // eslint-disable-next-line @next/next/no-html-link-for-pages
+          <a href="/download/organization/export" className="button button-secondary">
+            Download everything
+          </a>
+        ) : (
+          <p className="small">The owner or finance can download it.</p>
+        )}
+      </section>
+
+        </details>
+        <details className="disclosure">
+          <summary>Keeping your account safe</summary>
+      <YourAccount f={f} />
+        </details>
+        <details className="disclosure">
+          <summary>Files sent by email</summary>
+      <Suspense fallback={<p className="loading">Loading email settings</p>}>
+        <EmailIn />
+      </Suspense>
+
+        </details>
+        {!f.is_sample ? (
+          <details className="disclosure">
+            <summary>Let Lekhara support help you</summary>
+
+      {!f.is_sample ? (
+        <Suspense fallback={<p className="loading">Loading support access</p>}>
+          <SupportAccess />
+        </Suspense>
+      ) : null}
+
+          </details>
+        ) : null}
+        <p style={{ marginTop: 16 }}>
+          <Link href="/rules">The rates and rules Lekhara uses</Link>
+        </p>
+      </section>
     </>
   );
 }
@@ -323,7 +338,7 @@ async function EmailIn() {
     <section className="section">
       <div className="section-head">
         <h2>Email in</h2>
-        <p>Each project has its own address, shown on its Import page; these settings cover them all</p>
+        <p>Each project has its own address, on its Add files page.</p>
       </div>
       <div className="field-grid" style={{ marginTop: 12 }}>
         <div>

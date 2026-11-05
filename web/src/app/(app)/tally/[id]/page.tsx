@@ -51,7 +51,7 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
             {"  /  "}
             <Link href={base}>{t.project_name}</Link>
             {"  /  "}
-            <Link href={`${base}/import`}>Import</Link>
+            <Link href={`${base}/import`}>Add files</Link>
           </p>
           <h1>{t.filename}</h1>
           <p>
@@ -94,7 +94,7 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
 
       <div className="stats" style={{ marginTop: 24 }}>
         <div className="stat">
-          <p className="stat-label">Cost incurred</p>
+          <p className="stat-label">Costs</p>
           <p className="stat-value">{inr(t.money.counts.incurred)}</p>
           <p className="stat-note">
             {Number(t.money.counts.unmapped_spend) > 0
@@ -257,7 +257,7 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
 
       {t.status === "review" && t.can_edit ? (
         <section className="section">
-          <ActionForm action={applyTally.bind(null, t.id)} label="Bring it in" pendingLabel="Bringing it in">
+          <ActionForm action={applyTally.bind(null, t.id)} label="Save it" pendingLabel="Saving">
             <p style={{ marginBottom: 12, maxWidth: 720 }}>
               {waiting.length > 0
                 ? `Payments from ${plural(waiting.length, "buyer")} without a unit wait; everything else comes in now. You can import the same file again later for them.`
@@ -269,7 +269,7 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
 
       {t.can_apply_rest ? (
         <section className="section">
-          <ActionForm action={applyTally.bind(null, t.id)} label="Bring in the rest" pendingLabel="Bringing it in">
+          <ActionForm action={applyTally.bind(null, t.id)} label="Save the rest" pendingLabel="Saving">
             <p style={{ marginBottom: 12, maxWidth: 720 }}>
               What your choices have freed since this export came in can come in now; the rest is already in.
             </p>
