@@ -5,6 +5,7 @@
 // loaded still shows its error or result.
 
 import * as handlers from "@/app/form-handlers";
+import * as sales from "@/app/sales-handlers";
 import { settled } from "@/lib/settle";
 
 export type { ActionState } from "@/app/form-handlers";
@@ -19,6 +20,8 @@ export const updateUnit = settled(handlers.updateUnit);
 export const markUnsold = settled(handlers.markUnsold);
 export const deleteUnit = settled(handlers.deleteUnit);
 export const startImport = settled(handlers.startImport);
+export const addFile = settled(handlers.addFile);
+export const addSheet = settled(handlers.addSheet);
 export const mapImport = settled(handlers.mapImport);
 export const applyImport = settled(handlers.applyImport);
 export const undoImport = settled(handlers.undoImport);
@@ -151,3 +154,18 @@ export const deleteFilingRule = settled(handlers.deleteFilingRule);
 export const refileDocuments = settled(handlers.refileDocuments);
 export const addOriginal = settled(handlers.addOriginal);
 export const moveOriginal = settled(handlers.moveOriginal);
+
+// Sales
+export const addLead = settled(sales.addLead);
+export const updateLead = settled(sales.updateLead);
+export const reopenLead = settled(sales.reopenLead);
+export const logActivity = settled(sales.logActivity);
+export const planVisit = settled(sales.planVisit);
+export const recordVisit = settled(sales.recordVisit);
+export const holdUnit = settled(sales.holdUnit);
+export const releaseHold = settled(sales.releaseHold);
+export const savePriceList = settled(sales.savePriceList);
+export const bookUnit = settled(sales.bookUnit);
+export const addPartner = settled(sales.addPartner);
+export const updatePartner = settled(sales.updatePartner);
+export const payCommission = settled(sales.payCommission);

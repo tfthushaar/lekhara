@@ -21,7 +21,7 @@ const MESSAGE: Record<string, string> = {
   failed: "Could not be read",
 };
 
-function needsYou(m: InboundMessage): boolean {
+export function needsYou(m: InboundMessage): boolean {
   return m.status === "held" || m.items.some((i) => i.status === "review" || i.status === "failed");
 }
 

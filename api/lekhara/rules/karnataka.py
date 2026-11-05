@@ -227,6 +227,87 @@ _rules = (
         effective_from=date(2020, 1, 1),
         note="Reported to have risen from 1% to 2% in 2025; confirm the current fee.",
     ),
+    Rule(
+        key="reg.agreement_stamp_rate",
+        value=Decimal("0.001"),
+        title="Stamp duty on an agreement for sale that hands over no possession",
+        basis="Karnataka Stamp Act, 1957, Schedule, Article 5(e)(ii)",
+        source_quality=SourceQuality.UNVERIFIED,
+        confirm_against="Karnataka Stamps and Registration Department rate schedule",
+        effective_from=date(2020, 1, 1),
+        note=(
+            "Sources differ; an agreement that hands over possession is stamped as a sale. "
+            "Used only as an estimate on the cost sheet."
+        ),
+    ),
+    Rule(
+        key="reg.agreement_stamp_cap",
+        value=Decimal("20000"),
+        title="Most stamp duty on an agreement for sale without possession, for a home",
+        basis="Karnataka Stamp Act, 1957, Schedule, Article 5(e)(ii)",
+        source_quality=SourceQuality.UNVERIFIED,
+        confirm_against="Karnataka Stamps and Registration Department rate schedule",
+        effective_from=date(2020, 1, 1),
+    ),
+    # Selling through channel partners
+    Rule(
+        key="gst.brokerage_rate",
+        value=Decimal("0.18"),
+        title="GST on a registered channel partner's commission",
+        basis="GST rate schedule for brokerage services",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="Current CBIC rate notifications",
+        effective_from=date(2017, 7, 1),
+    ),
+    Rule(
+        key="it.brokerage_tds_rate",
+        value=Decimal("0.05"),
+        title="TDS on commission and brokerage",
+        basis="Income-tax Act, 1961, s.194H",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="Income-tax Act text",
+        effective_from=date(2016, 6, 1),
+        effective_to=date(2024, 9, 30),
+    ),
+    Rule(
+        key="it.brokerage_tds_rate",
+        value=Decimal("0.02"),
+        title="TDS on commission and brokerage",
+        basis="Income-tax Act, 1961, s.194H; from 1 April 2026 Income-tax Act, 2025, "
+        "s.393(1) Table item 1(ii)",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="Income-tax Act, 2025, s.393(1) Table",
+        effective_from=date(2024, 10, 1),
+    ),
+    Rule(
+        key="it.brokerage_tds_threshold",
+        value=Decimal("15000"),
+        title="Commission in a financial year above which TDS is deducted",
+        basis="Income-tax Act, 1961, s.194H",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="Income-tax Act text",
+        effective_from=date(2016, 6, 1),
+        effective_to=date(2025, 3, 31),
+    ),
+    Rule(
+        key="it.brokerage_tds_threshold",
+        value=Decimal("20000"),
+        title="Commission in a financial year above which TDS is deducted",
+        basis="Income-tax Act, 1961, s.194H as amended in 2025; from 1 April 2026 "
+        "Income-tax Act, 2025, s.393(1) Table item 1(ii)",
+        source_quality=SourceQuality.SECONDARY,
+        confirm_against="Income-tax Act, 2025, s.393(1) Table",
+        effective_from=date(2025, 4, 1),
+    ),
+    Rule(
+        key="sales.hold_hours",
+        value=48,
+        title="How long a unit is held for a buyer who is deciding",
+        basis="A Lekhara setting, not law",
+        source_quality=SourceQuality.OFFICIAL,
+        confirm_against="Your sales policy",
+        effective_from=ALWAYS,
+    ),
     # GST on residential real estate
     Rule(
         key="gst.rate.affordable",

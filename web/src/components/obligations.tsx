@@ -4,7 +4,7 @@ import { type Obligation, type Status, areaHref } from "@/lib/api";
 import { day, inr, relative } from "@/lib/format";
 
 export const STATUS_LABEL: Record<Status, string> = {
-  overdue: "Overdue",
+  overdue: "Late",
   due_soon: "Due soon",
   at_risk: "At risk",
   opportunity: "Money waiting",
@@ -37,24 +37,27 @@ export function ObligationRows({
   today,
   showProject = true,
   empty = "Nothing here.",
+  quiet = false,
 }: {
   items: Obligation[];
   today: string;
   showProject?: boolean;
   empty?: string;
+  /** Leave out the status, where the heading above already says it. */
+  quiet?: boolean;
 }) {
   if (items.length === 0) return <p className="empty">{empty}</p>;
   return (
     <ul className="rows">
       {items.map((o) => {
-        const meta = [showProject ? o.project_name : null, `Owed to ${o.owed_to}`, when(o, today)]
-          .filter(Boolean)
-          .join("  ·  ");
+        const meta = [showProject ? o.project_name : null, when(o, today)].filter(Boolean).join("  ·  ");
         return (
-          <li key={`${o.project_id}:${o.key}`} className="row">
-            <div>
-              <StatusTag status={o.status} />
-            </div>
+          <li key={`${o.project_id}:${o.key}`} className="row" style={quiet ? { gridTemplateColumns: "1fr auto" } : undefined}>
+            {quiet ? null : (
+              <div>
+                <StatusTag status={o.status} />
+              </div>
+            )}
             <div>
               <p className="row-title">{o.title}</p>
               <p className="row-detail">{o.detail}</p>
@@ -68,7 +71,7 @@ export function ObligationRows({
                 </>
               ) : null}
               {o.action ? (
-                <Link className="link-action" href={areaHref(o)}>
+                <Link className="button button-secondary" href={areaHref(o)}>
                   {o.action}
                 </Link>
               ) : null}

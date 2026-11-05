@@ -44,6 +44,7 @@ from lekhara import (
     registers,
     review,
     rls,
+    sales_routes,
     scan,
     services,
     sheets,
@@ -1632,6 +1633,21 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             session, p, kind, filename=file.filename or "import", data=data, user_id=me.user_id
         )
         return {"id": batch.id}
+
+    @app.post("/projects/{project_id}/files", status_code=201)
+    def add_file(project_id: str, session: SessionDep, me: Me, file: UploadFile) -> dict:
+        """Any file: Lekhara works out what it is and says where to check it."""
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        limit = max(settings.tally_upload_mb, settings.max_upload_mb) * 1_000_000
+        data = file.file.read(limit + 1)
+        scan.check(settings, data, file.filename or "The file")
+        if len(data) > limit:
+            raise ServiceError(f"Files can be up to {limit // 1_000_000} MB.")
+        return inbound.sort_upload(
+            session, app.state.storage, settings, p, filename=file.filename or "file", data=data,
+            user_id=me.user_id,
+        )  # fmt: skip
 
     @app.get("/projects/{project_id}/imports")
     def list_imports(project_id: str, session: SessionDep, me: Me) -> dict:
@@ -3946,6 +3962,8 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     @app.get("/rules")
     def rules(on: AsOf) -> dict:
         return views.rules(KARNATAKA, on)
+
+    sales_routes.register(app, SessionDep, Me, AsOf)
 
     return app
 

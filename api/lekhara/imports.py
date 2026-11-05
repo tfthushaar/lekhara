@@ -908,6 +908,120 @@ class FilingImport:
         ]
 
 
+class LeadImport:
+    """Leads from the portals' and ad platforms' exports. A person already among the firm's
+    leads, by phone number or else by email, is left alone, so the same export can be brought in
+    again, or a newer one that repeats older rows."""
+
+    kind = "leads"
+
+    def context(self, session: Session, project: Project) -> dict:
+        from lekhara.models import Lead
+
+        rows = session.execute(
+            select(Lead.phone_key, Lead.email).where(
+                Lead.organization_id == project.organization_id
+            )
+        ).all()
+        return {
+            "session": session,
+            "project": project,
+            "phones": {p for p, _ in rows if p},
+            "emails": {e for _, e in rows if e},
+        }
+
+    @staticmethod
+    def _who(values: dict) -> tuple[str | None, str | None]:
+        from lekhara.sales import phone_key
+
+        email = (values.get("email") or "").strip().lower() or None
+        return phone_key(values.get("phone")), email
+
+    def evaluate(self, values: dict, problems: list[str], seen: set, ctx: dict) -> dict:
+        from lekhara.sales import _amount
+
+        name = values.get("name")
+        key, email = self._who(values)
+        if not name:
+            problems.insert(0, "The name is missing.")
+        if values.get("phone") and key is None:
+            problems.append("The phone number does not have ten digits.")
+        if key is None and email is None:
+            problems.append("There is no phone number or email to reach them.")
+        try:
+            _amount(values.get("budget"), "The budget")
+        except ServiceError as exc:
+            problems.append(exc.message)
+        label = name or values.get("phone") or email or ""
+        if problems:
+            return {"key": label, "action": "error", "messages": problems, "changes": {}}
+        who = key or email
+        if who in seen:
+            return {
+                "key": label,
+                "action": "unchanged",
+                "messages": ["The same person appears again further up the file."],
+                "changes": {},
+            }
+        seen.add(who)
+        known = (key and key in ctx["phones"]) or (key is None and email in ctx["emails"])
+        return {"key": label, "action": "unchanged" if known else "add", "messages": [],
+                "changes": {}}  # fmt: skip
+
+    def add(self, session, project, values, *, user_id, batch_id, ctx, source="import") -> str:
+        from lekhara import sales
+        from lekhara.models import Organization
+
+        org = session.get(Organization, project.organization_id)
+        fields = {**values, "project_id": project.id,
+                  "source": sales.source_from(values.get("source"))}  # fmt: skip
+        lead, _ = sales.add_lead(session, org, fields, as_of=ctx["as_of"], user_id=user_id,
+                                 commit=False)  # fmt: skip
+        return lead.id
+
+    def update(self, session, project, key, values, *, user_id, batch_id, source="import"):
+        raise ServiceError("Leads already in Lekhara are left as they are.")
+
+    def blocker(self, session, item) -> str | None:
+        from lekhara.models import Lead, LeadActivity, SiteVisit
+
+        lead = session.get(Lead, item["id"])
+        if lead is None:
+            return None
+        talked = select(LeadActivity.id).where(
+            LeadActivity.lead_id == lead.id, LeadActivity.kind != "note"
+        )
+        visited = select(SiteVisit.id).where(SiteVisit.lead_id == lead.id)
+        worked = session.scalar(talked.limit(1)) or session.scalar(visited.limit(1))
+        if worked or lead.stage != "new":
+            return f"row {item['row']} ({lead.name} has been worked on since)"
+        return None
+
+    def reverse(self, session, project, item, *, user_id, batch_id) -> None:
+        from lekhara.models import Lead, LeadActivity
+
+        lead = session.get(Lead, item["id"])
+        if lead is None:
+            return
+        for a in session.scalars(select(LeadActivity).where(LeadActivity.lead_id == lead.id)):
+            session.delete(a)
+        session.delete(lead)
+
+    def export_rows(self, session, project, record) -> list[list]:
+        from lekhara.models import Lead
+        from lekhara.sales import SOURCES
+
+        leads = session.scalars(
+            select(Lead).where(Lead.project_id == project.id).order_by(Lead.created_on)
+        )
+        return [
+            [x.name, x.phone or "", x.email or "", SOURCES.get(x.source, x.source),
+             x.interest or "", f"{x.budget:.0f}" if x.budget is not None else "",
+             _display(record, "created_on", x.created_on)]
+            for x in leads
+        ]  # fmt: skip
+
+
 HANDLERS = {
     h.kind: h
     for h in (
@@ -919,6 +1033,7 @@ HANDLERS = {
         LandownerPaymentImport(),
         ApprovalImport(),
         FilingImport(),
+        LeadImport(),
     )
 }
 

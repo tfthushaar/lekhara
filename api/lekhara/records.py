@@ -753,6 +753,75 @@ FILINGS = RecordType(
     ),
 )
 
+LEADS = RecordType(
+    kind="leads",
+    title="Leads",
+    key="phone",
+    fields=(
+        Field(
+            "name",
+            "Name",
+            "text",
+            required=True,
+            aliases=("full name", "full_name", "lead name", "customer name", "buyer name",
+                     "contact name", "user name", "client name"),
+            help="The person who asked.",
+            example="Sahana Rao",
+        ),
+        Field(
+            "phone",
+            "Phone",
+            "text",
+            aliases=("mobile", "mobile no", "mobile number", "phone number", "phone_number",
+                     "contact number", "contact no", "primary phone", "user phone", "number"),
+            help="Ten digits; +91 and spaces are fine. The same number twice is the same person.",
+            example="98450 77665",
+        ),
+        Field(
+            "email",
+            "Email",
+            "text",
+            aliases=("email id", "email address", "e-mail", "user email", "primary email"),
+            example="sahana@example.com",
+        ),
+        Field(
+            "source",
+            "Came from",
+            "text",
+            aliases=("source", "lead source", "portal", "platform", "channel", "medium",
+                     "campaign source"),
+            help="99acres, MagicBricks, Housing.com, NoBroker, website, Facebook, Instagram, "
+            "Google, WhatsApp, walk-in or referral. Anything else counts as other.",
+            example="99acres",
+        ),
+        Field(
+            "interest",
+            "Looking for",
+            "text",
+            aliases=("requirement", "property type", "configuration", "bhk", "unit type",
+                     "query", "message", "interested in", "ad name"),
+            example="3 BHK",
+        ),
+        Field(
+            "budget",
+            "Budget",
+            "text",
+            aliases=("budget range", "price range", "max budget"),
+            help="Rupees, or as said: 95 lakh, 1.2 crore.",
+            example="1.2 crore",
+        ),
+        Field(
+            "created_on",
+            "Came in on",
+            "date",
+            aliases=("date", "lead date", "received on", "created on", "created_time",
+                     "created time", "enquiry date", "submitted on"),
+            help="Day first, as in 05/06/2026. Today if left blank.",
+            example="05/06/2026",
+        ),
+    ),
+)  # fmt: skip
+
 RECORD_TYPES = {
     r.kind: r
     for r in (
@@ -764,6 +833,7 @@ RECORD_TYPES = {
         LANDOWNER_PAYMENTS,
         APPROVALS,
         FILINGS,
+        LEADS,
     )
 }
 

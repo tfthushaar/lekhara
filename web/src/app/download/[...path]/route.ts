@@ -12,6 +12,8 @@ const ALLOWED = [
   /^gst\/[A-Za-z0-9_-]+\/ims\.csv$/,
   /^projects\/[A-Za-z0-9_-]+\/demo\/samples\/[a-z0-9-]+\.(xml|csv|xlsx|json)$/,
   /^demo\/samples\/krera-certificate\.pdf$/,
+  /^projects\/[A-Za-z0-9_-]+\/units\/[A-Za-z0-9_-]+\/cost-sheet\.pdf$/,
+  /^bookings\/[A-Za-z0-9_-]+\/allotment\.pdf$/,
 ];
 const PASS_ON = ["content-type", "content-disposition", "content-length"];
 
@@ -20,7 +22,15 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/download/[..
   const { path } = await ctx.params;
   const joined = path.map(decodeURIComponent).join("/");
   if (!ALLOWED.some((pattern) => pattern.test(joined))) return new Response("Not found", { status: 404 });
-  const response = await fetchFile(`/${joined}`, true);
+  // A cost sheet carries the buyer's choices: location charges and any discount.
+  const kept = new URLSearchParams();
+  if (joined.endsWith("/cost-sheet.pdf")) {
+    for (const [key, value] of request.nextUrl.searchParams) {
+      if (key === "plc" || key === "discount") kept.append(key, value);
+    }
+  }
+  const query = kept.size ? `?${kept}` : "";
+  const response = await fetchFile(`/${joined}${query}`, true);
   if (response.status === 401) return Response.redirect(new URL("/login", request.url), 307);
   if (response.status === 428) {
     // Downloading everything asks the person to confirm it is them, then try again.

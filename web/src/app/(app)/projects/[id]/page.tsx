@@ -43,115 +43,39 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
         <section style={{ marginBottom: 32 }}>
           <div className="section-head">
             <h2>Start with what you already have</h2>
-            <p>Each file comes in with a preview first; nothing changes until you say so</p>
           </div>
-          <ul className="steps-list">
-            <li>
-              <div>
-                <p className="row-title">Your Tally books</p>
-                <p className="row-detail">Suppliers, bills, costs, buyer payments, the RERA account and landowners, from one export.</p>
-              </div>
-              <Link href={`/projects/${id}/import`} className="button">
-                Bring in Tally
-              </Link>
-            </li>
-            <li>
-              <div>
-                <p className="row-title">Bank statements</p>
-                <p className="row-detail">The collection account and the RERA account, as Excel or PDF from net banking.</p>
-              </div>
-              <Link href={`/projects/${id}/import`} className="button button-secondary">
-                Bring in a statement
-              </Link>
-            </li>
-            <li>
-              <div>
-                <p className="row-title">Your units and buyers</p>
-                <p className="row-detail">From your sales sheet or CRM export; columns are matched for you.</p>
-              </div>
-              <Link href={`/projects/${id}/import`} className="button button-secondary">
-                Import units
-              </Link>
-            </li>
-          </ul>
+          <p style={{ margin: "12px 0", maxWidth: 720 }}>
+            Your Tally export, bank statements and the Excel sheets you keep today. You see everything before it is saved.
+          </p>
+          <Link href={`/projects/${id}/import`} className="button">
+            Add your files
+          </Link>
         </section>
       ) : null}
+
       <div className="stats">
         <div className="stat">
-          <p className="stat-label">Certified progress</p>
+          <p className="stat-label">You can draw now</p>
+          <p className="stat-value">{known("costs") && known("escrow") ? inr(project.drawable_now) : "Not known yet"}</p>
+          <p className="stat-note">
+            <Link href={`/projects/${id}/escrow`}>From the RERA account</Link>
+          </p>
+        </div>
+        <div className="stat">
+          <p className="stat-label">Work done so far</p>
           <p className="stat-value">{pct(m.certified_progress_pct)}</p>
           <p className="stat-note">From the architect&apos;s latest certificate</p>
         </div>
-        <div className="stat">
-          <p className="stat-label">Anticipated final cost</p>
-          <p className="stat-value">{known("cost_lines") ? inr(m.anticipated_final_cost) : "No budget yet"}</p>
-          <p className="stat-note">
-            {!known("cost_lines") ? (
-              <Link href={`/projects/${id}/budget`}>Set up the cost lines</Link>
-            ) : over > 0 ? (
-              `${inr(String(over))} over the budget of ${inr(m.budget)}`
-            ) : (
-              `Budget ${inr(m.budget)}`
-            )}
-          </p>
-        </div>
-        <div className="stat">
-          <p className="stat-label">Cost incurred</p>
-          <p className="stat-value">{known("costs") || Number(m.incurred) > 0 ? inr(m.incurred) : "No costs yet"}</p>
-          <p className="stat-note">
-            {known("costs") || Number(m.incurred) > 0 ? (
-              <>
-                {pct(m.development_incurred_pct)} of development cost.{" "}
-                <Link href={`/projects/${id}/budget`}>Cost lines and budget</Link>
-              </>
-            ) : (
-              <Link href={`/projects/${id}/import`}>Bring in your costs from Tally</Link>
-            )}
-          </p>
-        </div>
-        <div className="stat">
-          <p className="stat-label">Can draw now</p>
-          <p className="stat-value">{known("costs") && known("escrow") ? inr(project.drawable_now) : "Not known yet"}</p>
-          <p className="stat-note">
-            <Link href={`/projects/${id}/escrow`}>See how this is worked out</Link>
-          </p>
-        </div>
       </div>
-
-      {m.alerts.length ? (
-        <section className="section">
-          <div className="section-head">
-            <h2>Cost signals</h2>
-            <p>Worth a look before they grow</p>
-          </div>
-          <ul className="rows">
-            {m.alerts.map((a) => (
-              <li key={a.code + a.title} className="row">
-                <div>
-                  <span className="tag tag-warn">Check</span>
-                </div>
-                <div>
-                  <p className="row-title">{a.title}</p>
-                  <p className="row-detail">{a.detail}</p>
-                </div>
-                <div className="row-side">
-                  {a.amount ? <p className="row-amount">{inr(a.amount)}</p> : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
 
       <section className="section">
         <div className="section-head">
-          <h2>What this project owes</h2>
-          <p>To K-RERA, the escrow bank, tax authorities, buyers and landowners</p>
+          <h2>What needs doing</h2>
         </div>
         <ObligationRows items={urgent} today={m.as_of} showProject={false} empty="Nothing is late or due soon." />
         {later.length > 0 ? (
           <details className="disclosure">
-            <summary>{`Money waiting and coming up (${later.length})`}</summary>
+            <summary>{`Later (${later.length})`}</summary>
             <ObligationRows items={later} today={m.as_of} showProject={false} />
           </details>
         ) : null}
@@ -159,17 +83,42 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
 
       <section className="section">
         <details className="disclosure">
-          <summary>{`Cost lines (${money.lines.length}): budget, committed, incurred, paid and final cost`}</summary>
-          <p className="small muted">Final cost is the larger of budget, committed and incurred. Contingency covers overruns first.</p>
+          <summary>How the money stands</summary>
+          <p style={{ margin: "12px 0" }}>
+            {!known("cost_lines") ? (
+              <Link href={`/projects/${id}/budget`}>Set up the budget</Link>
+            ) : over > 0 ? (
+              `Expected final cost ${inr(m.anticipated_final_cost)}, which is ${inr(String(over))} over the budget of ${inr(m.budget)}. Spent so far: ${inr(m.incurred)}.`
+            ) : (
+              `Expected final cost ${inr(m.anticipated_final_cost)}, within the budget of ${inr(m.budget)}. Spent so far: ${inr(m.incurred)}.`
+            )}
+          </p>
+          {m.alerts.length ? (
+            <ul className="rows">
+              {m.alerts.map((a) => (
+                <li key={a.code + a.title} className="row">
+                  <div>
+                    <span className="tag tag-warn">Check</span>
+                  </div>
+                  <div>
+                    <p className="row-title">{a.title}</p>
+                    <p className="row-detail">{a.detail}</p>
+                  </div>
+                  <div className="row-side">{a.amount ? <p className="row-amount">{inr(a.amount)}</p> : null}</div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="table-scroll">
         <table className="table">
           <thead>
             <tr>
               <th>Line</th>
               <th className="right">Budget</th>
-              <th className="right">Committed</th>
-              <th className="right">Incurred</th>
+              <th className="right">Ordered</th>
+              <th className="right">Billed</th>
               <th className="right">Paid</th>
-              <th className="right">Final cost</th>
+              <th className="right">Expected final cost</th>
               <th className="right">Over budget</th>
             </tr>
           </thead>
@@ -198,6 +147,7 @@ async function Overview({ params }: { params: Promise<{ id: string }> }) {
             </tr>
           </tfoot>
         </table>
+          </div>
         </details>
       </section>
     </>

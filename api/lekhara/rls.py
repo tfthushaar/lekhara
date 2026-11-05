@@ -56,6 +56,8 @@ CHILDREN = {
     "data_room_visitors": ("room_id", "data_rooms"),
     "inbound_items": ("message_id", "inbound_messages"),
     "original_moves": ("original_id", "originals"),
+    "lead_activities": ("lead_id", "leads"),
+    "unit_holds": ("unit_id", "units"),
 }
 """Tables with neither a firm nor a project of their own: a row is visible with its parent."""
 

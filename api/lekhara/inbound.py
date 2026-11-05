@@ -535,6 +535,64 @@ def route(
         _as_document(session, storage, settings, project, message, item, data)
 
 
+def sort_upload(
+    session: Session,
+    storage: Storage,
+    settings: Settings,
+    project: Project,
+    *,
+    filename: str,
+    data: bytes,
+    user_id: str | None,
+) -> dict:
+    """One place to put any file. Works out what it is, the way mail is sorted, and returns the
+    page that shows it, where the person checks it before anything is saved. A sheet Lekhara
+    cannot place, or a file that is none of these, is kept in the project's documents."""
+    from lekhara.bank.pdf import PasswordNeeded, looks_like_statement
+    from lekhara.gst import service as gst
+
+    kind = classify(filename, data)
+    if kind == "tally":
+        row = tally.upload(session, storage, project, filename=filename, data=data, user_id=user_id)
+        return {"to": f"/tally/{row.id}"}
+    if len(data) > settings.max_upload_mb * 1_000_000:
+        raise ServiceError(f"Files can be up to {settings.max_upload_mb} MB.")
+    if kind == "gst":
+        row = gst.upload(session, storage, project, filename=filename, data=data, user_id=user_id)
+        return {"to": f"/gst/{row.id}"}
+    if kind == "sheet" or (kind == "pdf" and looks_like_statement(data)):
+        passwords = bank.statement_passwords(session, settings, project.organization_id)
+        try:
+            read_statement(filename, data, passwords)
+        except PasswordNeeded:
+            raise
+        except ServiceError:
+            pass
+        else:
+            row = bank.upload(
+                session, storage, project, filename=filename, data=data, user_id=user_id,
+                passwords=passwords,
+            )  # fmt: skip
+            return {"to": f"/bank/{row.id}"}
+    record = best_record(filename, data) if kind == "sheet" else None
+    if record is not None:
+        batch = imports.start(
+            session, project, record, filename=filename, data=data, user_id=user_id
+        )
+        return {"to": f"/imports/{batch.id}"}
+    doc = services.store_document(
+        session,
+        storage,
+        project,
+        data=data,
+        filename=filename,
+        fields={"category": None, "guess": _category(filename), "notes": None},
+        max_bytes=settings.max_upload_mb * 1_000_000,
+        user_id=user_id,
+    )
+    return {"to": f"/documents/{doc.id}"}
+
+
 def retry(session: Session, storage: Storage, settings: Settings, item: InboundItem) -> InboundItem:
     """Read a file again, such as a statement once its password has been given."""
     message = session.get(InboundMessage, item.message_id)

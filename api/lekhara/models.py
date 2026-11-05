@@ -405,6 +405,168 @@ class DemandRow(Base):
     """Set when the booking it was raised on was cancelled."""
 
 
+# Sales: leads to bookings (see sales.py)
+
+
+class ChannelPartner(Base):
+    """An agent or broker who brings buyers, with their K-RERA registration and their terms."""
+
+    __tablename__ = "channel_partners"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    firm: Mapped[str | None] = mapped_column(String(200))
+    phone: Mapped[str | None] = mapped_column(String(32))
+    email: Mapped[str | None] = mapped_column(String(320))
+    krera_number: Mapped[str | None] = mapped_column(String(100))
+    krera_valid_until: Mapped[date | None] = mapped_column(Date)
+    commission_pct: Mapped[Decimal] = mapped_column(Percent)
+    payable_after_pct: Mapped[Decimal] = mapped_column(Percent)
+    """Share of the agreement value the buyer must have paid before the commission falls due."""
+    gstin: Mapped[str | None] = mapped_column(String(15))
+    pan: Mapped[str | None] = mapped_column(String(10))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class Lead(Base):
+    """Someone who may buy: where they came from, what they want, and how far they have got."""
+
+    __tablename__ = "leads"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    phone: Mapped[str | None] = mapped_column(String(32))
+    phone_key: Mapped[str | None] = mapped_column(String(10), index=True)
+    """The last ten digits, to find the same person coming from another source."""
+    email: Mapped[str | None] = mapped_column(String(320))
+    source: Mapped[str] = mapped_column(String(32))
+    partner_id: Mapped[str | None] = mapped_column(ForeignKey("channel_partners.id"))
+    interest: Mapped[str | None] = mapped_column(String(200))
+    """What they are looking for, in their words: 2 BHK, east-facing, under 90 lakh."""
+    budget: Mapped[Decimal | None] = mapped_column(Money)
+    stage: Mapped[str] = mapped_column(String(16), default="new")
+    owner_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    next_follow_up_on: Mapped[date | None] = mapped_column(Date)
+    lost_reason: Mapped[str | None] = mapped_column(String(300))
+    unit_id: Mapped[str | None] = mapped_column(ForeignKey("units.id"))
+    """The unit they booked."""
+    created_on: Mapped[date] = mapped_column(Date)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class LeadActivity(Base):
+    """A call, message, meeting or note about a lead, in the order they happened."""
+
+    __tablename__ = "lead_activities"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    lead_id: Mapped[str] = mapped_column(ForeignKey("leads.id"), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    kind: Mapped[str] = mapped_column(String(16))
+    """call, whatsapp, email, meeting, note, visit or stage."""
+    detail: Mapped[str] = mapped_column(Text, default="")
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
+class SiteVisit(Base):
+    """A buyer's visit to the site: planned, done, missed or called off, and what they said."""
+
+    __tablename__ = "site_visits"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    lead_id: Mapped[str] = mapped_column(ForeignKey("leads.id"), index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    on: Mapped[date] = mapped_column(Date)
+    time: Mapped[str | None] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16), default="planned")
+    """planned, done, no_show or cancelled."""
+    feedback: Mapped[str | None] = mapped_column(Text)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
+class UnitHold(Base):
+    """A unit kept for a buyer who is deciding, for a set time."""
+
+    __tablename__ = "unit_holds"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    unit_id: Mapped[str] = mapped_column(ForeignKey("units.id"), index=True)
+    lead_id: Mapped[str] = mapped_column(ForeignKey("leads.id"), index=True)
+    until: Mapped[datetime] = mapped_column(DateTime)
+    released_at: Mapped[datetime | None] = mapped_column(DateTime)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
+class PriceList(Base):
+    """A project's prices: what each part of a unit's cost sheet comes from."""
+
+    __tablename__ = "price_lists"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), unique=True, index=True)
+    base_rate: Mapped[Decimal] = mapped_column(Money)
+    floor_rise: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    floor_rise_from: Mapped[int] = mapped_column(Integer, default=1)
+    plc: Mapped[str] = mapped_column(Text, default="{}")
+    """Preferential location charges per sq ft, as JSON: {"Corner": "100"}."""
+    car_park: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    amenities: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    other_charges: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    corpus_per_sqft: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    maintenance_per_sqft_month: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    maintenance_months: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+
+
+class Booking(Base):
+    """A unit booked through sales: the cost sheet agreed, the buyer's KYC, and the booking
+    amount, which is the buyer's first receipt."""
+
+    __tablename__ = "bookings"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    unit_id: Mapped[str] = mapped_column(ForeignKey("units.id"), index=True)
+    lead_id: Mapped[str | None] = mapped_column(ForeignKey("leads.id"))
+    partner_id: Mapped[str | None] = mapped_column(ForeignKey("channel_partners.id"))
+    booked_on: Mapped[date] = mapped_column(Date)
+    buyer_name: Mapped[str] = mapped_column(String(200))
+    buyer_pan: Mapped[str | None] = mapped_column(String(10))
+    aadhaar_last4: Mapped[str | None] = mapped_column(String(4))
+    """Only the last four digits are kept."""
+    buyer_address: Mapped[str | None] = mapped_column(Text)
+    agreement_value: Mapped[Decimal] = mapped_column(Money)
+    cost_sheet: Mapped[str] = mapped_column(Text, default="{}")
+    """The cost sheet agreed, as JSON, kept as it was on the day."""
+    booking_amount: Mapped[Decimal] = mapped_column(Money)
+    receipt_id: Mapped[str | None] = mapped_column(ForeignKey("receipts.id"))
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class Commission(Base):
+    """What a channel partner is owed for a booking, and whether it has been paid."""
+
+    __tablename__ = "commissions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    partner_id: Mapped[str] = mapped_column(ForeignKey("channel_partners.id"), index=True)
+    booking_id: Mapped[str] = mapped_column(ForeignKey("bookings.id"), unique=True)
+    rate_pct: Mapped[Decimal] = mapped_column(Percent)
+    amount: Mapped[Decimal] = mapped_column(Money)
+    gst: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    tds: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    paid_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    paid_on: Mapped[date | None] = mapped_column(Date)
+    reference: Mapped[str | None] = mapped_column(String(200))
+
+
 class BookingCancellation(Base):
     """A booking that was cancelled: who the buyer was, what was refunded and why. The buyer's
     demands and payments point here, so the unit can be sold again."""

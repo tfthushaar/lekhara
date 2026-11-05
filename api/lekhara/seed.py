@@ -68,6 +68,7 @@ from lekhara.models import (
 )
 from lekhara.pdf import write_pdf
 from lekhara.rules import KARNATAKA
+from lekhara.seed_sales import seed_sales
 from lekhara.storage import LocalStorage, Storage, make_storage
 
 CR = Decimal("10000000")
@@ -1477,6 +1478,7 @@ def seed(session: Session, today: date, storage: Storage | None = None) -> None:
         summary="Suit for an injunction over the boundary wall on the eastern side.",
         user_id=clerk,
     )
+    seed_sales(session, sd.org, [wf, hb, sg], users, today)
     session.commit()
     if storage is not None:
         seed_documents(session, storage, today, users)

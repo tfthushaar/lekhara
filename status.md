@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-11-06, with the commit "Link the live demo from the README".
+Last updated: 2026-11-06, with the commit "Make Lekhara easy to use: fewer places, one box for files, and Sales".
 
 ## What we are building
 
@@ -12,6 +12,8 @@ Lekhara is an owner-side platform for Karnataka builders, in two layers:
 Lekhara connects read-only, reads documents with AI from several providers (with an India-only option), keeps two ledgers (obligations and money), and prepares every filing, certificate and pack before it is due. People sign; Lekhara prepares.
 
 Lekhara is sold as a self-serve monthly SaaS: one subscription per builder firm, covering all its projects and people, after a one-month free trial, paid through Razorpay. A builder signs up and uses it on their own data the same day, without our help. Every record can be imported from a file, fed from a connected source, or typed and edited in Lekhara, and everything can be exported at any time.
+
+Lekhara's selling point is that it is easy to use. Most builder firms in India are not tech literate, so it has to be easy to learn even for someone who has never used a software tool. Decided on 2026-11-06, and every screen is being reworked around it.
 
 Launch market: Bengaluru, then the rest of Karnataka, then other states. The plan, a description of what Lekhara is and does, and the list of decisions still to make, each with its options and sources, are kept outside the repository.
 
@@ -361,13 +363,27 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 
 - The demo is live at https://lekhara-demo.vercel.app, linked from the top of the README, and was checked end to end there. Signed-in pages load in 150 to 300 ms from Bengaluru.
 
+- Sales, the first module of the expanded software, in the demo's expanded view:
+  - One list of who to call today. Adding a lead takes three fields; the same phone number from another portal is the same lead, noted against it.
+  - Each lead's page asks what happened, then shows the one next step: plan a visit, did they come, or book. The lead's stage and next call move by themselves. Tap to call and to WhatsApp.
+  - Prices for each project; a cost sheet for any unit with GST, stamp duty, registration and the buyer's TDS, a warning when a discount goes below guidance value, and a printable copy.
+  - Hold a unit for 48 hours. Booking marks the unit sold, saves the booking amount as the first payment, and prints an allotment letter. Only the last four digits of Aadhaar are kept.
+  - Channel partners: their K-RERA registration is checked on the booking date, and the commission falls due once the buyer has paid enough, with GST and TDS worked out, paid in one step.
+  - Leads come in from 99acres, MagicBricks, Housing.com, NoBroker, and Facebook and Google exports.
+  - Tested: the arithmetic, a lead from first call to booking, partners, imports, permissions, and a walk through the real pages on a phone-width screen too.
+- Easy to use, first stage:
+  - A project's 15 tabs are now five places: Overview, Buyers, Money, Government and Files. The main menu is Today, Projects and Settings.
+  - Today is one list of what to do, each with the button that does it. Money you can draw sits under it, and later items are folded away. Overview starts with what needs doing; the cost tables are one click down.
+  - One box takes any file: a Tally export, bank statement, GST return, Excel sheet or PDF. Lekhara works out what it is and opens the right preview. Eleven upload forms became one, with one more for a sheet it can't place.
+  - Larger text, bigger buttons and fields, and a phone layout where nothing is cut off. On phones the main menu had been squeezed out entirely in the demo; it now has its own row.
+
 ## In progress
 
-- Research for the expanded software (below).
+- Making every screen easy to use, for people who have never used a software tool (decision 37): Settings, the unit page, Documents, Payments, the withdrawal, the rest of the tabs, then the words used across the product.
 
 ## Next: the expanded software
 
-Decided on 2026-11-06: once the demo is live, research and build the tools a Karnataka builder needs to run the whole firm, for firms with no ERP or CRM of their own, India-relevant only and with no HR or payroll. Each module joins the demo's expanded software as it's built. CRM (leads, site visits, bookings, cost sheets, channel partners) is the likely first; the research decides the rest.
+Decided on 2026-11-06: research and build the tools a Karnataka builder needs to run the whole firm, for firms with no ERP or CRM of their own, India-relevant only and with no HR or payroll. Each module joins the demo's expanded software as it's built, starting from the smallest version that does the job. Sales is done. Next: purchases and contractors, site, after possession, cash and lenders.
 
 
 ## Left
@@ -397,7 +413,7 @@ In this order:
 ### v3
 
 - Plotted layouts, lender and independent-engineer workspace, landowner view, market intelligence, delay prediction.
-- Sales and bookings, channel partners, agreements and e-execution, site progress verification, snags and defects, board packs.
+- Agreements and e-execution, site progress verification, snags and defects, board packs.
 - Other Karnataka cities.
 
 ### v4
@@ -419,6 +435,7 @@ In this order:
 - Tally data: read from the files Tally exports, by Lekhara's own Tally import built from scratch (the founder's earlier module does not fit); no Tally API, nothing installed on the customer's machine.
 - Team: two founders through v1; a seed raise after three paying customers funds the team for v2 onwards.
 - Design: minimal, monochrome, no emojis, no symbols in the branding, text wordmark only.
+- Ease of use is the selling point (2026-11-06): one job on each screen, the fewest fields, the software moves work along by itself, plain words, works on a phone.
 
 ## Working assumptions (change any time)
 

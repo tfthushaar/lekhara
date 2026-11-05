@@ -363,7 +363,16 @@ def _purge_scoped(session: Session, org: Organization) -> list[str]:
     originals = list(
         session.scalars(select(m.Original.id).where(m.Original.organization_id == org.id))
     )
+    leads = list(session.scalars(select(m.Lead.id).where(m.Lead.organization_id == org.id)))
     steps = [
+        (m.Commission, m.Commission.organization_id, [org.id]),
+        (m.Booking, m.Booking.project_id, projects),
+        (m.UnitHold, m.UnitHold.lead_id, leads),
+        (m.SiteVisit, m.SiteVisit.lead_id, leads),
+        (m.LeadActivity, m.LeadActivity.lead_id, leads),
+        (m.Lead, m.Lead.organization_id, [org.id]),
+        (m.ChannelPartner, m.ChannelPartner.organization_id, [org.id]),
+        (m.PriceList, m.PriceList.project_id, projects),
         (m.OriginalMove, m.OriginalMove.original_id, originals),
         (m.Original, m.Original.organization_id, [org.id]),
         (m.DataRoomVisit, m.DataRoomVisit.room_id, rooms),

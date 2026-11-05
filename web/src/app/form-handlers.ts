@@ -159,6 +159,20 @@ export async function startImport(
   redirect(`/imports/${result.data.id}`);
 }
 
+export async function addFile(projectId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file first." };
+  const body = new FormData();
+  body.append("file", file, file.name);
+  const result = await sendForm<{ to: string }>(`/projects/${projectId}/files`, body);
+  if (!result.ok) return { error: result.error };
+  redirect(result.data.to);
+}
+
+export async function addSheet(projectId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  return startImport(projectId, String(form.get("kind") ?? "units"), _previous, form);
+}
+
 export async function mapImport(
   batchId: string,
   _previous: ActionState,

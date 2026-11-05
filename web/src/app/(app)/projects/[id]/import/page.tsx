@@ -1,25 +1,17 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import {
-  type ActionState,
-  newConnectorCode,
-  startImport,
-  unlinkConnector,
-  uploadGst,
-  uploadStatement,
-  uploadTally,
-} from "@/app/actions";
+import { addFile, addSheet, newConnectorCode, unlinkConnector } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { BankRulesSection, type RulePrefill } from "@/components/bank-rules";
-import { InboundBox } from "@/components/inbound";
-import { Steps, Way } from "@/components/ways";
+import { InboundBox, needsYou } from "@/components/inbound";
+import { Steps } from "@/components/ways";
 import { type ConnectorList, type DemoSample, PUBLIC_API_URL, api, demoSamples } from "@/lib/api";
 import { moment } from "@/lib/format";
 
 export default function ImportPage({ params, searchParams }: PageProps<"/projects/[id]/import">) {
   return (
-    <Suspense fallback={<p className="loading">Opening the Import centre</p>}>
+    <Suspense fallback={<p className="loading">Opening your files</p>}>
       <ImportView params={params} searchParams={searchParams} />
     </Suspense>
   );
@@ -30,9 +22,9 @@ function one(value: string | string[] | undefined): string | undefined {
 }
 
 const STATE: Record<string, string> = {
-  preview: "Not brought in yet",
-  review: "Not brought in yet",
-  applied: "Brought in",
+  preview: "Waiting for you",
+  review: "Waiting for you",
+  applied: "Saved",
   undone: "Undone",
 };
 
@@ -42,18 +34,17 @@ function when(iso: string): string {
   return moment(iso);
 }
 
-type Action = (previous: ActionState, form: FormData) => Promise<ActionState>;
-
-function Upload({ id, label, accept, action }: { id: string; label: string; accept: string; action: Action }) {
-  return (
-    <ActionForm action={action} label={label} pendingLabel="Reading the file">
-      <div className="field" style={{ maxWidth: 520 }}>
-        <label htmlFor={id}>Your file</label>
-        <input id={id} name="file" type="file" accept={accept} required />
-      </div>
-    </ActionForm>
-  );
-}
+const SHEETS = [
+  ["units", "Units and buyers"],
+  ["receipts", "Buyers' payments"],
+  ["leads", "Leads"],
+  ["suppliers", "Suppliers"],
+  ["bills", "Suppliers' bills"],
+  ["commitments", "Work and purchase orders"],
+  ["landowner_payments", "Landowner payments"],
+  ["approvals", "Approvals"],
+  ["filings", "K-RERA filings"],
+] as const;
 
 async function ImportView({
   params,
@@ -91,173 +82,141 @@ async function ImportView({
 
   return (
     <>
-      <p className="lead">
-        Bring this project&apos;s records in from where they already are. Nothing is saved until you have seen it, the same
-        file twice adds nothing, and every import can be undone for 30 days.
-      </p>
-
-      {samples ? <Samples projectId={id} samples={samples} /> : null}
-
-      <InboundBox box={box} demo={samples !== null} />
-
-      <section className="section">
+      <section>
         <div className="section-head">
-          <h2>Ways in</h2>
-          <p>Open one to see what to do</p>
+          <h2>Add a file</h2>
         </div>
-        <ul className="ways">
-          <Way
-            title="Tally"
-            what={
-              connected.length
-                ? `Connected: comes in by itself from ${connected.length === 1 ? "one computer" : `${connected.length} computers`}`
-                : "Suppliers, bills, buyers' payments, costs and the RERA account, from Tally's export"
-            }
-            open={connected.some((c) => c.last_state)}
-          >
-            <Steps
-              steps={[
-                "In TallyPrime, open the company and press Alt+E (Export). Export Masters (All Masters) and Transactions (All Vouchers, for the period you want), as XML.",
-                "Upload the file or files here. JSON from TallyPrime 7, or a Day Book in Excel, works too, with less detail.",
-              ]}
-            />
-            {tallyList.can_import ? <Upload id="tally-file" label="Read the Tally file" accept=".xml,.json,.xlsx,.csv,.txt" action={uploadTally.bind(null, id)} /> : null}
-            <Connector id={id} linked={linked} />
-          </Way>
-
-          <Way title="Bank statement" what="Buyers' payments and the RERA account, from the statement net banking gives you">
-            <Steps
-              steps={[
-                "In net banking, open the statement of the account buyers pay into, or of the RERA designated account, and download it as Excel, CSV or PDF.",
-                "Upload it here. Lekhara matches each buyer's payment to their unit and asks you about the rest, once.",
-              ]}
-            />
-            {bankList.can_import ? <Upload id="bank-file" label="Read the statement" accept=".xls,.xlsx,.csv,.txt,.htm,.html,.pdf" action={uploadStatement.bind(null, id)} /> : null}
-          </Way>
-
-          <Way title="GST portal" what="GSTR-2B: your suppliers' invoices as the GST system has them, checked against your bills">
-            <Steps
-              steps={[
-                "On the GST portal, open Returns, then the Returns Dashboard; choose the month and GSTR-2B, and download it as JSON or Excel.",
-                "Upload it here. Lekhara shows bills your suppliers have not reported, amounts that differ, and invoices you have no bill for.",
-              ]}
-            />
-            {gstList.can_import ? <Upload id="gst-file" label="Check the return" accept=".json,.xlsx" action={uploadGst.bind(null, id)} /> : null}
-          </Way>
-
-          <Way title="Units and buyers" what="From your sales sheet or CRM export">
-            <p className="small muted">
-              Exports from Sell.Do, LeadSquared, Zoho CRM, Salesforce and HubSpot are recognised as they come.{" "}
-            </p>
-            <p className="small muted">
-              Any Excel or CSV file: columns are matched by name, such as Flat No or Customer Name, and you check the matching
-              before anything is saved. Units are matched on their number; blank cells never erase what is there.{" "}
-              <a href="/download/imports/templates/units.xlsx" className="link-action">
-                Template
-              </a>
-            </p>
-            {can ? <Upload id="file" label="Preview the import" accept=".xlsx,.xlsm,.csv" action={startImport.bind(null, id, "units")} /> : null}
-          </Way>
-
-          <Way title="Buyer payments" what="From your collections register: unit, date, amount, TDS and UTR">
-            <p className="small muted">
-              Payments already recorded are recognised, so the same file can be imported again.{" "}
-              <a href="/download/imports/templates/receipts.xlsx" className="link-action">
-                Template
-              </a>
-            </p>
-            {can ? <Upload id="receipts-file" label="Preview the payments" accept=".xlsx,.xlsm,.csv" action={startImport.bind(null, id, "receipts")} /> : null}
-          </Way>
-
-          <Way title="Suppliers, bills and orders" what="For what you keep in a sheet rather than in Tally">
-            <p className="small muted">
-              A bill with a cost line counts as cost; leave the cost line blank when Tally already brings in your costs, so
-              nothing counts twice.
-            </p>
-            <div id="purchases">
-              {(
-                [
-                  ["suppliers", "Suppliers", "Preview the suppliers"],
-                  ["bills", "Suppliers' bills", "Preview the bills"],
-                  ["commitments", "Work and purchase orders", "Preview the orders"],
-                ] as const
-              ).map(([kind, title, label]) => (
-                <div key={kind} className="way-part">
-                  <p className="row-title">
-                    {title}{" "}
-                    <a href={`/download/imports/templates/${kind}.xlsx`} className="link-action small">
-                      Template
-                    </a>
-                  </p>
-                  {can ? <Upload id={`${kind}-file`} label={label} accept=".xlsx,.xlsm,.csv" action={startImport.bind(null, id, kind)} /> : null}
-                </div>
-              ))}
+        <p style={{ margin: "12px 0", maxWidth: 760 }}>
+          Your Tally export, a bank statement, a GST return, any Excel sheet or PDF. We work out what it is and show you what
+          is in it. Nothing is saved until you say so.
+        </p>
+        {can ? (
+          <ActionForm action={addFile.bind(null, id)} label="Add the file" pendingLabel="Reading the file">
+            <div className="field" style={{ maxWidth: 520 }}>
+              <label htmlFor="any-file">Your file</label>
+              <input id="any-file" name="file" type="file" required />
             </div>
-          </Way>
-
-          <Way title="Landowners, approvals and filings" what="Payments to landowners, your approvals list, K-RERA filings already made">
-            <div>
-              {(
-                [
-                  ["landowner_payments", "Landowner payments", "Preview the payments"],
-                  ["approvals", "Approvals", "Preview the approvals"],
-                  ["filings", "K-RERA filings", "Preview the filings"],
-                ] as const
-              ).map(([kind, title, label]) => (
-                <div key={kind} className="way-part">
-                  <p className="row-title">
-                    {title}{" "}
-                    <a href={`/download/imports/templates/${kind}.xlsx`} className="link-action small">
-                      Template
-                    </a>
-                  </p>
-                  {can ? <Upload id={`${kind}-file`} label={label} accept=".xlsx,.xlsm,.csv" action={startImport.bind(null, id, kind)} /> : null}
-                </div>
-              ))}
-            </div>
-          </Way>
-        </ul>
-        {!can ? <p className="empty">Your role cannot import into this project.</p> : null}
-      </section>
-
-      <section className="section">
-        <div className="section-head">
-          <h2>Brought in</h2>
-          <p>Every file, newest first</p>
-        </div>
-        {history.length === 0 ? (
-          <p className="empty">Nothing has been brought into this project yet.</p>
+          </ActionForm>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>What</th>
-                <th>File</th>
-                <th>State</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {history.slice(0, 25).map((e) => (
-                <tr key={`${e.what}-${e.id}`}>
-                  <td className="nowrap">{when(e.at)}</td>
-                  <td>{e.what}</td>
-                  <td>{e.file}</td>
-                  <td>{e.state}</td>
-                  <td className="right">
-                    <Link href={e.href} className="link-action">
-                      Open
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <p className="empty">Your role cannot add files to this project.</p>
         )}
       </section>
 
-      {bankList.can_import || bankList.statements.length ? <BankRulesSection projectId={id} prefill={prefill} /> : null}
+      {samples ? <Samples projectId={id} samples={samples} /> : null}
+
+      <section className="section">
+        <details className="disclosure" open={history.some((e) => e.state === "Waiting for you")}>
+          <summary>{`Files added (${history.length})`}</summary>
+          {history.length === 0 ? (
+            <p className="empty">Nothing added yet.</p>
+          ) : (
+            <div className="table-scroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>File</th>
+                    <th>State</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.slice(0, 25).map((e) => (
+                    <tr key={`${e.what}-${e.id}`}>
+                      <td className="nowrap">{when(e.at)}</td>
+                      <td>
+                        {e.file}
+                        <span className="small muted">{` ${e.what}`}</span>
+                      </td>
+                      <td>{e.state}</td>
+                      <td className="right">
+                        <Link href={e.href} className="link-action">
+                          Open
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="small muted" style={{ marginTop: 12 }}>
+            A file you added by mistake can be undone for 30 days from its own page.
+          </p>
+        </details>
+
+        <details className="disclosure">
+          <summary>Where do I get these files?</summary>
+          <p className="row-title" style={{ marginTop: 12 }}>From Tally</p>
+          <Steps
+            steps={[
+              "In TallyPrime, open the company and press Alt+E (Export).",
+              "Export Masters (All Masters) and Transactions (All Vouchers) as XML, and add both files here.",
+            ]}
+          />
+          <p className="row-title">From your bank</p>
+          <Steps steps={["In net banking, open the statement of the account buyers pay into, or the RERA account.", "Download it as Excel or PDF and add it here."]} />
+          <p className="row-title">From the GST portal</p>
+          <Steps steps={["Open Returns, then the Returns Dashboard, choose the month and GSTR-2B.", "Download it and add it here."]} />
+          <p className="row-title">From 99acres, MagicBricks or your ads</p>
+          <Steps steps={["Download your leads from the portal or ad manager.", "Add the file here as it is."]} />
+        </details>
+
+        {box.can_edit || box.messages.length > 0 ? (
+          <details className="disclosure" open={box.messages.some(needsYou)}>
+            <summary>Send files by email instead</summary>
+            <InboundBox box={box} demo={samples !== null} />
+          </details>
+        ) : null}
+
+        <details className="disclosure" open={connected.some((c) => c.last_state)}>
+          <summary>Have Tally send its data by itself</summary>
+          <Connector id={id} linked={linked} />
+        </details>
+
+        {can ? (
+          <details className="disclosure">
+            <summary>We could not tell what your Excel sheet is?</summary>
+            <ActionForm action={addSheet.bind(null, id)} label="Add the sheet" pendingLabel="Reading the file" secondary>
+              <div className="field-grid">
+                <div className="field">
+                  <label htmlFor="sheet-kind">What is in it?</label>
+                  <select id="sheet-kind" name="kind" defaultValue="units">
+                    {SHEETS.map(([kind, title]) => (
+                      <option key={kind} value={kind}>
+                        {title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="sheet-file">Your sheet</label>
+                  <input id="sheet-file" name="file" type="file" accept=".xlsx,.xlsm,.csv" required />
+                </div>
+              </div>
+            </ActionForm>
+            <p className="small muted">
+              {"Or start from our blank sheets: "}
+              {SHEETS.map(([kind, title], i) => (
+                <span key={kind}>
+                  {i ? ", " : ""}
+                  <a href={`/download/imports/templates/${kind}.xlsx`}>{title.toLowerCase()}</a>
+                </span>
+              ))}
+              .
+            </p>
+          </details>
+        ) : null}
+      </section>
+
+      {bankList.can_import || bankList.statements.length ? (
+        <section className="section">
+          <details className="disclosure" open={Boolean(prefill.words)}>
+            <summary>Teach us your regular bank entries</summary>
+            <BankRulesSection projectId={id} prefill={prefill} />
+          </details>
+        </section>
+      ) : null}
     </>
   );
 }
@@ -271,15 +230,13 @@ function Samples({ projectId, samples }: { projectId: string; samples: DemoSampl
         <p>Made from this project&apos;s own units, suppliers and bills</p>
       </div>
       <p className="small muted" style={{ maxWidth: 760, marginTop: 12 }}>
-        Download one, then bring it in below the way you would your own file. Nothing is saved until you have seen what it
-        adds.
+        Download one, then add it above the way you would your own file.
       </p>
       <table className="table">
         <thead>
           <tr>
             <th>File</th>
             <th>What&apos;s in it</th>
-            <th>Bring it in with</th>
             <th />
           </tr>
         </thead>
@@ -288,7 +245,6 @@ function Samples({ projectId, samples }: { projectId: string; samples: DemoSampl
             <tr key={s.name}>
               <td className="nowrap">{s.label}</td>
               <td className="small">{s.detail}</td>
-              <td className="nowrap">{s.goes_to}</td>
               <td className="right">
                 <a href={`/download/projects/${projectId}/demo/samples/${s.name}`} className="link-action">
                   Download

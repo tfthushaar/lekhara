@@ -1823,6 +1823,146 @@ export type TableEdit = {
   rows: string[][];
 };
 
+export type LeadRow = {
+  id: string;
+  name: string;
+  phone: string | null;
+  phone_key: string | null;
+  email: string | null;
+  source: string;
+  source_label: string;
+  stage: string;
+  stage_label: string;
+  interest: string | null;
+  budget: string | null;
+  owner: string | null;
+  next_follow_up_on: string | null;
+  follow_up_late: boolean;
+  created_on: string;
+  project_id: string | null;
+};
+
+export type SalesPage = {
+  project_id: string;
+  can_edit: boolean;
+  stage: string | null;
+  stages: (Choice & { count: number })[];
+  sources: Choice[];
+  leads: LeadRow[];
+  call_today: LeadRow[];
+  follow_ups_late: number;
+  visits: { id: string; lead_id: string; lead: string; on: string; time: string | null; status: string; status_label: string; feedback: string | null }[];
+  conversion: { leads: number; visited: number; booked: number };
+  by_source: { source: string; label: string; leads: number; visited: number; booked: number }[];
+  bookings_by_month: { month: string; count: number }[];
+  inventory: {
+    unsold: number;
+    unsold_value: string;
+    units: { id: string; label: string; tower: string; carpet_area_sqft: number; list_price: string; held_for: string | null; held_until: string | null }[];
+  };
+  bookings: { id: string; unit_id: string; unit: string; buyer: string; booked_on: string; agreement_value: string; partner: string | null }[];
+  price_list: {
+    base_rate: string;
+    floor_rise: string;
+    floor_rise_from: number;
+    plc: Record<string, string>;
+    car_park: string;
+    amenities: string;
+    other_charges: string;
+    corpus_per_sqft: string;
+    maintenance_per_sqft_month: string;
+    maintenance_months: number;
+  } | null;
+  partners: { id: string; name: string; firm: string | null }[];
+};
+
+export type LeadDetail = LeadRow & {
+  can_edit: boolean;
+  project: { id: string; name: string } | null;
+  projects: { id: string; name: string }[];
+  partner: { id: string; name: string } | null;
+  lost_reason: string | null;
+  has_prices: boolean;
+  call_again_on: string;
+  planned_visit: { id: string; on: string; time: string | null } | null;
+  activities: { at: string; kind: string; kind_label: string; detail: string; by: string | null }[];
+  visits: { id: string; on: string; time: string | null; status: string; status_label: string; feedback: string | null; project: string }[];
+  units: { id: string; label: string; tower: string; carpet_area_sqft: number; price: string | null; held_by_this_lead: boolean; held_by_other: boolean; hold_id: string | null; held_until: string | null }[];
+  plc: string[];
+  booking: { id: string; unit_id: string; unit: string; booked_on: string; agreement_value: string } | null;
+  team: { id: string; name: string }[];
+  partners: { id: string; name: string }[];
+};
+
+export type CostLine = { label: string; amount: string; detail: string };
+
+export type CostSheet = {
+  unit: string;
+  project: string;
+  tower: string;
+  carpet_area_sqft: number;
+  agreement_lines: CostLine[];
+  agreement_value: string;
+  rate_per_sqft: string;
+  gst_rate: string;
+  gst: string;
+  handover_lines: CostLine[];
+  stamp_duty: string;
+  cess: string;
+  registration_fee: string;
+  agreement_stamp_duty: string;
+  total: string;
+  tds_rate: string;
+  tds: string;
+  guidance_value: string;
+  below_guidance: boolean;
+  guidance_gap: string;
+  guidance_tax: string;
+};
+
+export type Commission = {
+  id: string;
+  project: string;
+  unit: string;
+  unit_id: string;
+  buyer: string;
+  booked_on: string;
+  agreement_value: string;
+  rate_pct: string;
+  amount: string;
+  gst: string;
+  tds: string;
+  payable: string;
+  state: "pending" | "due" | "paid";
+  partner: string;
+  paid_on: string | null;
+  reference: string | null;
+};
+
+export type Partners = {
+  can_edit: boolean;
+  partners: {
+    id: string;
+    name: string;
+    firm: string | null;
+    phone: string | null;
+    email: string | null;
+    krera_number: string | null;
+    krera_valid_until: string | null;
+    krera_lapsed: boolean;
+    commission_pct: string;
+    payable_after_pct: string;
+    gstin: string | null;
+    pan: string | null;
+    active: boolean;
+    leads: number;
+    bookings: number;
+    paid: string;
+  }[];
+  to_pay: Commission[];
+  waiting: Commission[];
+};
+
 export const api = {
   me: () => get<Me>("/auth/me"),
   mailbox: () => get<{ email: string; emails: DemoMail[] }>("/demo/mailbox"),
@@ -1888,6 +2028,12 @@ export const api = {
   krera: (projectId: string) => get<Krera>(`/projects/${projectId}/krera`),
   table: (projectId: string, kind: string, page: number) =>
     get<TableEdit>(`/projects/${projectId}/table/${kind}?page=${page}`),
+  sales: (projectId: string, stage?: string) =>
+    get<SalesPage>(`/projects/${projectId}/sales${stage ? `?stage=${encodeURIComponent(stage)}` : ""}`),
+  lead: (id: string) => get<LeadDetail>(`/leads/${id}`),
+  partners: () => get<Partners>("/partners"),
+  costSheet: (projectId: string, unitId: string, query: string) =>
+    get<CostSheet>(`/projects/${projectId}/units/${unitId}/cost-sheet${query ? `?${query}` : ""}`),
 };
 
 export function areaHref(o: Obligation): string {
