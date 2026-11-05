@@ -15,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -786,6 +787,18 @@ class Invitation(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class StoredFile(Base):
+    """A stored file kept in the database itself (see storage.DatabaseStorage): for servers that
+    share a database but no disk, such as the public demo's."""
+
+    __tablename__ = "stored_files"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    size: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class OutboundEmail(Base):

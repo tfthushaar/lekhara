@@ -17,6 +17,7 @@ dependencies = [
     "cryptography>=43",
     "defusedxml>=0.7",
     "webauthn>=3.0",
+    "psycopg[binary]>=3.2",
 ]
 
 [project.optional-dependencies]

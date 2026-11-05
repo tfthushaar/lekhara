@@ -200,3 +200,14 @@ def test_the_vercel_entry_point_builds_the_demo(tmp_path) -> None:
         url.endswith("lekhara-demo/lekhara.db")
         and (tmp_path / "lekhara-demo" / "lekhara.db").exists()
     )
+
+
+def test_the_nightly_reset_needs_the_cron_secret(shared, monkeypatch) -> None:
+    calls = []
+    shared.state.reset_demo = lambda: calls.append(1)
+    client = TestClient(shared)
+    assert client.post("/demo/reset").status_code == 404  # no secret set: no reset at all
+    monkeypatch.setenv("CRON_SECRET", "a-secret")
+    assert client.post("/demo/reset", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    ok = client.post("/demo/reset", headers={"Authorization": "Bearer a-secret"})
+    assert ok.status_code == 200 and calls == [1]

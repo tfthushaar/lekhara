@@ -3,8 +3,10 @@
 Files are addressed by the SHA-256 of their contents, so the same file uploaded twice
 is stored once and a stored file can never change under its key. On local disk for development
 and small setups; in an S3 bucket (or any S3-compatible store) in production, encrypted at rest
-and with S3 checking each upload against its SHA-256. `make_storage` picks one from the
-settings: LEKHARA_STORAGE_URL=s3://bucket/prefix for S3, otherwise LEKHARA_STORAGE_DIR.
+and with S3 checking each upload against its SHA-256. The public demo, whose servers share a
+database but no disk, keeps them in the database. `make_storage` picks one from the settings:
+LEKHARA_STORAGE_URL=s3://bucket/prefix for S3, =database for the database, otherwise
+LEKHARA_STORAGE_DIR.
 """
 
 import base64
@@ -162,11 +164,70 @@ class S3Storage:
                     yield name
 
 
+class DatabaseStorage:
+    """Files in the database's stored_files table, for servers that share a database but no
+    disk. Meant for the public demo's small files, not for a firm's whole vault."""
+
+    def __init__(self, database_url: str) -> None:
+        from lekhara.db import make_engine
+
+        self.engine = make_engine(database_url)
+
+    def put(self, data: bytes) -> str:
+        from sqlalchemy import select
+        from sqlalchemy.exc import IntegrityError
+
+        from lekhara.models import StoredFile
+
+        key = hashlib.sha256(data).hexdigest()
+        with self.engine.begin() as conn:
+            if conn.execute(select(StoredFile.key).where(StoredFile.key == key)).first():
+                return key
+        try:
+            with self.engine.begin() as conn:
+                conn.execute(
+                    StoredFile.__table__.insert().values(key=key, data=data, size=len(data))
+                )
+        except IntegrityError:
+            pass  # stored at the same moment by another server: the same bytes
+        return key
+
+    def get(self, key: str) -> bytes:
+        from sqlalchemy import select
+
+        from lekhara.models import StoredFile
+
+        with self.engine.connect() as conn:
+            row = conn.execute(
+                select(StoredFile.data).where(StoredFile.key == _check_key(key))
+            ).first()
+        if row is None:
+            raise FileNotFoundError(key)
+        return bytes(row[0])
+
+    def delete(self, key: str) -> None:
+        from lekhara.models import StoredFile
+
+        with contextlib.suppress(ValueError), self.engine.begin() as conn:
+            conn.execute(StoredFile.__table__.delete().where(StoredFile.key == _check_key(key)))
+
+    def keys(self) -> Iterator[str]:
+        from sqlalchemy import select
+
+        from lekhara.models import StoredFile
+
+        with self.engine.connect() as conn:
+            yield from conn.execute(select(StoredFile.key)).scalars().all()
+
+
 def make_storage(settings: "Settings") -> Storage:
-    """The store the settings name: an S3 bucket for s3://bucket/prefix, else local disk."""
+    """The store the settings name: an S3 bucket for s3://bucket/prefix, the database for
+    database, else local disk."""
     url = (settings.storage_url or "").strip()
     if not url:
         return LocalStorage(settings.storage_dir)
+    if url == "database":
+        return DatabaseStorage(settings.database_url)
     parsed = urlparse(url)
     if parsed.scheme != "s3" or not parsed.netloc:
         raise ValueError("LEKHARA_STORAGE_URL must look like s3://bucket/prefix.")

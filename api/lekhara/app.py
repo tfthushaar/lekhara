@@ -4,6 +4,7 @@ import hmac
 import io
 import json
 import logging
+import os
 import re
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
@@ -2318,6 +2319,19 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         demo_only()
         org = accounts.current_org(session, me)
         return file_download(demo.krera_certificate(org, on), "krera-certificate-demo.pdf")
+
+    @app.post("/demo/reset")
+    def demo_reset(authorization: Annotated[str | None, Header()] = None) -> dict:
+        """Puts the public demo back as it began, for the nightly Vercel Cron job. It must
+        carry the project's CRON_SECRET, as Vercel's cron requests do."""
+        secret = os.environ.get("CRON_SECRET")
+        reset = getattr(app.state, "reset_demo", None)
+        if not settings.shared_demo or not secret or reset is None:
+            raise ServiceError("Not found.", 404)
+        if not hmac.compare_digest(authorization or "", f"Bearer {secret}"):
+            raise ServiceError("Not allowed.", 401)
+        reset()
+        return {"ok": True}
 
     @app.post("/projects/{project_id}/demo/sample-email")
     def demo_sample_email(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:

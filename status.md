@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-11-06, with the commit "A public demo on Vercel, with every workflow working on made-up data".
+Last updated: 2026-11-06, with the commit "Give the public demo one shared database, files included, and a nightly reset".
 
 ## What we are building
 
@@ -355,9 +355,13 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - The demo's buyers now have names, and its suppliers and firm have well-formed GSTINs.
 - Tested: the shared accounts' guards, the mailbox, a visitor's code, every sample file brought in through the real imports with the outcomes expected, the sample email, nothing of it off the demo, and the Vercel entry point building the demo from nothing. End to end: the first screen's choice and both views, sample files downloaded and read, the sample email, a lender opening a data room with the code shown, the owner's mailbox, a refused password reset, the sample certificate, and signing up for a firm of one's own.
 
+- The demo's copies on Vercel share one Postgres database (Neon, in Singapore, with the demo's servers beside it), and its files are kept in the database too, so a visitor sees the same data on every request.
+- The demo puts itself back as it began every night at 3 AM IST.
+- Tested: files kept in the database, stored once and read back; the nightly reset refused without Vercel's cron secret; the demo built once when two copies start together on Postgres; the whole walk-through on Postgres, before and after a reset, with the security policies back in place.
+
 ## In progress
 
-- Deploying the demo to Vercel.
+- Checking the live demo end to end, then the expanded software (below).
 
 ## Next: the expanded software
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["bom1"],
+  "regions": ["sin1"],
   "services": {
     "web": {
       "root": "web/",
@@ -13,5 +13,6 @@
       "entrypoint": "lekhara.vercel:app"
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": { "service": "web" } }]
+  "rewrites": [{ "source": "/(.*)", "destination": { "service": "web" } }],
+  "crons": [{ "path": "/api/demo-reset", "schedule": "30 21 * * *" }]
 }

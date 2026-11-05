@@ -1742,7 +1742,15 @@ def reset_and_seed(
     database_url: str, today: date, storage_dir: str | None = None, storage: Storage | None = None
 ) -> None:
     engine = make_engine(database_url)
-    Base.metadata.drop_all(engine)
+    if engine.dialect.name == "postgresql":
+        # The row-level security policies refer to other tables, so each goes with what
+        # depends on it; the migrations put the policies back.
+        with engine.begin() as connection:
+            for table in reversed(Base.metadata.sorted_tables):
+                # Names from the models, never from a request.
+                connection.execute(text(f'DROP TABLE IF EXISTS "{table.name}" CASCADE'))  # nosec B608
+    else:
+        Base.metadata.drop_all(engine)
     with engine.begin() as connection:
         connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
     upgrade(engine)

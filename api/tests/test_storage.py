@@ -107,3 +107,20 @@ def test_settings_choose_the_store(tmp_path) -> None:
         make_storage(Settings(storage_url="https://example.com/files"))
     with pytest.raises(ValueError):
         S3Storage("b", client=object(), encryption="rot13")
+
+
+def test_database_storage_keeps_files_in_the_database(tmp_path) -> None:
+    from lekhara.db import Base, make_engine
+    from lekhara.storage import DatabaseStorage
+
+    url = f"sqlite:///{(tmp_path / 'files.db').as_posix()}"
+    Base.metadata.create_all(make_engine(url))
+    store = DatabaseStorage(url)
+    assert store.put(DATA) == KEY and store.put(DATA) == KEY  # the same file once
+    assert store.get(KEY) == DATA and list(store.keys()) == [KEY]
+    with pytest.raises(FileNotFoundError):
+        store.get("0" * 64)
+    store.delete(KEY)
+    assert list(store.keys()) == []
+    assert isinstance(make_storage(Settings(database_url=url, storage_url="database")),
+                      DatabaseStorage)  # fmt: skip

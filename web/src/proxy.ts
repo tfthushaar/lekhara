@@ -3,9 +3,9 @@ import { type NextRequest, NextResponse } from "next/server";
 import { FLASH_COOKIE, FLASH_HEADER, decodeFlash, encodeFlash } from "@/lib/flash";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
 
-// The website, sign-up, password resets, email checks, invitations, shared data rooms and the
-// legal pages are opened without signing in.
-const OPEN = /^\/(welcome|pricing|contact|security|\.well-known|login|signup|forgot|reset|verify|invite|shared|check|legal)(\/|$)/;
+// The website, sign-up, password resets, email checks, invitations, shared data rooms, the
+// legal pages and the demo's nightly reset are opened without signing in.
+const OPEN = /^\/(api\/demo-reset|welcome|pricing|contact|security|\.well-known|login|signup|forgot|reset|verify|invite|shared|check|legal)(\/|$)/;
 
 /**
  * An optimistic check only: without a session cookie, "/" shows the website (the demo's first

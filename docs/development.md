@@ -188,7 +188,9 @@ The public demo is the same code with `LEKHARA_DEMO=1` and `LEKHARA_SHARED_DEMO=
 
 `.vercelignore` keeps virtual environments, build output, tests, local databases and stored files out of the upload.
 
-`lekhara/vercel.py` turns the demo on and the background worker off. With no `LEKHARA_DATABASE_URL`, it builds a fresh demo in `/tmp` (SQLite and files) when each instance starts, which takes about two seconds. The demo resets whenever Vercel starts a new instance. With a Postgres `LEKHARA_DATABASE_URL` (for example Neon from the Vercel Marketplace), the schema is migrated and the demo firm is added only when it isn't there yet.
+`lekhara/vercel.py` turns the demo on and the background worker off. Vercel runs several copies of the API at once, so they all share one Postgres database: Neon from the Vercel Marketplace, created in Singapore (`sin1`, the closest region Neon offers to India; `vercel.json` runs the functions there too). Its direct connection, `DATABASE_URL_UNPOOLED`, becomes `LEKHARA_DATABASE_URL` with the psycopg driver named. Files go in the same database (`LEKHARA_STORAGE_URL=database`, `storage.DatabaseStorage`, the `stored_files` table), since the copies share no disk.
+
+The first copy to start migrates the schema and adds the demo firm, holding a Postgres advisory lock so the others wait. A Vercel Cron job calls `/api/demo-reset` on the website every night at 03:00 IST. The website passes it to the API's `POST /demo/reset`, which checks the project's `CRON_SECRET` and puts the demo back as it began. With no database at all, each copy builds a demo of its own in `/tmp` instead: enough to look around, but a visitor's requests may reach different copies.
 
 `demo.py` adds what a demo needs to work without real email or real files:
 - **The demo mailbox:** `GET /demo/mailbox`, the web's `/mailbox` page.
@@ -208,6 +210,8 @@ To deploy, from the repository's root, signed in with `vercel login`:
 vercel link --yes --project lekhara-demo
 vercel env add LEKHARA_DEMO production        # 1
 vercel env add LEKHARA_SECRET_KEY production  # a long random string
+vercel env add CRON_SECRET production         # a long random string, for the nightly reset
+vercel integration add neon --name lekhara-demo-db --meta region=sin1 --environment production
 vercel deploy --prod
 ```
 

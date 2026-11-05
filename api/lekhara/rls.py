@@ -37,6 +37,7 @@ IDENTITY_TABLES = {
     "access_log_head",
     "rate_limit_events",
     "integrity_checks",
+    "stored_files",
 }
 """Read while working out who the person is, or written with no firm known yet: kept in the open
 for the code to guard."""
