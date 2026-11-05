@@ -10,7 +10,7 @@ Free for a month. Nothing to install. Starting in Bengaluru.
 [**Try the demo**](https://lekhara-demo.vercel.app) · [**Watch the video**](https://cdn.jsdelivr.net/gh/tfthushaar/lekhara@site/lekhara.mp4) · [What works today](#what-works-today) · [Pricing](#pricing)
 
 <a href="https://cdn.jsdelivr.net/gh/tfthushaar/lekhara@site/lekhara.mp4">
-  <img src="media/lekhara-preview.gif" alt="Lekhara in under a minute: 70 of every 100 rupees buyers pay goes into the RERA account, fines for late K-RERA updates, interest to buyers for late handover, and how Lekhara keeps track of it. Click to watch the video." width="100%">
+  <img src="media/lekhara-preview.gif" alt="Lekhara in under a minute: what a builder owes K-RERA, the RERA account and buyers, then the list of what to do today, how much can be drawn from the RERA account, and one box for every file. Click to watch the video." width="100%">
 </a>
 
 <sub><a href="https://cdn.jsdelivr.net/gh/tfthushaar/lekhara@site/lekhara.mp4">Watch it as a video</a>, 52 seconds</sub>

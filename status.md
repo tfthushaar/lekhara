@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-11-06, with the commit "A cleaner look with no lines, and the last screens made simple".
+Last updated: 2026-11-06, with the commit "The launch video in the new look".
 
 ## What we are building
 
@@ -394,9 +394,10 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - The website and README say what Lekhara does, which anyone can check, in place of how easy it will feel, which no office has tested yet.
 - The demo's nightly reset was run on the live site for the first time, by hand: it rebuilt the demo on its shared database, and the Sales walk-through passes there (42 checks).
 
+- The launch video, remade (52 seconds, both formats): the same checked facts about the RERA account, K-RERA and late handover, then the new screens in the new look: the list of what to do today, the RERA account with its certificates, and one box for every file. In Inter, with no lines. It replaces the old video in the README's looping preview and at the hosted link.
+
 ## In progress
 
-- The launch video, remade for the new look and the easy-to-use message.
 - Still to do with a real builder's office: watching someone who has never used a tool like this get through their first day alone. Until then, "easy" is the aim, not a tested fact.
 
 ## Next: the expanded software
