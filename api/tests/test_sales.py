@@ -381,3 +381,6 @@ def test_one_box_for_any_file(owner):
     other = add("notes.txt", b"Meeting notes, nothing to import here at all.", "text/plain")
     assert other.json()["to"].startswith("/documents/")
     assert owner.get(other.json()["to"]).status_code == 200
+    # The same file again opens the one already there.
+    again = add("notes.txt", b"Meeting notes, nothing to import here at all.", "text/plain")
+    assert again.status_code == 201 and again.json()["to"] == other.json()["to"]

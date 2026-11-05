@@ -66,7 +66,7 @@ async function ApprovalsView({ params }: { params: Promise<{ id: string }> }) {
         <p className="chips" style={{ alignItems: "center" }}>
           {v.can_edit ? (
             <Link href={`/projects/${id}/import`} className="button button-secondary">
-              Import from Excel
+              Add from Excel
             </Link>
           ) : null}
           <a href={`/download/projects/${id}/exports/approvals.xlsx`} className="link-action">
@@ -83,8 +83,8 @@ async function ApprovalsView({ params }: { params: Promise<{ id: string }> }) {
           v.approvals.length === 0 ? (
             <div className="empty">
               <p>
-                No approvals listed yet. Start from the usual ones for a Karnataka residential project, then fill in the
-                dates and delete what does not apply.
+                No approvals yet. Start from the usual ones for a Karnataka residential project, then add the dates and
+                delete any that don&apos;t apply.
               </p>
               <div style={{ marginTop: 12 }}>
                 <ActionForm action={addStandardApprovals.bind(null, id)} label="Set up the usual approvals" pendingLabel="Setting up" />
@@ -104,7 +104,9 @@ async function ApprovalsView({ params }: { params: Promise<{ id: string }> }) {
 
         {v.approvals.length > 0 ? (
           <ul className="rows">
-            {v.approvals.map((a) => (
+            {[...v.approvals]
+              .sort((x, y) => Number(!["lapsed", "lapsing"].includes(x.status)) - Number(!["lapsed", "lapsing"].includes(y.status)))
+              .map((a) => (
               <li key={a.id} className="row">
                 <div>
                   <span className={TAG[a.status]}>{a.status_text}</span>

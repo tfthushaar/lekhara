@@ -25,38 +25,18 @@ async function SuppliersView({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <>
-      <div className="stats">
-        <div className="stat">
-          <p className="stat-label">Suppliers&apos; bills</p>
-          <p className="stat-value">{p.bills.length}</p>
-          <p className="stat-note">{`${p.totals.unpaid} unpaid`}</p>
-        </div>
-        <div className="stat">
-          <p className="stat-label">Taxable value</p>
-          <p className="stat-value">{inr(p.totals.taxable)}</p>
-          <p className="stat-note">{`${inr(p.totals.gst)} GST`}</p>
-        </div>
-        <div className="stat">
-          <p className="stat-label">Suppliers</p>
-          <p className="stat-value">{p.suppliers.length}</p>
-          <p className="stat-note">{`${p.suppliers.filter((s) => !s.registered).length} not registered for GST`}</p>
-        </div>
-      </div>
-
       <section className="section">
         <div className="section-head">
           <h2>Suppliers&apos; bills</h2>
-          <p>
-            For the 80% registered-supplier test and the MSME 45-day clock; with a cost line, for cost incurred and paid
-          </p>
+          <p>{`${p.bills.length} bills, ${p.totals.unpaid} unpaid`}</p>
         </div>
         <p className="small" style={{ marginTop: 12 }}>
           <a href={`/download/projects/${id}/exports/bills.xlsx`} className="link-action">
-            Export to Excel
+            Download as Excel
           </a>
           {"  ·  "}
-          <Link href={`/projects/${id}/import#purchases`} className="link-action">
-            Import a sheet of bills
+          <Link href={`/projects/${id}/import`} className="link-action">
+            Add a sheet of bills
           </Link>
           {p.can_edit && p.bills.length > 0 ? (
             <>
@@ -76,7 +56,7 @@ async function SuppliersView({ params }: { params: Promise<{ id: string }> }) {
           </details>
         ) : null}
         {p.bills.length === 0 ? (
-          <p className="empty">No bills yet. Add one, import a sheet, or bring them in from Tally.</p>
+          <p className="empty">No bills yet. Add your Tally file and they come in by themselves, or add one here.</p>
         ) : (
           <table className="table" style={{ marginTop: 12 }}>
             <thead>
@@ -114,10 +94,12 @@ async function SuppliersView({ params }: { params: Promise<{ id: string }> }) {
         )}
       </section>
 
-      <section className="section">
+      <details className="disclosure">
+<summary>{`Your suppliers (${p.suppliers.length})`}</summary>
+<section className="section">
         <div className="section-head">
           <h2>Suppliers</h2>
-          <p>Shared by all your projects: GSTIN, MSME category and Udyam number</p>
+          <p>Shared by all your projects</p>
         </div>
         <p className="small" style={{ marginTop: 12 }}>
           <a href={`/download/projects/${id}/exports/suppliers.xlsx`} className="link-action">
@@ -175,6 +157,7 @@ async function SuppliersView({ params }: { params: Promise<{ id: string }> }) {
           </table>
         )}
       </section>
+</details>
     </>
   );
 }

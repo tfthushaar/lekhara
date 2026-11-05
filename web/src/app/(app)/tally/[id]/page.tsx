@@ -63,12 +63,156 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
 
       <p className="status-line">
         {t.status === "applied"
-          ? `Brought in: ${plural(t.result?.bills_added.length ?? 0, "bill")}, ${plural(t.result?.receipts_added.length ?? 0, "buyer payment")} and ${plural(t.result?.vendors_added.length ?? 0, "new supplier")}.`
+          ? `Saved: ${plural(t.result?.bills_added.length ?? 0, "bill")}, ${plural(t.result?.receipts_added.length ?? 0, "buyer payment")} and ${plural(t.result?.vendors_added.length ?? 0, "new supplier")}.`
           : t.status === "undone"
-            ? "This import was undone; what it brought in has been removed."
-            : "Nothing is saved yet. Check what Lekhara found and what is missing, then bring it in."}
+            ? "This file was undone; what it added has been taken out."
+            : `${plural(c.bills_new, "supplier bill")}, ${plural(c.receipts_new, "buyer payment")} and ${plural(c.vendors_new, "new supplier")} ready to save.`}
       </p>
 
+      {t.status === "review" && t.can_edit ? (
+        <section>
+          <ActionForm action={applyTally.bind(null, t.id)} label="Save it" pendingLabel="Saving">
+            <p style={{ marginBottom: 12, maxWidth: 720 }}>
+              {waiting.length > 0
+                ? `Payments from ${plural(waiting.length, "buyer")} without a unit wait; everything else is saved now. Add the same file again later for them; nothing is saved twice.`
+                : "Adding the same file again later saves nothing twice."}
+            </p>
+          </ActionForm>
+        </section>
+      ) : null}
+
+      {t.can_apply_rest ? (
+        <section className="section">
+          <ActionForm action={applyTally.bind(null, t.id)} label="Save the rest" pendingLabel="Saving">
+            <p style={{ marginBottom: 12, maxWidth: 720 }}>
+              What your answers have cleared since this file came in can be saved now. The rest is already saved.
+            </p>
+          </ActionForm>
+        </section>
+      ) : null}
+
+
+      <section className="section">
+        <div className="section-head">
+          <h2>Before you save</h2>
+          <p>What the file is missing, and how to fix it</p>
+        </div>
+        {t.alerts.filter((a) => a.level !== "info").length === 0 && t.alerts.filter((a) => a.level === "info").length === 0 ? (
+          <p className="empty">The file has everything Lekhara needs.</p>
+        ) : (
+          <>
+          <ul className="rows">
+            {t.alerts.filter((a) => a.level !== "info").map((a) => (
+              <li key={a.code} className="row">
+                <div>
+                  <span className={LEVEL[a.level].className}>{LEVEL[a.level].label}</span>
+                </div>
+                <div>
+                  <p className="row-title">{a.title}</p>
+                  <p className="row-detail">{a.detail}</p>
+                  {a.fix ? <p className="row-meta">{`How to fix it: ${a.fix}`}</p> : null}
+                  {a.items.length > 0 ? (
+                    <details className="disclosure" style={{ marginTop: 6 }}>
+                      <summary>{`Which (${a.items.length}${a.items.length >= 20 ? " or more" : ""})`}</summary>
+                      <p className="small">{a.items.join("; ")}</p>
+                    </details>
+                  ) : null}
+                </div>
+                <div />
+              </li>
+            ))}
+          </ul>
+          {t.alerts.filter((a) => a.level === "info").length > 0 ? (
+            <details className="disclosure">
+              <summary>{`Notes (${t.alerts.filter((a) => a.level === "info").length})`}</summary>
+              <ul className="rows">
+                {t.alerts.filter((a) => a.level === "info").map((a) => (
+                <li key={a.code} className="row">
+                  <div>
+                    <span className={LEVEL[a.level].className}>{LEVEL[a.level].label}</span>
+                  </div>
+                  <div>
+                    <p className="row-title">{a.title}</p>
+                    <p className="row-detail">{a.detail}</p>
+                    {a.fix ? <p className="row-meta">{`How to fix it: ${a.fix}`}</p> : null}
+                    {a.items.length > 0 ? (
+                      <details className="disclosure" style={{ marginTop: 6 }}>
+                        <summary>{`Which (${a.items.length}${a.items.length >= 20 ? " or more" : ""})`}</summary>
+                        <p className="small">{a.items.join("; ")}</p>
+                      </details>
+                    ) : null}
+                  </div>
+                  <div />
+                </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+          </>
+        )}
+      </section>
+
+      {t.can_edit ? (
+        <section className="section">
+          <div className="section-head">
+            <h2>A few questions</h2>
+            <p>Answered once; we remember them for this project&apos;s next Tally file</p>
+          </div>
+          <ActionForm action={tallyChoices.bind(null, t.id)} label="Save the answers" pendingLabel="Checking again" secondary>
+            {t.cost_centres.length > 0 ? (
+              <div className="field" style={{ maxWidth: 420, marginTop: 12 }}>
+                <label htmlFor="cost_centre">Which vouchers belong to this project</label>
+                <select id="cost_centre" name="cost_centre" defaultValue={t.cost_centre ?? ""}>
+                  <option value="">All vouchers in the file</option>
+                  {t.cost_centres.map((cc) => (
+                    <option key={cc} value={cc}>{`Only cost centre ${cc}`}</option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            {t.buyers.length > 0 ? (
+              <table className="table" style={{ marginTop: 12 }}>
+                <thead>
+                  <tr>
+                    <th>Buyer&apos;s ledger in Tally</th>
+                    <th className="right">Received</th>
+                    <th>Unit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {t.buyers.map((b, i) => (
+                    <tr key={b.ledger}>
+                      <td>
+                        {b.ledger}
+                        <input type="hidden" name={`ledger_${i}`} value={b.ledger} />
+                        <br />
+                        <span className="small muted">{plural(b.count, "payment")}</span>
+                      </td>
+                      <td className="right num">{inr(b.total)}</td>
+                      <td>
+                        <select name={`unit_${i}`} defaultValue={b.ignored ? "ignore" : ""} aria-label={`Unit for ${b.ledger}`}>
+                          <option value="">Choose the unit</option>
+                          {t.units.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {`${u.label}${u.buyer ? `, ${u.buyer}` : ""}${b.suggestions.includes(u.label) ? " (likely)" : ""}`}
+                            </option>
+                          ))}
+                          <option value="ignore">Not a buyer: leave these out</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : null}
+            <MoneyChoices t={t} />
+          </ActionForm>
+        </section>
+      ) : null}
+
+      <section className="section">
+        <details className="disclosure">
+          <summary>The numbers</summary>
       <div className="stats">
         <div className="stat">
           <p className="stat-label">Suppliers</p>
@@ -130,96 +274,8 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
           .
         </p>
       ) : null}
-
-      <section className="section">
-        <div className="section-head">
-          <h2>What needs attention</h2>
-          <p>Anything the file is missing for Lekhara&apos;s checks, and how to fix it</p>
-        </div>
-        {t.alerts.length === 0 ? (
-          <p className="empty">The file has everything Lekhara needs.</p>
-        ) : (
-          <ul className="rows">
-            {t.alerts.map((a) => (
-              <li key={a.code} className="row">
-                <div>
-                  <span className={LEVEL[a.level].className}>{LEVEL[a.level].label}</span>
-                </div>
-                <div>
-                  <p className="row-title">{a.title}</p>
-                  <p className="row-detail">{a.detail}</p>
-                  {a.fix ? <p className="row-meta">{`How to fix it: ${a.fix}`}</p> : null}
-                  {a.items.length > 0 ? (
-                    <details className="disclosure" style={{ marginTop: 6 }}>
-                      <summary>{`Which (${a.items.length}${a.items.length >= 20 ? " or more" : ""})`}</summary>
-                      <p className="small">{a.items.join("; ")}</p>
-                    </details>
-                  ) : null}
-                </div>
-                <div />
-              </li>
-            ))}
-          </ul>
-        )}
+        </details>
       </section>
-
-      {t.can_edit ? (
-        <section className="section">
-          <div className="section-head">
-            <h2>Your choices</h2>
-            <p>Lekhara remembers them for this project&apos;s next Tally import</p>
-          </div>
-          <ActionForm action={tallyChoices.bind(null, t.id)} label="Save the choices" pendingLabel="Checking again" secondary>
-            {t.cost_centres.length > 0 ? (
-              <div className="field" style={{ maxWidth: 420, marginTop: 12 }}>
-                <label htmlFor="cost_centre">Which vouchers belong to this project</label>
-                <select id="cost_centre" name="cost_centre" defaultValue={t.cost_centre ?? ""}>
-                  <option value="">All vouchers in the file</option>
-                  {t.cost_centres.map((cc) => (
-                    <option key={cc} value={cc}>{`Only cost centre ${cc}`}</option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-            {t.buyers.length > 0 ? (
-              <table className="table" style={{ marginTop: 12 }}>
-                <thead>
-                  <tr>
-                    <th>Buyer&apos;s ledger in Tally</th>
-                    <th className="right">Received</th>
-                    <th>Unit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {t.buyers.map((b, i) => (
-                    <tr key={b.ledger}>
-                      <td>
-                        {b.ledger}
-                        <input type="hidden" name={`ledger_${i}`} value={b.ledger} />
-                        <br />
-                        <span className="small muted">{plural(b.count, "payment")}</span>
-                      </td>
-                      <td className="right num">{inr(b.total)}</td>
-                      <td>
-                        <select name={`unit_${i}`} defaultValue={b.ignored ? "ignore" : ""} aria-label={`Unit for ${b.ledger}`}>
-                          <option value="">Choose the unit</option>
-                          {t.units.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {`${u.label}${u.buyer ? `, ${u.buyer}` : ""}${b.suggestions.includes(u.label) ? " (likely)" : ""}`}
-                            </option>
-                          ))}
-                          <option value="ignore">Not a buyer: leave these out</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : null}
-            <MoneyChoices t={t} />
-          </ActionForm>
-        </section>
-      ) : null}
 
       <section className="section">
         <details className="disclosure">
@@ -255,37 +311,15 @@ async function TallyView({ params }: { params: Promise<{ id: string }> }) {
 
       <Preview t={t} />
 
-      {t.status === "review" && t.can_edit ? (
-        <section className="section">
-          <ActionForm action={applyTally.bind(null, t.id)} label="Save it" pendingLabel="Saving">
-            <p style={{ marginBottom: 12, maxWidth: 720 }}>
-              {waiting.length > 0
-                ? `Payments from ${plural(waiting.length, "buyer")} without a unit wait; everything else comes in now. You can import the same file again later for them.`
-                : "Everything above comes in now. Importing the same file again later adds nothing twice."}
-            </p>
-          </ActionForm>
-        </section>
-      ) : null}
-
-      {t.can_apply_rest ? (
-        <section className="section">
-          <ActionForm action={applyTally.bind(null, t.id)} label="Save the rest" pendingLabel="Saving">
-            <p style={{ marginBottom: 12, maxWidth: 720 }}>
-              What your choices have freed since this export came in can come in now; the rest is already in.
-            </p>
-          </ActionForm>
-        </section>
-      ) : null}
-
       {t.can_undo ? (
         <section className="section">
           <details className="disclosure">
-            <summary>Undo this import</summary>
+            <summary>Undo this file</summary>
             <p className="small muted" style={{ margin: "8px 0 12px", maxWidth: 640 }}>
               Removes the bills and payments it brought in, and the suppliers it added that have no
               other bills, and puts back supplier details it filled in.
             </p>
-            <ActionForm action={undoTally.bind(null, t.id)} label="Undo the import" pendingLabel="Undoing" secondary />
+            <ActionForm action={undoTally.bind(null, t.id)} label="Undo it" pendingLabel="Undoing" secondary />
           </details>
         </section>
       ) : null}

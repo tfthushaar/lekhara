@@ -201,7 +201,7 @@ def test_uploads_are_checked(clerk) -> None:
     assert first.status_code == 201
     again = upload(clerk, HB, pdf("A letter"), filename="copy-of-letter.pdf")
     assert again.status_code == 400
-    assert "already in the vault" in again.json()["detail"]
+    assert "already added this file" in again.json()["detail"]
 
 
 def test_a_new_version_replaces_the_old_and_keeps_it(clerk) -> None:

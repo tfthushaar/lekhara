@@ -50,6 +50,7 @@ export const unlinkConnector = settled(handlers.unlinkConnector);
 export const uploadGst = settled(handlers.uploadGst);
 export const gstChoices = settled(handlers.gstChoices);
 export const applyGst = settled(handlers.applyGst);
+export const saveGst = settled(handlers.saveGst);
 export const undoGst = settled(handlers.undoGst);
 export const uploadStatement = settled(handlers.uploadStatement);
 export const addBankRule = settled(handlers.addBankRule);

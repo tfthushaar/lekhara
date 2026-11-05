@@ -580,16 +580,20 @@ def sort_upload(
             session, project, record, filename=filename, data=data, user_id=user_id
         )
         return {"to": f"/imports/{batch.id}"}
-    doc = services.store_document(
-        session,
-        storage,
-        project,
-        data=data,
-        filename=filename,
-        fields={"category": None, "guess": _category(filename), "notes": None},
-        max_bytes=settings.max_upload_mb * 1_000_000,
-        user_id=user_id,
-    )
+    try:
+        doc = services.store_document(
+            session,
+            storage,
+            project,
+            data=data,
+            filename=filename,
+            fields={"category": None, "guess": _category(filename), "notes": None},
+            max_bytes=settings.max_upload_mb * 1_000_000,
+            user_id=user_id,
+        )
+    except services.DuplicateDocument as already:
+        # Added before: open it, since that is what the person wants to see.
+        doc = already.document
     return {"to": f"/documents/{doc.id}"}
 
 

@@ -536,7 +536,7 @@ def _readme(
         "Lekhara records.json  The same records for another system to read, with the ids",
         "                      that tie them together. Amounts are in rupees; dates are",
         "                      year-month-day.",
-        "documents/            Every document in the vault, by project, every version.",
+        "documents/            Every document, by project, every version.",
         "                      Archived documents are in an archived folder.",
         "",
         "What is inside:",

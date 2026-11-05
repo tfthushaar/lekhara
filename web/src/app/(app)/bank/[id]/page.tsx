@@ -64,21 +64,33 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
 
       <p className="status-line">
         {s.status === "applied"
-          ? "Brought in. Bringing in the same statement again, or one that overlaps it, adds nothing twice."
+          ? "Saved. Adding the same statement again, or one that overlaps it, saves nothing twice."
           : s.status === "undone"
-            ? "This statement was undone; what it brought in has been removed or reversed."
+            ? "This statement was undone; what it added has been taken out."
             : s.role === null
-              ? "Nothing is saved yet. Say which account this is, then check the payments and bring them in."
-              : `Nothing is saved yet. ${plural(added, "transaction")} will come in${waiting ? `; ${plural(waiting, "payment")} wait for their unit` : ""}.`}
+              ? "First, tell us which account this statement is for."
+              : `${plural(added, "transaction")} ready to save${waiting ? `. ${plural(waiting, "payment")} need their unit first` : ""}.`}
       </p>
 
-      <Stats s={s} />
+      {s.can_apply ? (
+        <section>
+          <ActionForm action={applyStatement.bind(null, s.id)} label="Save it" pendingLabel="Saving">
+            <p style={{ marginBottom: 12, maxWidth: 720 }}>
+              {waiting > 0
+                ? `Payments waiting for their unit stay out; everything else is saved now. Add the same statement again once they have a unit; nothing is saved twice.`
+                : "Adding the same statement again later saves nothing twice."}
+            </p>
+          </ActionForm>
+        </section>
+      ) : null}
+
+
 
       {s.can_edit ? (
         <section className="section">
           <div className="section-head">
             <h2>Which account is this?</h2>
-            <p>Lekhara remembers it for this account&apos;s next statements</p>
+            <p>Answered once; we remember it for this account</p>
           </div>
           <div style={{ maxWidth: 720, marginTop: 12 }}>
             <ActionForm action={statementAccount.bind(null, s.id)} label="Save" pendingLabel="Checking again" secondary>
@@ -111,14 +123,15 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
 
       <section className="section">
         <div className="section-head">
-          <h2>What needs attention</h2>
+          <h2>Before you save</h2>
           <p>Anything Lekhara could not settle by itself, and what to do</p>
         </div>
-        {s.alerts.length === 0 ? (
+        {s.alerts.filter((a) => a.level !== "info" && a.code !== "account.role").length === 0 && s.alerts.filter((a) => a.level === "info").length === 0 ? (
           <p className="empty">Nothing: the statement reads cleanly.</p>
         ) : (
+          <>
           <ul className="rows">
-            {s.alerts.map((a) => (
+            {s.alerts.filter((a) => a.level !== "info" && a.code !== "account.role").map((a) => (
               <li key={a.code} className="row">
                 <div>
                   <span className={LEVEL[a.level].className}>{LEVEL[a.level].label}</span>
@@ -138,6 +151,33 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
               </li>
             ))}
           </ul>
+          {s.alerts.filter((a) => a.level === "info").length > 0 ? (
+            <details className="disclosure">
+              <summary>{`Notes (${s.alerts.filter((a) => a.level === "info").length})`}</summary>
+              <ul className="rows">
+                {s.alerts.filter((a) => a.level === "info").map((a) => (
+                <li key={a.code} className="row">
+                  <div>
+                    <span className={LEVEL[a.level].className}>{LEVEL[a.level].label}</span>
+                  </div>
+                  <div>
+                    <p className="row-title">{a.title}</p>
+                    <p className="row-detail">{a.detail}</p>
+                    {a.fix ? <p className="row-meta">{a.fix}</p> : null}
+                    {a.items.length > 0 ? (
+                      <details className="disclosure" style={{ marginTop: 6 }}>
+                        <summary>{`Which (${a.items.length})`}</summary>
+                        <p className="small">{a.items.join("; ")}</p>
+                      </details>
+                    ) : null}
+                  </div>
+                  <div />
+                </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+          </>
         )}
       </section>
 
@@ -145,10 +185,10 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
         <section className="section">
           <div className="section-head">
             <h2>Buyer payments</h2>
-            <p>Each matched to a unit by your bank rules, the narration, your earlier choice for the payer, or Tally</p>
+            <p>We matched each one to a unit. Change any that are wrong.</p>
           </div>
           {s.can_place ? (
-            <ActionForm action={statementChoices.bind(null, s.id)} label="Save the choices" pendingLabel="Checking again" secondary>
+            <ActionForm action={statementChoices.bind(null, s.id)} label="Save the units" pendingLabel="Checking again" secondary>
               <BuyerTable s={s} lines={buyerLines} editable />
             </ActionForm>
           ) : (
@@ -156,6 +196,13 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
           )}
         </section>
       ) : null}
+
+      <section className="section">
+        <details className="disclosure">
+          <summary>The numbers</summary>
+          <Stats s={s} />
+        </details>
+      </section>
 
       <section className="section">
         <details className="disclosure">
@@ -212,23 +259,11 @@ async function StatementView({ params }: { params: Promise<{ id: string }> }) {
         </details>
       </section>
 
-      {s.can_apply ? (
-        <section className="section">
-          <ActionForm action={applyStatement.bind(null, s.id)} label="Save it" pendingLabel="Saving">
-            <p style={{ marginBottom: 12, maxWidth: 720 }}>
-              {waiting > 0
-                ? `Payments waiting for their unit stay out; everything else comes in now. Bring in the same statement again later once they are placed; nothing is added twice.`
-                : "Everything marked above comes in now. Bringing in the same statement again later adds nothing twice."}
-            </p>
-          </ActionForm>
-        </section>
-      ) : null}
-
       {s.can_apply_rest ? (
         <section className="section">
           <ActionForm action={applyStatement.bind(null, s.id)} label="Save the rest" pendingLabel="Saving">
             <p style={{ marginBottom: 12, maxWidth: 720 }}>
-              {`${plural(added, "payment")} placed since the statement came in can come in now.`}
+              {`${plural(added, "payment")} given a unit since this statement came in can be saved now.`}
             </p>
           </ActionForm>
         </section>

@@ -2,10 +2,10 @@
 
 # Lekhara
 
-**If you can use WhatsApp, you can use Lekhara.**
+**Every project's to-do list, in one simple place.**
 
-Easy software for builders in Karnataka. It tells you what to do today on each project, and does the paperwork for it.<br>
-Free for a month. No training, nothing to install. Starting in Bengaluru.
+Software for builders in Karnataka. It tells you what to do today on each project, and prepares the paperwork for it.<br>
+Free for a month. Nothing to install. Starting in Bengaluru.
 
 [**Try the demo**](https://lekhara-demo.vercel.app) · [**Watch the video**](https://cdn.jsdelivr.net/gh/tfthushaar/lekhara@site/lekhara.mp4) · [What works today](#what-works-today) · [Pricing](#pricing)
 
@@ -28,14 +28,14 @@ Every project you build owes something to someone: K-RERA, the bank that holds y
 
 ## Easy from the first day
 
-Most builders' offices have never used software like this, so we built Lekhara for them.
+Most builders' offices have never used software like this, so Lekhara is built to be easy for them.
 
 - **It tells you what to do.** Open it and you see a list of what needs doing today. Each line has one button that does it.
 - **One box for every file.** Tally export, bank statement, GST return, Excel sheet or PDF. Put it in the box and Lekhara works out what it is.
-- **No training and no computer person.** Add a project by uploading its K-RERA certificate, and it fills in the rest.
+- **Start today.** Add a project by uploading its K-RERA certificate, and it fills in the rest. There's nothing to install.
 - **Works on your phone.** See what's late from the site, tap to call a buyer, and note what they said in one line.
 - **Plain words.** Where a legal term can't be avoided, it's explained beside it.
-- **You can't break anything.** You see every file before it's saved, and you can undo it for 30 days.
+- **Nothing is saved without you.** You see what's in every file before it's saved, and you can undo it for 30 days.
 
 ## Your RERA account
 

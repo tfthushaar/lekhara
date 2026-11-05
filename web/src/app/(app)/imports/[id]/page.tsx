@@ -146,6 +146,17 @@ const WORDS: Record<string, Words> = {
     undone: "The approvals are as they were before it.",
     undo: "New approvals are removed and changed ones go back to what they were.",
   },
+  leads: {
+    one: "lead",
+    many: "leads",
+    column: "Lead",
+    fresh: "People not in your leads yet",
+    changed: "Leads are only added",
+    link: "/sales",
+    linkLabel: "See your leads",
+    undone: "The leads it added have been removed.",
+    undo: "The leads it added are removed.",
+  },
   filings: {
     one: "filing",
     many: "filings",
@@ -168,32 +179,31 @@ function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
   return (
     <>
       <p className="status-line">
-        {b.recognised ? `Recognised as a ${b.recognised} export; its columns are matched for you. ` : ""}
-        Nothing is saved yet. Check the columns and the rows, then import.
+        {`${plural(ready, w.one, w.many)} ready to save`}
+        {b.counts.error ? `, and ${plural(b.counts.error, "row")} with something to fix` : ""}.
+        {b.recognised ? ` We recognised this as a ${b.recognised} file.` : ""}
       </p>
-      <div className="stats">
-        <div className="stat">
-          <p className="stat-label">New</p>
-          <p className="stat-value">{b.counts.add}</p>
-          <p className="stat-note">{w.fresh}</p>
-        </div>
-        <div className="stat">
-          <p className="stat-label">Changes</p>
-          <p className="stat-value">{b.counts.update}</p>
-          <p className="stat-note">{w.changed}</p>
-        </div>
-        <div className="stat">
-          <p className="stat-label">Already the same</p>
-          <p className="stat-value">{b.counts.unchanged}</p>
-          <p className="stat-note">Left as they are</p>
-        </div>
-        <div className="stat">
-          <p className="stat-label">Will be left out</p>
-          <p className="stat-value">{b.counts.error}</p>
-          <p className="stat-note">Rows with something to fix</p>
-        </div>
-      </div>
-
+      {b.can_edit ? (
+        <section className="section">
+          {ready > 0 ? (
+            <ActionForm
+              action={applyImport.bind(null, b.id)}
+              label={`Save ${plural(ready, w.one, w.many)}`}
+              pendingLabel="Saving"
+            >
+              <p style={{ marginBottom: 12 }}>
+                {b.counts.error > 0
+                  ? `${plural(b.counts.error, "row")} with something to fix will be left out. Fix them in your file and add it again later; nothing is saved twice.`
+                  : "Every row is ready. Nothing is saved twice if you add the file again."}
+              </p>
+            </ActionForm>
+          ) : (
+            <p className="empty">Nothing to save yet. Fix the rows below, or check which column is which.</p>
+          )}
+        </section>
+      ) : null}
+      <details className="disclosure" open={b.missing_required.length > 0}>
+        <summary>Which column is which</summary>
       <section className="section">
         <div className="section-head">
           <h2>Columns</h2>
@@ -235,7 +245,10 @@ function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
           </table>
         </ActionForm>
       </section>
+      </details>
 
+      <details className="disclosure" open={b.counts.error > 0}>
+        <summary>{`The rows${b.counts.error ? `, ${plural(b.counts.error, "row")} to fix` : ""}`}</summary>
       <section className="section">
         <div className="section-head">
           <h2>Rows</h2>
@@ -275,26 +288,34 @@ function Preview({ b, ready }: { b: ImportBatch; ready: number }) {
           </table>
         )}
       </section>
+      </details>
 
-      {b.can_edit ? (
-        <section className="section">
-          {ready > 0 ? (
-            <ActionForm
-              action={applyImport.bind(null, b.id)}
-              label={`Import ${plural(ready, w.one, w.many)}`}
-              pendingLabel="Importing"
-            >
-              <p style={{ marginBottom: 12 }}>
-                {b.counts.error > 0
-                  ? `${plural(b.counts.error, "row")} with something to fix will be left out; fix them in your file and import it again later.`
-                  : "Every row is ready."}
-              </p>
-            </ActionForm>
-          ) : (
-            <p className="empty">Nothing to import. Fix the rows above, or check the columns.</p>
-          )}
-        </section>
-      ) : null}
+      <details className="disclosure">
+        <summary>The numbers</summary>
+      <div className="stats">
+        <div className="stat">
+          <p className="stat-label">New</p>
+          <p className="stat-value">{b.counts.add}</p>
+          <p className="stat-note">{w.fresh}</p>
+        </div>
+        <div className="stat">
+          <p className="stat-label">Changes</p>
+          <p className="stat-value">{b.counts.update}</p>
+          <p className="stat-note">{w.changed}</p>
+        </div>
+        <div className="stat">
+          <p className="stat-label">Already the same</p>
+          <p className="stat-value">{b.counts.unchanged}</p>
+          <p className="stat-note">Left as they are</p>
+        </div>
+        <div className="stat">
+          <p className="stat-label">Will be left out</p>
+          <p className="stat-value">{b.counts.error}</p>
+          <p className="stat-note">Rows with something to fix</p>
+        </div>
+      </div>
+      </details>
+
     </>
   );
 }
@@ -308,8 +329,8 @@ function Result({ b, base }: { b: ImportBatch; base: string }) {
         {b.status === "undone"
           ? `This import was undone. ${w.undone}`
           : b.kind === "receipts" || b.kind === "landowner_payments"
-            ? `Imported: ${r ? plural(r.added, "payment") : ""} recorded.`
-            : `Imported: ${r ? `${plural(r.added, w.one, w.many)} added, ${plural(r.updated, w.one, w.many)} changed` : ""}.`}
+            ? `Saved: ${r ? plural(r.added, "payment") : ""}.`
+            : `Saved: ${r ? `${plural(r.added, w.one, w.many)} added, ${plural(r.updated, w.one, w.many)} changed` : ""}.`}
       </p>
       {r && b.status === "applied" ? (
         <p className="muted">
@@ -324,11 +345,11 @@ function Result({ b, base }: { b: ImportBatch; base: string }) {
       </p>
       {b.can_undo ? (
         <details className="disclosure" style={{ marginTop: 24 }}>
-          <summary>Undo this import</summary>
+          <summary>Undo this file</summary>
           <p className="small muted" style={{ margin: "8px 0 12px", maxWidth: 640 }}>
             {`${w.undo} This works only while nothing has happened to them since.`}
           </p>
-          <ActionForm action={undoImport.bind(null, b.id)} label="Undo the import" pendingLabel="Undoing" secondary />
+          <ActionForm action={undoImport.bind(null, b.id)} label="Undo it" pendingLabel="Undoing" secondary />
         </details>
       ) : null}
     </>

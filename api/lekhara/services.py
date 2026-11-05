@@ -1320,6 +1320,16 @@ def document_versions(session: Session, doc: Document) -> list[Document]:
     )
 
 
+class DuplicateDocument(ServiceError):
+    """The same file is already among the project's documents."""
+
+    def __init__(self, document: Document):
+        super().__init__(
+            f'You have already added this file. It is in the documents as "{document.title}".'
+        )
+        self.document = document
+
+
 def store_document(
     session: Session,
     storage: Storage,
@@ -1373,7 +1383,7 @@ def store_document(
         )
     ).first()
     if duplicate is not None:
-        raise ServiceError(f'This file is already in the vault as "{duplicate.title}".')
+        raise DuplicateDocument(duplicate)
 
     key = storage.put(data)
     pages, text_status = _page_texts(content_type, data)

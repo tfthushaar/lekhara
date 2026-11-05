@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-11-06, with the commit "Update pypdf and pyasn1 for known vulnerabilities".
+Last updated: 2026-11-06, with the commit "A cleaner look with no lines, and the last screens made simple".
 
 ## What we are building
 
@@ -386,9 +386,18 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 
 - pypdf is now 6.21.4 and pyasn1 0.6.5, which fix 11 known vulnerabilities. The CI security job had been failing on them since the first demo commit, and stopping before its code scan and npm audit; both of those pass.
 
+- A new look, from the user's "too boxy ... lines as borders just looks awful": no border lines anywhere. Content sits on soft white tiles on a light grey canvas, with pill buttons, a segmented control for a project's five places, filled fields, larger titles and the Inter typeface (self-hosted, so pages never call Google). Still black, white and greys.
+- Easy to use, third stage:
+  - Budget, Suppliers, K-RERA and Approvals: what needs doing first (late filings and approvals to renew at the top), the rest one click down. Budget shows each part's budget, spent and paid; tap a part's name to change it.
+  - The Tally, bank, GST and sheet previews now say in one line what the file holds, with the save button straight under it, then only the questions that need an answer. Notes, figures and the file's contents are one click down. The GST return has one save button where it had two, a bank statement asks which account it is once, and a leads sheet no longer calls them units.
+  - Adding a file that is already in the documents opens it, where it used to refuse.
+  - The website and README say what Lekhara does, which anyone can check, in place of how easy it will feel, which no office has tested yet.
+- The demo's nightly reset was run on the live site for the first time, by hand: it rebuilt the demo on its shared database, and the Sales walk-through passes there (42 checks).
+
 ## In progress
 
-- Nothing half-built. A real builder's office still has to try it: the test of all this is someone who has never used a tool like it getting through their first day alone.
+- The launch video, remade for the new look and the easy-to-use message.
+- Still to do with a real builder's office: watching someone who has never used a tool like this get through their first day alone. Until then, "easy" is the aim, not a tested fact.
 
 ## Next: the expanded software
 

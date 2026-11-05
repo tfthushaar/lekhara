@@ -3,7 +3,7 @@ import Link from "next/link";
 
 // Shown at "/" to anyone not signed in (see proxy.ts).
 export const metadata: Metadata = {
-  title: { absolute: "Lekhara: if you can use WhatsApp, you can use Lekhara" },
+  title: { absolute: "Lekhara: simple software for Karnataka builders" },
   description:
     "Easy software for builders in Karnataka. It tells you what to do today on each project, and does the paperwork for K-RERA, the RERA account, tax, buyers and handovers.",
 };
@@ -18,8 +18,8 @@ const EASY = [
     text: "Tally export, bank statement, GST return, Excel sheet, PDF. Put it in the box and we work out what it is.",
   },
   {
-    title: "Your office can start today",
-    text: "No training and no computer person needed. Add a project by uploading its K-RERA certificate.",
+    title: "Start today",
+    text: "Add a project by uploading its K-RERA certificate, and it fills in the rest. There is nothing to install.",
   },
   {
     title: "Works on your phone",
@@ -27,11 +27,11 @@ const EASY = [
   },
   {
     title: "Plain words",
-    text: "We say what you would say to your CA. Where a legal term can't be avoided, we explain it next to it.",
+    text: "Where a legal term can't be avoided, it is explained right next to it.",
   },
   {
-    title: "You can't break anything",
-    text: "You see every file before it is saved, and you can undo it for 30 days.",
+    title: "Nothing is saved without you",
+    text: "You see what is in every file before it is saved, and you can undo it for 30 days.",
   },
 ];
 
@@ -54,10 +54,11 @@ export default function HomePage() {
   return (
     <>
       <section className="site-hero">
-        <h1>If you can use WhatsApp, you can use Lekhara.</h1>
+        <h1>Every project&apos;s to-do list, in one simple place.</h1>
         <p className="site-lead">
-          It tells you what to do today on each project and does the paperwork for it: K-RERA, the RERA account, tax, buyers
-          and handovers. Made for builders in Karnataka, and for offices that have never used software like this.
+          Lekhara tells you what to do today on each project and prepares the paperwork for it: K-RERA, the RERA account,
+          tax, buyers and handovers. Made for builders in Karnataka, and built to be easy for offices that have never used
+          software like this.
         </p>
         <div className="site-actions">
           <Link href="/signup" className="button">
@@ -67,7 +68,7 @@ export default function HomePage() {
             See the price
           </Link>
         </div>
-        <p className="small muted">Free for a month. No card, nothing to install, no training.</p>
+        <p className="small muted">Free for a month. No card needed, and nothing to install.</p>
       </section>
 
       <section className="site-section">

@@ -438,6 +438,17 @@ export async function applyGst(importId: string, _previous: ActionState): Promis
   return {};
 }
 
+export async function saveGst(importId: string, _previous: ActionState, form: FormData): Promise<ActionState> {
+  if (form.has("asked")) {
+    const chosen = await send("PUT", `/gst/${importId}/options`, { add_missing: form.get("add_missing") === "yes" });
+    if (!chosen.ok) return { error: chosen.error };
+  }
+  const result = await send("POST", `/gst/${importId}/apply`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return {};
+}
+
 export async function undoGst(importId: string, _previous: ActionState): Promise<ActionState> {
   const result = await send("POST", `/gst/${importId}/undo`);
   if (!result.ok) return { error: result.error };

@@ -35,18 +35,18 @@ async function KreraView({ params }: { params: Promise<{ id: string }> }) {
       {k.unrecorded > 0 ? (
         <div className="notice" style={{ marginBottom: 24 }}>
           <p>
-            {`Lekhara does not know whether the ${k.unrecorded} filings due before you started using it, on ${day(k.known_from)}, were made. Record each one below with its acknowledgement, or all at once if they were filed on time.`}
+            {`Were the ${k.unrecorded} filings due before ${day(k.known_from)} all made on time? Tell us once, or record each one below.`}
           </p>
           {k.can_edit ? (
             <div style={{ marginTop: 12 }}>
-              <ActionForm action={recordEarlierFilings.bind(null, id)} label="They were all filed on time" pendingLabel="Recording" secondary />
+              <ActionForm action={recordEarlierFilings.bind(null, id)} label="Yes, all on time" pendingLabel="Recording" secondary />
             </div>
           ) : null}
         </div>
       ) : null}
       <section className="section">
         <div className="section-head">
-          <h2>Quarterly progress reports</h2>
+          <h2>Quarterly reports</h2>
           <p>
             {`Due ${k.qpr_due_days} days after each quarter ends`}
             {late ? `. ${plural(late, "quarter")} not recorded as filed` : ""}
@@ -58,7 +58,7 @@ async function KreraView({ params }: { params: Promise<{ id: string }> }) {
       <section className="section">
         <div className="section-head">
           <h2>Annual audit</h2>
-          <p>{`Project accounts audited by a CA within ${k.audit_months} months of each financial year`}</p>
+          <p>{`Your CA audits the project's accounts within ${k.audit_months} months of each year end`}</p>
         </div>
         {k.audits.length === 0 ? (
           <p className="empty">No financial year has ended since the project was registered.</p>
@@ -71,7 +71,7 @@ async function KreraView({ params }: { params: Promise<{ id: string }> }) {
         <p className="chips" style={{ alignItems: "center" }}>
           {k.can_edit ? (
             <Link href={`/projects/${id}/import`} className="link-action">
-              Import filings from Excel
+              Add a sheet of filings
             </Link>
           ) : null}
           <a href={`/download/projects/${id}/exports/filings.xlsx`} className="link-action">
@@ -96,8 +96,10 @@ function Periods({
   projectId: string;
   label: string;
 }) {
-  const first = periods.slice(0, SHOWN);
-  const rest = periods.slice(SHOWN);
+  const urgent = periods.filter((q) => q.state === "late" || q.state === "due");
+  const others = periods.filter((q) => !urgent.includes(q));
+  const first = [...urgent, ...others.slice(0, Math.max(SHOWN - urgent.length, 1))];
+  const rest = periods.filter((q) => !first.includes(q));
   const row = (q: FilingPeriod) => <PeriodRow key={q.period_end} q={q} kind={kind} canEdit={canEdit} projectId={projectId} label={label} />;
   return (
     <>
@@ -144,7 +146,7 @@ function PeriodRow({
         {q.state !== "open" ? (
           <p className="row-meta">
             <a href={`/download/projects/${projectId}/packs/${kind === "qpr" ? "qpr" : "audit"}/${q.period_end}.pdf`} className="link-action">
-              {kind === "qpr" ? "The report's figures (PDF)" : "The audit pack (PDF)"}
+              {kind === "qpr" ? "Figures for the portal (PDF)" : "Pack for your CA (PDF)"}
             </a>
             {"  ·  "}
             <a href={`/download/projects/${projectId}/packs/${kind === "qpr" ? "qpr" : "audit"}/${q.period_end}.xlsx`} className="link-action">
@@ -154,8 +156,8 @@ function PeriodRow({
         ) : null}
         {canEdit && !f && q.state !== "open" ? (
           <details className="disclosure">
-            <summary>Record as filed</summary>
-            <ActionForm action={recordFiling.bind(null, projectId)} label="Record it" pendingLabel="Recording" secondary>
+            <summary>I have filed it</summary>
+            <ActionForm action={recordFiling.bind(null, projectId)} label="Save" pendingLabel="Saving">
               <input type="hidden" name="kind" value={kind} />
               <input type="hidden" name="period_end" value={q.period_end} />
               <FilingFields prefix={`f-${kind}-${q.period_end}`} />
@@ -186,7 +188,7 @@ function FilingFields({ prefix, filedOn, reference }: { prefix: string; filedOn?
         <input id={`${prefix}-on`} name="filed_on" type="date" defaultValue={filedOn ?? ""} required />
       </div>
       <div className="field">
-        <label htmlFor={`${prefix}-ref`}>Acknowledgement</label>
+        <label htmlFor={`${prefix}-ref`}>Acknowledgement number, if you have it</label>
         <input id={`${prefix}-ref`} name="reference" defaultValue={reference ?? ""} />
       </div>
     </div>

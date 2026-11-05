@@ -272,4 +272,5 @@ Ease of use is Lekhara's selling point (decision 37 in the planning notes), so e
 - A project has five places (`GROUPS` in `components/nav.tsx`); new pages join one of them.
 - Files go through one box: `inbound.sort_upload` works out what a file is, using the same sorting as email.
 - Text stays at 14px or above, and fields and buttons are at least 44px tall. Check every page at 390px wide.
+- No lines as borders. Content sits on white tiles (`.row`, `.card`, `.stat`, `.table`) on the grey canvas. Fills are see-through black (`--fill-1` to `--fill-4`) so they work on both. A white container sets `--tile` and `--field` to the canvas grey, so the fields and disclosures inside it still stand out (the list is at the top of `globals.css`).
 - Legal wording stays on certificates, where the signer certifies it. Everywhere else, use plain words.

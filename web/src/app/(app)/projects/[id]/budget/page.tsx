@@ -65,61 +65,49 @@ async function BudgetView({ params }: { params: Promise<{ id: string }> }) {
     <>
       <section>
         <div className="section-head">
-          <h2>Cost lines and budget</h2>
-          <p>
-            What the project spends on, as the RERA certificates split it. Spending from Tally is
-            counted against these lines.
-          </p>
+          <h2>Budget</h2>
+          <p>What you plan to spend on each part of the project</p>
         </div>
         {c.lines.length === 0 ? (
           <div style={{ marginTop: 16 }}>
             <p style={{ marginBottom: 12, maxWidth: 720 }}>
-              No cost lines yet. Start from the standard list for a Karnataka residential project:
-              land, approvals, civil and structure, MEP, finishes, external works, consultants,
-              finance, marketing, overheads and contingency. Budgets can be added afterwards.
+              No budget yet. Start from the usual parts of a Karnataka residential project, from land and approvals to
+              finishes and contingency, and add the amounts when you have them.
             </p>
             {c.can_edit ? (
-              <ActionForm action={standardCostLines.bind(null, id)} label="Set up the standard cost lines" pendingLabel="Setting them up" />
+              <ActionForm action={standardCostLines.bind(null, id)} label="Start from the usual parts" pendingLabel="Setting them up" />
             ) : null}
           </div>
         ) : (
           <table className="table">
             <thead>
               <tr>
-                <th>Code</th>
-                <th>Cost line</th>
-                <th>Kind</th>
-                <th className="right">Original budget</th>
-                <th className="right">Revised budget</th>
-                <th className="right">Incurred</th>
+                <th>Part</th>
+                <th className="right">Budget</th>
+                <th className="right">Spent</th>
                 <th className="right">Paid</th>
-                <th />
               </tr>
             </thead>
             <tbody>
               {c.lines.map((line) => (
                 <tr key={line.id}>
-                  <td>{line.code}</td>
                   <td>
-                    {line.name}
+                    {!c.can_edit ? line.name : null}
                     {c.can_edit ? (
-                      <details className="disclosure">
-                        <summary>Change</summary>
+                      <details className="disclosure" style={{ marginTop: 0 }}>
+                        <summary>{line.name}</summary>
                         <ActionForm action={updateCostLine.bind(null, line.id)} label="Save" pendingLabel="Saving" secondary>
                           <LineFields c={c} line={line} prefix={`line-${line.id}`} />
                         </ActionForm>
                         {Number(line.incurred ?? 0) === 0 ? (
-                          <ActionForm action={deleteCostLine.bind(null, line.id)} label="Delete this line" pendingLabel="Deleting" secondary />
+                          <ActionForm action={deleteCostLine.bind(null, line.id)} label="Delete this part" pendingLabel="Deleting" secondary />
                         ) : null}
                       </details>
                     ) : null}
                   </td>
-                  <td>{line.category_label}</td>
-                  <td className="right num">{inr(line.original_budget)}</td>
                   <td className="right num">{inr(line.revised_budget)}</td>
                   <td className="right num">{inr(line.incurred)}</td>
                   <td className="right num">{inr(line.paid)}</td>
-                  <td />
                 </tr>
               ))}
             </tbody>
@@ -130,20 +118,22 @@ async function BudgetView({ params }: { params: Promise<{ id: string }> }) {
       {c.can_edit && c.lines.length > 0 ? (
         <section className="section">
           <details className="disclosure">
-            <summary>Add a cost line</summary>
-            <ActionForm action={createCostLine.bind(null, id)} label="Add the cost line" pendingLabel="Adding">
+            <summary>Add a part</summary>
+            <ActionForm action={createCostLine.bind(null, id)} label="Add it" pendingLabel="Adding">
               <LineFields c={c} prefix="new-line" />
             </ActionForm>
           </details>
           <details className="disclosure">
-            <summary>Add any standard lines that are missing</summary>
+            <summary>Add the usual parts that are missing</summary>
             <ActionForm action={standardCostLines.bind(null, id)} label="Add them" pendingLabel="Adding" secondary />
           </details>
         </section>
       ) : null}
 
       {c.lines.length > 0 ? (
-        <section className="section">
+        <details className="disclosure">
+<summary>{`Work and purchase orders (${orders.commitments.length})`}</summary>
+<section className="section">
           <div className="section-head">
             <h2>Orders</h2>
             <p>Work orders, purchase orders and contracts</p>
@@ -151,11 +141,11 @@ async function BudgetView({ params }: { params: Promise<{ id: string }> }) {
           <p className="small" style={{ marginTop: 12 }}>
             {`${plural(orders.commitments.length, "order")}, ${inr(orders.total)} in all. `}
             <a href={`/download/projects/${id}/exports/commitments.xlsx`} className="link-action">
-              Export to Excel
+              Download as Excel
             </a>
             {"  ·  "}
-            <Link href={`/projects/${id}/import#purchases`} className="link-action">
-              Import a sheet of orders
+            <Link href={`/projects/${id}/import`} className="link-action">
+              Add a sheet of orders
             </Link>
             {orders.can_edit && orders.commitments.length > 0 ? (
               <>
@@ -213,6 +203,7 @@ async function BudgetView({ params }: { params: Promise<{ id: string }> }) {
             </table>
           )}
         </section>
+</details>
       ) : null}
     </>
   );
