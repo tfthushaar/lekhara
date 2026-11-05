@@ -7,7 +7,7 @@
 The RERA account, K-RERA filings, tax, registrations and buyer complaints, kept track of for every project.<br>
 For builders in Karnataka. Free for a month. Starting in Bengaluru.
 
-[**Watch the video**](https://cdn.jsdelivr.net/gh/tfthushaar/lekhara@site/lekhara.mp4) · [What works today](#what-works-today) · [Pricing](#pricing)
+[**Try the demo**](https://lekhara-demo.vercel.app) · [**Watch the video**](https://cdn.jsdelivr.net/gh/tfthushaar/lekhara@site/lekhara.mp4) · [What works today](#what-works-today) · [Pricing](#pricing)
 
 <a href="https://cdn.jsdelivr.net/gh/tfthushaar/lekhara@site/lekhara.mp4">
   <img src="media/lekhara-preview.gif" alt="Lekhara in under a minute: 70 of every 100 rupees buyers pay goes into the RERA account, fines for late K-RERA updates, interest to buyers for late handover, and how Lekhara keeps track of it. Click to watch the video." width="100%">
@@ -114,7 +114,7 @@ One subscription for your whole firm, covering every project and everyone on you
 
 ## What works today
 
-Lekhara is in development. Everything above "Coming next" works today:
+Lekhara is in development. Everything above "Coming next" works today, and you can try all of it in [the demo](https://lekhara-demo.vercel.app), on a made-up developer with three Bengaluru projects:
 - the RERA account and certificates;
 - K-RERA filings and the tax checks;
 - registration and handover;

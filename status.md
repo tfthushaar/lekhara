@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-11-06, with the commit "Give the public demo one shared database, files included, and a nightly reset".
+Last updated: 2026-11-06, with the commit "Link the live demo from the README".
 
 ## What we are building
 
@@ -359,9 +359,11 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
 - The demo puts itself back as it began every night at 3 AM IST.
 - Tested: files kept in the database, stored once and read back; the nightly reset refused without Vercel's cron secret; the demo built once when two copies start together on Postgres; the whole walk-through on Postgres, before and after a reset, with the security policies back in place.
 
+- The demo is live at https://lekhara-demo.vercel.app, linked from the top of the README, and was checked end to end there. Signed-in pages load in 150 to 300 ms from Bengaluru.
+
 ## In progress
 
-- Checking the live demo end to end, then the expanded software (below).
+- Research for the expanded software (below).
 
 ## Next: the expanded software
 
