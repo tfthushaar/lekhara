@@ -181,7 +181,9 @@ def test_a_case_from_notice_to_compliance(accounts) -> None:
     assert r.status_code == 201, r.text
     case_id = r.json()["id"]
     c = accounts.get(f"/cases/{case_id}").json()
-    assert c["complainant"].startswith("Buyer")
+    listed = accounts.get(f"/projects/{SG}/units").json()["units"]
+    buyer = next(u["buyer_name"] for u in listed if u["label"] == units[50])
+    assert c["complainant"] == buyer  # the unit's buyer, unless told otherwise
     assert c["status"] == "notice"
     assert D(c["estimate"]["interest"]) > 0
 

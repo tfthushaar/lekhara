@@ -3,7 +3,8 @@ import { notFound, redirect } from "next/navigation";
 
 import { SESSION_COOKIE } from "@/lib/session-cookie";
 
-const BASE = process.env.LEKHARA_API_URL ?? "http://localhost:8000";
+// Where the API is: on Vercel, the address of the private API service, given to this one.
+const BASE = (process.env.LEKHARA_API_URL ?? "http://localhost:8000").replace(/\/+$/, "");
 
 export type Status = "overdue" | "due_soon" | "at_risk" | "opportunity" | "upcoming" | "done";
 export type Area =
@@ -81,6 +82,8 @@ export type Me = {
   } | null;
   email_verified: boolean;
   terms_accepted: boolean;
+  /** This server is the public demo: made-up data, emails kept in the demo mailbox. */
+  demo: boolean;
 };
 
 export type Firm = {
@@ -1612,7 +1615,22 @@ export async function checkCertificate(code: string): Promise<{ found: Certifica
   return { error: "The check could not be made. Try again." };
 }
 
+export type DemoSample = { name: string; label: string; detail: string; goes_to: string };
+export type DemoMail = { at: string; subject: string; body: string; kind: string };
+
+/** The demo's sample files for a project, made from its own records; null when this server
+ * is not the demo. */
+export async function demoSamples(projectId: string): Promise<DemoSample[] | null> {
+  const response = await fetch(`${BASE}/projects/${encodeURIComponent(projectId)}/demo/samples`, {
+    cache: "no-store",
+    headers: await authHeaders(),
+  });
+  return response.ok ? ((await response.json()) as { samples: DemoSample[] }).samples : null;
+}
+
 export const VISITOR_COOKIE = "lekhara_visitor";
+/** The code a demo data room visitor would have been emailed, shown on the page instead. */
+export const DEMO_CODE_COOKIE = "lekhara_demo_code";
 
 export async function sharedRoom(token: string, visitor?: string): Promise<SharedRoom | SharedGate | null> {
   const response = await fetch(`${BASE}/shared/${encodeURIComponent(token)}`, {
@@ -1807,6 +1825,7 @@ export type TableEdit = {
 
 export const api = {
   me: () => get<Me>("/auth/me"),
+  mailbox: () => get<{ email: string; emails: DemoMail[] }>("/demo/mailbox"),
   today: () => get<Today>("/today"),
   projects: () => get<ProjectCard[]>("/projects"),
   project: (id: string) => get<ProjectDetail>(`/projects/${id}`),

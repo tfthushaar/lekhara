@@ -4,7 +4,7 @@ import { Suspense } from "react";
 
 import { acceptRoomTerms, confirmRoomCode, enterRoom, forgetRoomVisitor } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
-import { VISITOR_COOKIE, sharedRoom } from "@/lib/api";
+import { DEMO_CODE_COOKIE, VISITOR_COOKIE, sharedRoom } from "@/lib/api";
 import { day } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -28,7 +28,9 @@ export default function SharedPage({ params }: PageProps<"/shared/[token]">) {
 
 async function SharedView({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const visitor = (await cookies()).get(VISITOR_COOKIE)?.value;
+  const jar = await cookies();
+  const visitor = jar.get(VISITOR_COOKIE)?.value;
+  const demoCode = jar.get(DEMO_CODE_COOKIE)?.value;
   const room = await sharedRoom(token, visitor);
   if (room === null) {
     return (
@@ -75,6 +77,11 @@ async function SharedView({ params }: { params: Promise<{ token: string }> }) {
         <p style={{ maxWidth: 560, marginBottom: 16 }}>
           {`We have sent a six-digit code to ${room.pending_email}. Enter it to open the documents; it works for 15 minutes.`}
         </p>
+        {demoCode ? (
+          <p className="notice" style={{ maxWidth: 560, marginBottom: 16 }}>
+            {`This is the demo, so no email was sent. Your code is ${demoCode}.`}
+          </p>
+        ) : null}
         <div style={{ maxWidth: 560 }}>
           <ActionForm action={confirmRoomCode.bind(null, token)} label="Open the documents" pendingLabel="Checking">
             <div className="field" style={{ maxWidth: 240 }}>

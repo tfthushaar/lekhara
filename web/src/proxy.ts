@@ -8,7 +8,8 @@ import { SESSION_COOKIE } from "@/lib/session-cookie";
 const OPEN = /^\/(welcome|pricing|contact|security|\.well-known|login|signup|forgot|reset|verify|invite|shared|check|legal)(\/|$)/;
 
 /**
- * An optimistic check only: without a session cookie, "/" shows the website and anything else
+ * An optimistic check only: without a session cookie, "/" shows the website (the demo's first
+ * screen on the public demo) and anything else
  * goes to sign-in. Whether the session is valid, and what the person may see, is decided by the
  * API on every request.
  *
@@ -18,7 +19,11 @@ const OPEN = /^\/(welcome|pricing|contact|security|\.well-known|login|signup|for
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   if (!request.cookies.has(SESSION_COOKIE)) {
-    if (path === "/") return NextResponse.rewrite(new URL("/welcome", request.url));
+    // The public demo opens on its first screen, the choice of what to see; the website is still
+    // at /welcome.
+    if (path === "/") {
+      return NextResponse.rewrite(new URL(process.env.LEKHARA_DEMO === "1" ? "/login" : "/welcome", request.url));
+    }
     if (!OPEN.test(path)) return NextResponse.redirect(new URL("/login", request.url));
   }
   const forwarded = new Headers(request.headers);

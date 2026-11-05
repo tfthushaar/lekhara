@@ -14,7 +14,7 @@ import { ActionForm } from "@/components/action-form";
 import { BankRulesSection, type RulePrefill } from "@/components/bank-rules";
 import { InboundBox } from "@/components/inbound";
 import { Steps, Way } from "@/components/ways";
-import { type ConnectorList, PUBLIC_API_URL, api } from "@/lib/api";
+import { type ConnectorList, type DemoSample, PUBLIC_API_URL, api, demoSamples } from "@/lib/api";
 import { moment } from "@/lib/format";
 
 export default function ImportPage({ params, searchParams }: PageProps<"/projects/[id]/import">) {
@@ -78,6 +78,7 @@ async function ImportView({
     api.connectors(id),
     api.gstImports(id),
   ]);
+  const samples = await demoSamples(id);
   const can = list.can_import;
   const connected = linked.connectors.filter((c) => c.status === "active");
 
@@ -95,7 +96,9 @@ async function ImportView({
         file twice adds nothing, and every import can be undone for 30 days.
       </p>
 
-      <InboundBox box={box} />
+      {samples ? <Samples projectId={id} samples={samples} /> : null}
+
+      <InboundBox box={box} demo={samples !== null} />
 
       <section className="section">
         <div className="section-head">
@@ -256,6 +259,46 @@ async function ImportView({
 
       {bankList.can_import || bankList.statements.length ? <BankRulesSection projectId={id} prefill={prefill} /> : null}
     </>
+  );
+}
+
+/** The demo's sample files for this project, to bring in the way you would your own. */
+function Samples({ projectId, samples }: { projectId: string; samples: DemoSample[] }) {
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>Sample files to try</h2>
+        <p>Made from this project&apos;s own units, suppliers and bills</p>
+      </div>
+      <p className="small muted" style={{ maxWidth: 760, marginTop: 12 }}>
+        Download one, then bring it in below the way you would your own file. Nothing is saved until you have seen what it
+        adds.
+      </p>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>What&apos;s in it</th>
+            <th>Bring it in with</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {samples.map((s) => (
+            <tr key={s.name}>
+              <td className="nowrap">{s.label}</td>
+              <td className="small">{s.detail}</td>
+              <td className="nowrap">{s.goes_to}</td>
+              <td className="right">
+                <a href={`/download/projects/${projectId}/demo/samples/${s.name}`} className="link-action">
+                  Download
+                </a>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }
 

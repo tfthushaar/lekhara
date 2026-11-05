@@ -180,6 +180,42 @@ cd api && .venv/Scripts/python -m pip install -e ".[dev,postgres]"
 export LEKHARA_DATABASE_URL=postgresql+psycopg://lekhara:lekhara@localhost:5432/lekhara
 ```
 
+### The public demo on Vercel
+
+The public demo is the same code with `LEKHARA_DEMO=1` and `LEKHARA_SHARED_DEMO=1`. `vercel.json` at the repository's root deploys it as one Vercel project with two services:
+- `web` (Next.js, `web/`), the only public one;
+- `api` (FastAPI, `api/`, entry point `lekhara.vercel:app`), private. The website reaches it through a service binding that sets `LEKHARA_API_URL` at runtime.
+
+`.vercelignore` keeps virtual environments, build output, tests, local databases and stored files out of the upload.
+
+`lekhara/vercel.py` turns the demo on and the background worker off. With no `LEKHARA_DATABASE_URL`, it builds a fresh demo in `/tmp` (SQLite and files) when each instance starts, which takes about two seconds. The demo resets whenever Vercel starts a new instance. With a Postgres `LEKHARA_DATABASE_URL` (for example Neon from the Vercel Marketplace), the schema is migrated and the demo firm is added only when it isn't there yet.
+
+`demo.py` adds what a demo needs to work without real email or real files:
+- **The demo mailbox:** `GET /demo/mailbox`, the web's `/mailbox` page.
+- **Data room codes:** a visitor's code is returned as `demo_code` and shown on the page.
+- **Sample files**, made from each project's own records: `GET /projects/{id}/demo/samples` and `/demo/samples/{name}`. They are a Tally XML export, an ICICI-style collection account CSV, an SBI-style RERA account statement, a GSTR-2B JSON and a units CSV, plus a K-RERA certificate at `/demo/samples/krera-certificate.pdf`.
+- **A sample email:** `POST /projects/{id}/demo/sample-email` builds one with the statement attached and runs it through the real intake.
+
+With `LEKHARA_SHARED_DEMO=1`, the shared `@demo.lekhara` accounts can't do anything that would lock other visitors out: change their password, turn on two-step, sign everyone else out, delete the account, close the firm, or change roles.
+
+On the website:
+- **`LEKHARA_DEMO=1`** (a project environment variable) makes `/` open on the demo's first screen, the choice between the main and the expanded software. The choice is kept in the `lekhara_view` cookie (`lib/view.ts`), and the expanded software adds the Collections, Units, Suppliers and Budget tabs.
+- **`/welcome`** is still the website.
+
+To deploy, from the repository's root, signed in with `vercel login`:
+
+```
+vercel link --yes --project lekhara-demo
+vercel env add LEKHARA_DEMO production        # 1
+vercel env add LEKHARA_SECRET_KEY production  # a long random string
+vercel deploy --prod
+```
+
+Limits to know:
+- Vercel takes requests up to 4.5 MB, so larger uploads fail on the demo.
+- The forwarding address can't receive real mail there, so use the sample email instead.
+- The Tally Connector needs a server it can reach.
+
 ## Web
 
 ```bash

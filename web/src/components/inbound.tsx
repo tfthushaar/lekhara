@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { allowInbound, rejectInbound, retryInbound } from "@/app/actions";
+import { allowInbound, rejectInbound, retryInbound, sendSampleEmail } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import type { Inbound, InboundItem, InboundMessage } from "@/lib/api";
 import { moment } from "@/lib/format";
@@ -26,7 +26,7 @@ function needsYou(m: InboundMessage): boolean {
 }
 
 /** The project's forwarding address, and what came in through it. */
-export function InboundBox({ box }: { box: Inbound }) {
+export function InboundBox({ box, demo }: { box: Inbound; demo?: boolean }) {
   const attention = box.messages.filter(needsYou);
   const earlier = box.messages.filter((m) => !needsYou(m));
   return (
@@ -40,8 +40,17 @@ export function InboundBox({ box }: { box: Inbound }) {
       </div>
       <p className="small muted" style={{ maxWidth: 760 }}>
         Forward statements, Tally exports, bills and documents here, or have your bank email statements here every month.
-        {box.ready ? "" : " Email in is not switched on for this server yet."}
+        {box.ready || demo ? "" : " Email in is not switched on for this server yet."}
       </p>
+      {demo && box.can_edit ? (
+        <div style={{ marginTop: 12 }}>
+          <p className="small muted" style={{ maxWidth: 760, marginBottom: 8 }}>
+            The demo can&apos;t receive real email. Send this project a sample email from yourself, with a bank
+            statement attached, to see what happens to it.
+          </p>
+          <ActionForm action={sendSampleEmail.bind(null, box.project_id)} label="Send a sample email" pendingLabel="Sending" secondary />
+        </div>
+      ) : null}
       <details className="disclosure">
         <summary>How email works</summary>
         <p className="small muted" style={{ maxWidth: 760 }}>

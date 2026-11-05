@@ -1,0 +1,17 @@
+# Uploaded to Vercel: the web and API sources only.
+.git
+.github
+connector
+docs
+media
+docker-compose.yml
+*.db
+*.sqlite3
+**/__pycache__
+api/.venv
+api/.pytest_cache
+api/.ruff_cache
+api/storage
+api/tests
+web/node_modules
+web/.next

@@ -135,6 +135,15 @@ def gstin_facts(gstin: str | None) -> dict:
     }
 
 
+def gstin_with_check(first14: str) -> str:
+    """A GSTIN from its first 14 characters, with the check character worked out."""
+    total = 0
+    for i, char in enumerate(first14.upper()):
+        product = _GSTIN_CHARS.index(char) * (1 if i % 2 == 0 else 2)
+        total += product // 36 + product % 36
+    return first14.upper() + _GSTIN_CHARS[(36 - total % 36) % 36]
+
+
 def check_gstin(gstin: str | None) -> str | None:
     gstin = (gstin or "").strip().upper()
     if not gstin:

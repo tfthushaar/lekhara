@@ -47,32 +47,35 @@ export function Nav() {
   );
 }
 
-/** The project's work, as tabs; then, quieter, where its records are kept and brought in. */
+/** The project's work, as tabs; then, quieter, where its records are kept and brought in.
+ * `expanded` marks the business modules, left out of the main software's view. */
 const TABS = [
-  { segment: "", label: "Overview", team: false, data: false },
-  { segment: "/escrow", label: "Escrow", team: false, data: false },
-  { segment: "/collections", label: "Collections", team: true, data: false },
-  { segment: "/handover", label: "Handover", team: true, data: false },
-  { segment: "/disputes", label: "Disputes", team: true, data: false },
-  { segment: "/tax", label: "Tax", team: true, data: false },
-  { segment: "/krera", label: "K-RERA", team: true, data: false },
-  { segment: "/documents", label: "Documents", team: true, data: false },
-  { segment: "/units", label: "Units", team: true, data: true },
-  { segment: "/suppliers", label: "Suppliers", team: true, data: true },
-  { segment: "/budget", label: "Budget", team: true, data: true },
-  { segment: "/approvals", label: "Approvals", team: true, data: true },
-  { segment: "/import", label: "Import", team: true, data: true },
-  { segment: "/setup", label: "Set-up", team: true, data: true },
+  { segment: "", label: "Overview", team: false, data: false, expanded: false },
+  { segment: "/escrow", label: "Escrow", team: false, data: false, expanded: false },
+  { segment: "/collections", label: "Collections", team: true, data: false, expanded: true },
+  { segment: "/handover", label: "Handover", team: true, data: false, expanded: false },
+  { segment: "/disputes", label: "Disputes", team: true, data: false, expanded: false },
+  { segment: "/tax", label: "Tax", team: true, data: false, expanded: false },
+  { segment: "/krera", label: "K-RERA", team: true, data: false, expanded: false },
+  { segment: "/documents", label: "Documents", team: true, data: false, expanded: false },
+  { segment: "/units", label: "Units", team: true, data: true, expanded: true },
+  { segment: "/suppliers", label: "Suppliers", team: true, data: true, expanded: true },
+  { segment: "/budget", label: "Budget", team: true, data: true, expanded: true },
+  { segment: "/approvals", label: "Approvals", team: true, data: true, expanded: false },
+  { segment: "/import", label: "Import", team: true, data: true, expanded: false },
+  { segment: "/setup", label: "Set-up", team: true, data: true, expanded: false },
 ];
 
-function tabsFor(team: boolean) {
-  return TABS.filter((tab) => team || !tab.team);
+type View = "main" | "expanded";
+
+function tabsFor(team: boolean, view: View) {
+  return TABS.filter((tab) => (team || !tab.team) && (view === "expanded" || !tab.expanded));
 }
 
-export function ProjectTabs({ projectId, team }: { projectId: string; team: boolean }) {
+export function ProjectTabs({ projectId, team, view = "expanded" }: { projectId: string; team: boolean; view?: View }) {
   const pathname = usePathname();
   const base = `/projects/${projectId}`;
-  const tabs = tabsFor(team);
+  const tabs = tabsFor(team, view);
   const link = (tab: (typeof TABS)[number]) => {
     const href = `${base}${tab.segment}`;
     return (
@@ -90,9 +93,9 @@ export function ProjectTabs({ projectId, team }: { projectId: string; team: bool
   );
 }
 
-export function PlainProjectTabs({ projectId, team }: { projectId: string; team: boolean }) {
+export function PlainProjectTabs({ projectId, team, view = "expanded" }: { projectId: string; team: boolean; view?: View }) {
   const base = `/projects/${projectId}`;
-  const tabs = tabsFor(team);
+  const tabs = tabsFor(team, view);
   return (
     <nav className="tabs" aria-label="Project">
       {tabs

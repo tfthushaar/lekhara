@@ -26,6 +26,7 @@ from functools import lru_cache
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from lekhara.accounts import gstin_with_check
 from lekhara.auth import hash_password
 from lekhara.config import get_settings
 from lekhara.db import Base, make_engine, make_sessionmaker
@@ -183,12 +184,44 @@ def _quarter_ends(start: date, end: date) -> list[date]:
     return out
 
 
+FIRST_NAMES = (
+    "Priya", "Rahul", "Anand", "Meera", "Suresh", "Kavya", "Arjun", "Deepa", "Vikram", "Lakshmi",
+    "Naveen", "Shruthi", "Kiran", "Ananya", "Mohan", "Divya", "Prakash", "Sneha", "Ravi", "Pooja",
+    "Ganesh", "Asha", "Harish", "Nandini", "Sanjay",
+)  # fmt: skip
+LAST_NAMES = (
+    "Sharma", "Rao", "Iyer", "Hegde", "Shetty", "Gowda", "Nair", "Kulkarni", "Reddy", "Menon",
+    "Bhat", "Kamath", "Murthy", "Pai", "Naidu", "Joshi", "Patil", "Krishnan", "Prasad", "Desai",
+)  # fmt: skip
+
+
+def buyer_name(i: int) -> str:
+    """A made-up buyer for the demo: the same name for the same unit every time."""
+    first = FIRST_NAMES[i % len(FIRST_NAMES)]
+    last = LAST_NAMES[(i // len(FIRST_NAMES) + i) % len(LAST_NAMES)]
+    return f"{first} {last}"
+
+
+def _vendor_gstin(i: int, name: str) -> str:
+    """A made-up but well-formed GSTIN for a demo supplier: Karnataka, a firm's PAN."""
+    initial = next((c for c in name.upper() if c.isalpha()), "X")
+    pan = f"AA{chr(66 + i % 24)}F{initial}{1000 + 37 * i:04d}{chr(65 + (i * 7) % 26)}"
+    return gstin_with_check(f"29{pan}1Z")
+
+
 class Seeder:
     def __init__(self, session: Session, today: date) -> None:
         self.s = session
         self.today = today
         self.rng = random.Random(17)
-        self.org = Organization(id="demo", name="Demo Builders", is_sample=True, access="active")
+        self.org = Organization(
+            id="demo",
+            name="Demo Builders",
+            legal_name="Demo Builders Private Limited",
+            gstin=gstin_with_check("29AAECD4321K1Z"),
+            is_sample=True,
+            access="active",
+        )
         session.add(self.org)
         self.vendors: dict[str, Vendor] = {}
 
@@ -205,7 +238,7 @@ class Seeder:
             v = Vendor(
                 organization_id=self.org.id,
                 name=name,
-                gstin=f"29DEMO{len(self.vendors):04d}Z1Z" if registered else None,
+                gstin=_vendor_gstin(len(self.vendors), name) if registered else None,
                 registered=registered,
                 msme_category=msme,
                 written_agreement=agreement,
@@ -383,7 +416,7 @@ class Seeder:
         for i, u in enumerate(developer_units[:booked_count]):
             u.booked = True
             u.booked_on = self.ago(self.rng.randint(40, 600))
-            u.buyer_name = f"Buyer {i + 1:03d}"
+            u.buyer_name = buyer_name(i)
             discount = Decimal(self.rng.choice([0, 1, 2, 3])) / 100
             if i < below_guidance:
                 u.booked_on = self.ago(30 + i * 9)
@@ -1717,6 +1750,7 @@ def reset_and_seed(
         storage = LocalStorage(storage_dir)
     with make_sessionmaker(engine)() as session:
         seed(session, today, storage)
+    engine.dispose()  # lets go of the database file, so it can be moved into place
 
 
 def main() -> None:

@@ -13,7 +13,11 @@ class Settings(BaseSettings):
     auto_migrate: bool = True
     """Bring the database schema up to date when the API starts."""
     demo: bool = False
-    """Show the demo accounts on the sign-in screen. Never set in production."""
+    """Show the demo accounts on the sign-in screen, keep emails in the demo mailbox, and offer
+    sample files to bring in. Never set in production."""
+    shared_demo: bool = False
+    """The public demo, where everyone signs in as the same demo accounts: steps that would lock
+    the others out are refused for those accounts (see demo.py)."""
     storage_dir: str = "./storage"
     """Where the document vault keeps files on local disk, unless storage_url is set."""
     storage_url: str = ""

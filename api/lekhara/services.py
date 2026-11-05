@@ -1725,10 +1725,11 @@ def register_visitor(
     *,
     ip: str | None,
     accept_terms: bool = False,
-) -> str:
+) -> tuple[str, str]:
     """Records who is opening a room that asks, and their acceptance of its terms if it has
-    any, emails them a code to prove the email is theirs, and returns the token their browser
-    keeps. The room opens once the code is entered."""
+    any, and emails them a code to prove the email is theirs. Returns the token their browser
+    keeps, and the code (which the demo shows on the page, since its emails go nowhere). The
+    room opens once the code is entered."""
     from lekhara import mail
 
     name, email = (name or "").strip(), (email or "").strip().lower()
@@ -1769,7 +1770,7 @@ def register_visitor(
         kind="room_code",
     )
     session.commit()
-    return token
+    return token, code
 
 
 def _visitor_row(session: Session, room: DataRoom, token: str | None) -> DataRoomVisitor | None:

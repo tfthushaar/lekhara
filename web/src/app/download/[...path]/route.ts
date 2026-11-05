@@ -10,6 +10,8 @@ const ALLOWED = [
   /^withdrawals\/[A-Za-z0-9_-]+\/certificates\/(architect|engineer|ca)\.pdf$/,
   /^projects\/[A-Za-z0-9_-]+\/packs\/(qpr|audit)\/\d{4}-\d{2}-\d{2}\.(pdf|xlsx)$/,
   /^gst\/[A-Za-z0-9_-]+\/ims\.csv$/,
+  /^projects\/[A-Za-z0-9_-]+\/demo\/samples\/[a-z0-9-]+\.(xml|csv|xlsx|json)$/,
+  /^demo\/samples\/krera-certificate\.pdf$/,
 ];
 const PASS_ON = ["content-type", "content-disposition", "content-length"];
 

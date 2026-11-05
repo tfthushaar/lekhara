@@ -23,6 +23,7 @@ from lekhara import (
     alerts,
     auth,
     connectors,
+    demo,
     export,
     filing,
     handover_desk,
@@ -760,6 +761,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/auth/two-step/start")
     def two_step_start(session: SessionDep, me: Me) -> dict:
+        demo.guard(settings, me.email, "turn on two-step sign-in")
         user = session.get(User, me.user_id)
         if user.two_step_on is not None:
             raise ServiceError("Two-step sign-in is already on.")
@@ -834,6 +836,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             "organization": firm,
             "email_verified": user.email_verified_at is not None,
             "terms_accepted": legal.accepted(session, me.user_id),
+            "demo": settings.demo,
         }
 
     @app.get("/auth/demo")
@@ -892,6 +895,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         throttle.check(key)
         by_address["forgot"].count(address_of(request))
         throttle.failed(key)  # counts every request, so the form cannot be used to flood a mailbox
+        demo.guard(settings, body.email, "change their password")
         accounts.forgot_password(session, settings, body.email)
         return {"ok": True}
 
@@ -921,6 +925,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/auth/delete-account")
     def delete_account(body: PasswordCheck, session: SessionDep, me: Me, request: Request) -> dict:
+        demo.guard(settings, me.email, "be deleted")
         user = session.get(User, me.user_id)
         if not auth.verify_password(body.password or "", user.password_hash):
             raise ServiceError("That password is not right.", 400)
@@ -974,6 +979,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/auth/sessions/end-others")
     def end_other_sessions(session: SessionDep, me: Me, request: Request) -> dict:
+        demo.guard(settings, me.email, "sign everyone else out")
         ended = auth.end_sessions(session, me.user_id, keep=me.session_id)
         log(session, request, "signed_out_elsewhere", me=me, detail=f"{ended} sessions")
         return {"ended": ended}
@@ -984,6 +990,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     @app.put("/organization/two-step-rule")
     def two_step_rule(body: TwoStepRule, session: SessionDep, me: Me, request: Request) -> dict:
         """The owner can require everyone in the firm to use two-step sign-in."""
+        demo.guard(settings, me.email, "require two-step sign-in")
         org = accounts.current_org(session, me)
         accounts.require_manager(me, org, owner=True)
         auth.require_recent(me)
@@ -1080,6 +1087,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     def close_firm(
         body: CloseFirm, session: SessionDep, me: Me, on: AsOf, request: Request
     ) -> dict:
+        demo.guard(settings, me.email, "close the demo firm")
         auth.require_recent(me)
         org = accounts.current_org(session, me)
         accounts.require_manager(me, org, owner=True)
@@ -1377,6 +1385,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     def change_role(
         user_id: str, body: RoleChange, session: SessionDep, me: Me, request: Request
     ) -> dict:
+        demo.guard(settings, me.email, "change who may do what")
         auth.require_recent(me)
         accounts.change_role(session, accounts.current_org(session, me), me, user_id, body.role)
         person = session.get(User, user_id)
@@ -1386,6 +1395,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
 
     @app.post("/organization/members/{user_id}/remove")
     def remove_member(user_id: str, session: SessionDep, me: Me, request: Request) -> dict:
+        demo.guard(settings, me.email, "remove people from the firm")
         auth.require_recent(me)
         person = session.get(User, user_id)
         email = person.email if person else user_id
@@ -2262,6 +2272,60 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         row, p = statement_for(session, me, statement_id, edit=True)
         bank.undo(session, row)
         return statement_view(session, me, row, p, on)
+
+    # The public demo: its mailbox, sample files and a sample email (see demo.py)
+
+    def demo_only() -> None:
+        if not settings.demo:
+            raise ServiceError("Not found.", 404)
+
+    @app.get("/demo/mailbox")
+    def demo_mailbox(session: SessionDep, me: Me) -> dict:
+        demo_only()
+        return {"email": me.email, "emails": demo.mailbox(session, me.email)}
+
+    @app.get("/projects/{project_id}/demo/samples")
+    def demo_samples(project_id: str, session: SessionDep, me: Me) -> dict:
+        demo_only()
+        auth.require_team(me, services.get_project(session, project_id))
+        return {
+            "samples": [
+                {"name": s.name, "label": s.label, "detail": s.detail, "goes_to": s.goes_to}
+                for s in demo.SAMPLES
+            ]
+        }
+
+    @app.get("/projects/{project_id}/demo/samples/{name}")
+    def demo_sample(project_id: str, name: str, session: SessionDep, me: Me, on: AsOf) -> Response:
+        demo_only()
+        p = services.get_project(session, project_id)
+        auth.require_team(me, p)
+        sample, data = demo.sample_file(session, p, name, on)
+        return Response(
+            content=data,
+            media_type=sample.content_type,
+            headers={
+                "Content-Disposition": disposition(
+                    f"{p.name} {sample.name}".replace(" ", "-"), False
+                ),
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "private, no-store",
+            },
+        )
+
+    @app.get("/demo/samples/krera-certificate.pdf")
+    def demo_certificate(session: SessionDep, me: Me, on: AsOf) -> Response:
+        demo_only()
+        org = accounts.current_org(session, me)
+        return file_download(demo.krera_certificate(org, on), "krera-certificate-demo.pdf")
+
+    @app.post("/projects/{project_id}/demo/sample-email")
+    def demo_sample_email(project_id: str, session: SessionDep, me: Me, on: AsOf) -> dict:
+        demo_only()
+        p = services.get_project(session, project_id)
+        auth.require_prepare(me, p)
+        message = demo.send_sample_email(session, app.state.storage, settings, p, me.email, on)
+        return {"message_id": message.id, "status": message.status}
 
     # Bank rules
 
@@ -3615,10 +3679,15 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         room = services.open_room(session, token, on)
         by_address["visitor"].count(address_of(request))
         ip, _ = client(request)
-        token = services.register_visitor(
+        token, code = services.register_visitor(
             session, settings, room, body.name, body.email, ip=ip, accept_terms=body.accept_terms
         )
-        return {"visitor": token, "code_sent": True}
+        # The demo's emails go nowhere, so it shows the code instead.
+        return {
+            "visitor": token,
+            "code_sent": True,
+            **({"demo_code": code} if settings.demo else {}),
+        }
 
     @app.post("/shared/{token}/visitor/terms")
     def shared_visitor_terms(

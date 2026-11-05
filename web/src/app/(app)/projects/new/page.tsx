@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { createProject, readCertificate } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
+import { api } from "@/lib/api";
 
 export const metadata: Metadata = { title: "Add a project" };
 
@@ -19,6 +20,7 @@ async function NewProject({ searchParams }: { searchParams: Promise<Record<strin
   const query = await searchParams;
   const v = (key: string) => (typeof query[key] === "string" ? (query[key] as string) : "");
   const read = v("from") === "certificate";
+  const me = await api.me();
   return (
     <>
       <div className="page-head">
@@ -46,6 +48,13 @@ async function NewProject({ searchParams }: { searchParams: Promise<Record<strin
                 <input id="certificate" name="file" type="file" accept=".pdf" required />
               </div>
             </ActionForm>
+            {me.demo ? (
+              <p className="small muted">
+                No certificate to hand?{" "}
+                <a href="/download/demo/samples/krera-certificate.pdf">Download the demo&apos;s sample certificate</a>, then
+                choose it above.
+              </p>
+            ) : null}
             <p className="small muted">Or type them below.</p>
           </details>
         )}

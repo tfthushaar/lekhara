@@ -5,7 +5,8 @@ import { refresh } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { VISITOR_COOKIE, endSession, send, sendAsVisitor, sendForm } from "@/lib/api";
+import { DEMO_CODE_COOKIE, VISITOR_COOKIE, endSession, send, sendAsVisitor, sendForm } from "@/lib/api";
+import { VIEW_COOKIE, type View } from "@/lib/view";
 import { SESSION_COOKIE, SESSION_DAYS, STAFF_COOKIE } from "@/lib/session-cookie";
 
 export type ActionState = { error?: string; ok?: string; link?: string };
@@ -1546,7 +1547,7 @@ export async function setAssociationItem(projectId: string, key: string, _previo
 /** Someone opening a data room that asks who they are: their name and email are recorded with
  * their visits, and their browser keeps a token for this room's link only. */
 export async function enterRoom(token: string, _previous: ActionState, form: FormData): Promise<ActionState> {
-  const result = await send<{ visitor: string }>("POST", `/shared/${encodeURIComponent(token)}/visitor`, {
+  const result = await send<{ visitor: string; demo_code?: string }>("POST", `/shared/${encodeURIComponent(token)}/visitor`, {
     name: text(form, "name"),
     email: text(form, "email"),
     accept_terms: form.get("accept_terms") === "yes",
@@ -1561,7 +1562,40 @@ export async function enterRoom(token: string, _previous: ActionState, form: For
     path: `/shared/${encodeURIComponent(token)}`,
     maxAge: 60 * 24 * 60 * 60,
   });
+  if (result.data.demo_code) {
+    // The demo sends no email, so the visitor is shown the code instead.
+    (await cookies()).set({
+      name: DEMO_CODE_COOKIE,
+      value: result.data.demo_code,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: `/shared/${encodeURIComponent(token)}`,
+      maxAge: 15 * 60,
+    });
+  }
   redirect(`/shared/${encodeURIComponent(token)}`);
+}
+
+/** Shows the main software or the expanded software from now on (see lib/view.ts). */
+export async function chooseView(view: View, next: string): Promise<void> {
+  (await cookies()).set({
+    name: VIEW_COOKIE,
+    value: view,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 365 * 24 * 60 * 60,
+  });
+  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+}
+
+/** The demo: an email to the project's own address from the person, with a statement attached. */
+export async function sendSampleEmail(projectId: string, _previous: ActionState): Promise<ActionState> {
+  const result = await send<{ status: string }>("POST", `/projects/${projectId}/demo/sample-email`);
+  if (!result.ok) return { error: result.error };
+  refresh();
+  return { ok: "Sent. It's below, with what Lekhara did with the statement attached to it." };
 }
 
 /** The code emailed to a data room visitor, proving the email is theirs. */

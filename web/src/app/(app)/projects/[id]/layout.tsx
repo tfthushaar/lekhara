@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { PlainProjectTabs, ProjectTabs } from "@/components/nav";
 import { api } from "@/lib/api";
 import { day } from "@/lib/format";
+import { currentView } from "@/lib/view";
 
 export default function ProjectLayout({ children, params }: LayoutProps<"/projects/[id]">) {
   return (
@@ -29,7 +30,7 @@ export default function ProjectLayout({ children, params }: LayoutProps<"/projec
 
 async function ProjectHeader({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const p = await api.project(id);
+  const [p, view] = await Promise.all([api.project(id), currentView()]);
   return (
     <>
       <div className="page-head">
@@ -52,8 +53,8 @@ async function ProjectHeader({ params }: { params: Promise<{ id: string }> }) {
           </div>
         ) : null}
       </div>
-      <Suspense fallback={<PlainProjectTabs projectId={id} team={p.access.team} />}>
-        <ProjectTabs projectId={id} team={p.access.team} />
+      <Suspense fallback={<PlainProjectTabs projectId={id} team={p.access.team} view={view} />}>
+        <ProjectTabs projectId={id} team={p.access.team} view={view} />
       </Suspense>
     </>
   );

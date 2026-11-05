@@ -1,6 +1,6 @@
 # Lekhara status
 
-Last updated: 2026-10-23, with the commit "Lay the README out like Metakai's, with the video looping at the top".
+Last updated: 2026-11-06, with the commit "A public demo on Vercel, with every workflow working on made-up data".
 
 ## What we are building
 
@@ -344,9 +344,25 @@ Launch market: Bengaluru, then the rest of Karnataka, then other states. The pla
   - The README is laid out like Metakai's: a centred header, the preview, four screens from the demo, and short sections. What isn't built yet is listed under "Coming next" instead of mixed in.
   - A vertical version for WhatsApp is kept outside the repository.
 
+- A public demo on Vercel: the website and the API as one Vercel project, the API private behind the website. Each instance builds a fresh demo when it starts, so it resets by itself.
+  - The first screen asks whether to see the main software (what only Lekhara does) or the expanded software (adding units and buyers, collections, suppliers and bills, and the budget), and the user menu switches between them.
+  - Every workflow works on made-up data, including those that need email or files from outside:
+    - emails land in a demo mailbox;
+    - a data room visitor sees their code on the page;
+    - each project offers sample files made from its own units, suppliers and bills (a Tally export, the collection and RERA account statements, a GSTR-2B, a unit list), plus a K-RERA certificate for a new project;
+    - a sample email with a statement attached is brought in through the real intake.
+  - Everyone signs in as the same demo accounts, so steps that would lock the others out are refused for those accounts. Anyone can sign up for a firm of their own in the demo to try them.
+  - The demo's buyers now have names, and its suppliers and firm have well-formed GSTINs.
+- Tested: the shared accounts' guards, the mailbox, a visitor's code, every sample file brought in through the real imports with the outcomes expected, the sample email, nothing of it off the demo, and the Vercel entry point building the demo from nothing. End to end: the first screen's choice and both views, sample files downloaded and read, the sample email, a lender opening a data room with the code shown, the owner's mailbox, a refused password reset, the sample certificate, and signing up for a firm of one's own.
+
 ## In progress
 
-- Nothing at the moment; the next work is under Left.
+- Deploying the demo to Vercel.
+
+## Next: the expanded software
+
+Decided on 2026-11-06: once the demo is live, research and build the tools a Karnataka builder needs to run the whole firm, for firms with no ERP or CRM of their own, India-relevant only and with no HR or payroll. Each module joins the demo's expanded software as it's built. CRM (leads, site visits, bookings, cost sheets, channel partners) is the likely first; the research decides the rest.
+
 
 ## Left
 

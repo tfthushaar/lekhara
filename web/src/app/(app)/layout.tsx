@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { acceptTerms, endSupport, resendVerification, signOut } from "@/app/actions";
+import { acceptTerms, chooseView, endSupport, resendVerification, signOut } from "@/app/actions";
 import { ActionForm } from "@/components/action-form";
 import { Nav, PlainNav } from "@/components/nav";
 import { api } from "@/lib/api";
 import { day, moment } from "@/lib/format";
+import { currentView } from "@/lib/view";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -41,6 +42,15 @@ async function Banners() {
   const org = me.organization;
   return (
     <>
+      {me.demo ? (
+        <div className="banner" role="status">
+          <span>
+            You&apos;re trying the Lekhara demo. The firms, people and figures are made up, and it resets from time to
+            time, so please don&apos;t add real documents or personal details.
+          </span>
+          <Link href="/mailbox">Demo mailbox</Link>
+        </div>
+      ) : null}
       {me.support ? (
         <div className="banner banner-strong" role="status">
           <span>
@@ -90,6 +100,7 @@ async function Banners() {
       {!me.email_verified && !me.support ? (
         <div className="banner">
           <span>{`Confirm your email address with the link we sent to ${me.user.email}.`}</span>
+          {me.demo ? <Link href="/mailbox">Open it in the demo mailbox</Link> : null}
           <ActionForm action={resendVerification} label="Send it again" pendingLabel="Sending" secondary className="inline-form" />
         </div>
       ) : null}
@@ -98,7 +109,7 @@ async function Banners() {
 }
 
 async function UserMenu() {
-  const me = await api.me();
+  const [me, view] = await Promise.all([api.me(), currentView()]);
   return (
     <div className="user-menu">
       <span className="org">
@@ -108,6 +119,18 @@ async function UserMenu() {
         <Link href="/admin" className="link-button">
           Admin
         </Link>
+      ) : null}
+      {me.demo ? (
+        <>
+          <Link href="/mailbox" className="link-button">
+            Mailbox
+          </Link>
+          <form action={chooseView.bind(null, view === "main" ? "expanded" : "main", "/")}>
+            <button type="submit" className="link-button">
+              {view === "main" ? "Show the expanded software" : "Show only the main software"}
+            </button>
+          </form>
+        </>
       ) : null}
       <form action={signOut}>
         <button type="submit" className="link-button">
